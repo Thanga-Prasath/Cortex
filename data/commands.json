@@ -1,0 +1,345 @@
+{
+    "intents": [
+        {
+            "tag": "greet",
+            "patterns": [
+                "hello",
+                "hi",
+                "hey",
+                "greetings",
+                "sunday",
+                "good morning",
+                "good afternoon",
+                "good evening",
+                "hey sunday"
+            ],
+            "responses": [
+                "Hello Sir. How may I help you?",
+                "Greetings Sir. I am online.",
+                "Hello Sir. Ready to assist.",
+                "Good day Sir."
+            ]
+        },
+        {
+            "tag": "time",
+            "patterns": [
+                "time",
+                "clock",
+                "hour",
+                "what is the time",
+                "current time",
+                "tell me the time"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "date",
+            "patterns": [
+                "date",
+                "today",
+                "day",
+                "year",
+                "month",
+                "what is today",
+                "tell me the date"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "exit",
+            "patterns": [
+                "exit",
+                "bye",
+                "stop",
+                "quit",
+                "shutdown",
+                "goodbye"
+            ],
+            "responses": [
+                "Goodbye Sir.",
+                "Shutting down, Sir.",
+                "Have a good day, Sir.",
+                "See you later, Sir."
+            ]
+        },
+        {
+            "tag": "system_ip",
+            "patterns": [
+                "what is my ip",
+                "ip address",
+                "check network",
+                "icy",
+                "eye pea",
+                "what is my icy",
+                "what is the address"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "system_memory",
+            "patterns": [
+                "check ram",
+                "memory usage",
+                "how much ram",
+                "system memory",
+                "six memory",
+                "text memory",
+                "term memory",
+                "it's a memory"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "system_disk",
+            "patterns": [
+                "disk space",
+                "storage status",
+                "check disk",
+                "hard drive space",
+                "what is their storage status"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "list_curr_dir",
+            "patterns": [
+                "list files",
+                "show directory",
+                "what is in this folder",
+                "ls",
+                "list file",
+                "mister file",
+                "so directory"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "system_info",
+            "patterns": [
+                "system info",
+                "computer specs",
+                "what os is this",
+                "operating system"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "system_scan",
+            "patterns": [
+                "scan system",
+                "security scan",
+                "run security check",
+                "check for viruses",
+                "system security",
+                "scan computer",
+                "check security",
+                "is my system safe",
+                "run virus scan",
+                "scan for threats",
+                "security check",
+                "inspect system"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "check_ports",
+            "patterns": [
+                "check ports",
+                "open ports",
+                "show open ports",
+                "network ports",
+                "check network ports",
+                "what ports are open",
+                "list ports",
+                "show me ports",
+                "are my ports open",
+                "scan ports",
+                "port status"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "check_firewall",
+            "patterns": [
+                "check firewall",
+                "firewall status",
+                "is firewall on",
+                "show firewall",
+                "firewall check",
+                "security wall",
+                "firewall",
+                "is the firewall active",
+                "check ufw"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "console_clear",
+            "patterns": [
+                "clear screen",
+                "clear console",
+                "clean terminal",
+                "cls"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "check_connections",
+            "patterns": [
+                "check connections",
+                "network connections",
+                "who am i talking to",
+                "active connections",
+                "list connections",
+                "show connections"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "system_processes",
+            "patterns": [
+                "process monitor",
+                "task manager",
+                "check running processes",
+                "top",
+                "show processes",
+                "list processes",
+                "what is running"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "login_history",
+            "patterns": [
+                "login history",
+                "who logged in",
+                "check users",
+                "user history",
+                "sign in history"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "network_traffic",
+            "patterns": [
+                "network traffic",
+                "internet monitor",
+                "traffic monitor",
+                "data usage"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "internet_speed",
+            "patterns": [
+                "check internet speed",
+                "run speed test",
+                "how fast is my internet",
+                "speedtest",
+                "net speed",
+                "check speed",
+                "test connection speed"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "system_cleanup",
+            "patterns": [
+                "clean system",
+                "clean temporary files",
+                "delete temp files",
+                "remove junk files",
+                "clean my pc",
+                "disk cleanup",
+                "clear cache"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "kill_process",
+            "patterns": [
+                "kill process",
+                "close application",
+                "terminate program",
+                "end task",
+                "stop running",
+                "kill application",
+                "close program"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "file_create_folder",
+            "patterns": [
+                "create folder",
+                "make directory",
+                "new folder",
+                "create directory",
+                "make folder"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "file_create_file",
+            "patterns": [
+                "create file",
+                "new file",
+                "make file",
+                "generate file"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "file_move",
+            "patterns": [
+                "move file",
+                "move folder",
+                "transfer file",
+                "cut and paste",
+                "move",
+                "move items"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "file_search",
+            "patterns": [
+                "search file",
+                "find file",
+                "look for folder",
+                "look for folders",
+                "find folder",
+                "search for file",
+                "locate file"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "file_select",
+            "patterns": [
+                "select file",
+                "select folder",
+                "pick file",
+                "choose file",
+                "grab file",
+                "copy file",
+                "select this",
+                "pick folder"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "file_move_here",
+            "patterns": [
+                "move here",
+                "paste here",
+                "bring them here",
+                "move selected here",
+                "put it here",
+                "paste file",
+                "drop it here"
+            ],
+            "responses": []
+        }
+    ]
+}

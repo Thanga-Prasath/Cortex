@@ -1,0 +1,4 @@
+pyaudio
+faster-whisper
+scikit-learn
+numpy
