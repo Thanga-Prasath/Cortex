@@ -297,7 +297,10 @@
                 "transfer file",
                 "cut and paste",
                 "move",
-                "move items"
+                "move items",
+                "i want to move",
+                "cut file",
+                "cut folder"
             ],
             "responses": []
         },
@@ -324,7 +327,11 @@
                 "grab file",
                 "copy file",
                 "select this",
-                "pick folder"
+                "pick folder",
+                "choose folder",
+                "grab folder",
+                "select the file",
+                "select the folder"
             ],
             "responses": []
         },
@@ -337,7 +344,11 @@
                 "move selected here",
                 "put it here",
                 "paste file",
-                "drop it here"
+                "drop it here",
+                "paste them here",
+                "move them here",
+                "paste",
+                "move it here"
             ],
             "responses": []
         }

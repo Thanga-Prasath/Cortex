@@ -162,75 +162,31 @@ class FileManagerEngine:
             self.speaker.speak(f"I encountered an error creating the item: {str(e)}")
 
     def _move_item(self, command):
-        # Case 1: "Move [source] to [dest]"
-        if " to " in command:
-            parts = command.split(" to ")
-            source_raw = parts[0].replace("move file", "").replace("move folder", "").replace("move", "").strip()
-            dest_raw = parts[1].strip()
-            
-            # Clean paths
-            source_raw = source_raw.replace("'", "").replace('"', "")
-            dest_raw = dest_raw.replace("'", "").replace('"', "")
-
-            # Resolve Source
-            active_loc = self._get_active_location()
-            possible_sources = [
-                active_loc / source_raw,
-                self.desktop_path / source_raw,
-                Path.home() / source_raw
-            ]
-            
-            source_path = None
-            for p in possible_sources:
-                if p.exists():
-                    source_path = p
-                    break
-            
-            if not source_path:
-                self.speaker.speak(f"I could not find the file or folder named {source_raw}.")
-                return
-
-            # Resolve Destination
-            standard_folders = ["Documents", "Downloads", "Music", "Pictures", "Videos", "Desktop"]
-            dest_path = None
-            
-            for std in standard_folders:
-                if dest_raw.lower() in std.lower():
-                    dest_path = Path.home() / std
-                    break
-            
-            if not dest_path:
-                 p = Path.home() / dest_raw
-                 if p.is_dir():
-                     dest_path = p
-            
-            if not dest_path:
-                 self.speaker.speak(f"I assume you want to move it to {dest_raw}, but I cannot find that folder.")
-                 return
-
-            try:
-                shutil.move(str(source_path), str(dest_path))
-                self.speaker.speak(f"Moved {source_raw} to {dest_path.name}.")
-            except Exception as e:
-                self.speaker.speak(f"I could not move the file: {str(e)}")
-            return
-
-        # Case 2: "Move [source]" or just "Move" (Stateful)
+        """
+        Simplified move command handler.
+        - If no filename given and no selection: prompt to select files first
+        - If filename given: select it and prompt for destination
+        - If no filename but has selection: remind to navigate and say 'move here'
+        """
+        # Extract filename from command
         cleaned_cmd = command.lower().replace("move file", "").replace("move folder", "").replace("move items", "").replace("move", "").strip()
         cleaned_cmd = cleaned_cmd.replace("'", "").replace('"', "")
 
-        # Subcase 2a: Just "Move" (User wants to move already selected items)
+        # Case 1: Just "Move" with no filename
         if not cleaned_cmd:
             if self.selected_items:
-                self.speaker.speak(f"Ready to move {len(self.selected_items)} items. Please navigate to the destination folder and say 'move here'.")
+                count = len(self.selected_items)
+                item_word = "item" if count == 1 else "items"
+                self.speaker.speak(f"You have {count} {item_word} selected. Please navigate to the destination folder and say 'move here' or 'paste here'.")
             else:
-                 self.speaker.speak("No files selected. Please select the file you want to move first.")
+                self.speaker.speak("No files selected. Please select files first by saying 'select file' followed by the filename.")
             return
 
-        # Subcase 2b: "Move [filename]" (User wants to pick a file to move)
+        # Case 2: "Move [filename]" - Select the file and prompt for destination
         source_raw = cleaned_cmd
         active_loc = self._get_active_location()
         
+        # Try to find the file in current location, desktop, or home
         possible_sources = [
             active_loc / source_raw,
             self.desktop_path / source_raw,
@@ -244,57 +200,100 @@ class FileManagerEngine:
                 break
         
         if source_path:
-             self.selected_items.append(source_path)
-             self.speaker.speak(f"Added {source_raw} to move list. Please navigate to the destination folder and say 'move here'.")
+            self.selected_items.append(source_path)
+            self.speaker.speak(f"Selected {source_raw}. Now navigate to the destination folder and say 'move here' or 'paste here'.")
         else:
-             self.speaker.speak(f"I could not find {source_raw} to move.")
+            self.speaker.speak(f"I could not find {source_raw} in {active_loc.name}.")
 
     def _select_item(self, command):
+        """
+        Select a file or folder for later moving.
+        Supports selecting multiple items in sequence.
+        """
         location = self._get_active_location()
         
-        keywords = ["select file", "select folder", "pick file", "choose file", "select", "pick", "grab"]
+        keywords = ["select file", "select folder", "pick file", "choose file", "select", "pick", "grab", "copy file"]
         name = self._extract_name(command, keywords)
         name = name.replace("'", "").replace('"', "")
         
         target = location / name
         if not target.exists():
-            # Try partial match logic if exact match fail?
-            # For now strict
             self.speaker.speak(f"I cannot find {name} in {location.name}.")
+            return
+        
+        # Check if already selected
+        if target in self.selected_items:
+            self.speaker.speak(f"{name} is already selected.")
             return
             
         self.selected_items.append(target)
-        self.speaker.speak(f"Selected {name}. Now please navigate to the destination folder and say 'move here'.")
+        count = len(self.selected_items)
+        
+        if count == 1:
+            self.speaker.speak(f"Selected {name}. You can select more items or navigate to the destination and say 'move here'.")
+        else:
+            item_word = "items" if count > 1 else "item"
+            self.speaker.speak(f"Selected {name}. You now have {count} {item_word} selected. Navigate to destination and say 'move here'.")
 
     def _move_selected_here(self, command):
+        """
+        Move all selected items to the current active location.
+        Handles name collisions and provides detailed feedback.
+        """
         if not self.selected_items:
-            self.speaker.speak("You haven't selected any files to move.")
+            self.speaker.speak("You haven't selected any files to move. Please select files first by saying 'select file' followed by the filename.")
             return
 
         dest_location = self._get_active_location()
         
         success_count = 0
+        skipped_count = 0
+        failed_items = []
+        
         for item in self.selected_items:
             try:
-                # Handle name collision by appending _copy or similar?
-                # For now simple overwrite protection is done by shutil.move but it might fail or overwrite
-                # Let's just move
-                
-                # Check if dest == source (no op)
+                # Check if source and destination are the same
                 if item.parent == dest_location:
+                    skipped_count += 1
                     continue
-                    
+                
+                # Handle name collisions
                 destination = dest_location / item.name
+                if destination.exists():
+                    # Append number to avoid collision
+                    base_name = item.stem
+                    extension = item.suffix
+                    counter = 1
+                    while destination.exists():
+                        new_name = f"{base_name}_{counter}{extension}"
+                        destination = dest_location / new_name
+                        counter += 1
+                
                 shutil.move(str(item), str(destination))
                 success_count += 1
             except Exception as e:
                 print(f"Error moving {item}: {e}")
+                failed_items.append(item.name)
         
-        self.selected_items = [] # Clear selection
+        # Clear selection after attempt
+        self.selected_items = []
+        
+        # Provide detailed feedback
         if success_count > 0:
-            self.speaker.speak(f"Moved {success_count} items to {dest_location.name}.")
+            item_word = "item" if success_count == 1 else "items"
+            message = f"Moved {success_count} {item_word} to {dest_location.name}."
+            
+            if skipped_count > 0:
+                message += f" Skipped {skipped_count} already in this location."
+            if failed_items:
+                message += f" Failed to move: {', '.join(failed_items)}."
+                
+            self.speaker.speak(message)
         else:
-            self.speaker.speak("Could not move items.")
+            if skipped_count > 0:
+                self.speaker.speak(f"All items are already in {dest_location.name}.")
+            else:
+                self.speaker.speak("Could not move any items. Please check if the files still exist.")
 
     def _background_search(self, query):
         # User requested "exact name first, then related files".
