@@ -1,6 +1,42 @@
 import subprocess
 import os
 import platform
+import multiprocessing
+
+def run_tts_worker(text, os_type):
+    """
+    Worker function to run pyttsx3 in a separate process.
+    This ensures the event loop is created and destroyed cleanly for each utterance,
+    preventing conflicts with other libraries (like PyAudio) or stuck loops.
+    """
+    try:
+        import pyttsx3
+        engine = pyttsx3.init()
+        
+        # Configure Voice
+        try:
+            voices = engine.getProperty('voices')
+            if os_type == 'Windows':
+                for voice in voices:
+                    if 'zira' in voice.name.lower() or 'david' in voice.name.lower():
+                        engine.setProperty('voice', voice.id)
+                        break
+            elif os_type == 'Darwin':
+                for voice in voices:
+                    if 'samantha' in voice.name.lower() or 'alex' in voice.name.lower():
+                        engine.setProperty('voice', voice.id)
+                        break
+            
+            engine.setProperty('rate', 175)
+            engine.setProperty('volume', 0.9)
+        except Exception as e:
+            print(f"[!] Worker Voice config error: {e}")
+
+        engine.say(text)
+        engine.runAndWait()
+        
+    except Exception as e:
+        print(f"[!] TTS Worker Error: {e}")
 
 class Speaker:
     def __init__(self):
@@ -49,9 +85,10 @@ class Speaker:
     def _init_pyttsx3(self):
         """Initialize pyttsx3 TTS for Windows/macOS/Linux fallback."""
         try:
+            # We just verify it can be imported, but we won't keep an engine instance 
+            # alive in the main process if we're using multiprocessing.
             import pyttsx3
-            self.engine = pyttsx3.init()
-            self._configure_voice()
+            # self.engine = pyttsx3.init() # Do NOT init in main process if using MP worker
             self.pyttsx3_available = True
             print(f"[✓] pyttsx3 TTS initialized successfully")
         except ImportError:
@@ -61,37 +98,6 @@ class Speaker:
             print(f"[!] Error initializing pyttsx3: {e}")
             self.pyttsx3_available = False
     
-    def _configure_voice(self):
-        """Configure pyttsx3 voice properties for better quality."""
-        if not self.engine:
-            return
-        
-        try:
-            voices = self.engine.getProperty('voices')
-            
-            # Platform-specific voice selection
-            if self.os_type == 'Windows':
-                # Prefer Zira (female) or David (male) on Windows
-                for voice in voices:
-                    if 'zira' in voice.name.lower() or 'david' in voice.name.lower():
-                        self.engine.setProperty('voice', voice.id)
-                        break
-            elif self.os_type == 'Darwin':  # macOS
-                # Prefer Samantha or Alex on macOS
-                for voice in voices:
-                    if 'samantha' in voice.name.lower() or 'alex' in voice.name.lower():
-                        self.engine.setProperty('voice', voice.id)
-                        break
-            
-            # Set speech rate (words per minute)
-            self.engine.setProperty('rate', 175)  # Default is ~200, slower is clearer
-            
-            # Set volume (0.0 to 1.0)
-            self.engine.setProperty('volume', 0.9)
-            
-        except Exception as e:
-            print(f"[!] Error configuring voice: {e}")
-
     def _speak_piper(self, text):
         """Use Piper TTS (Linux only, high quality)."""
         try:
@@ -126,11 +132,11 @@ class Speaker:
                 self._speak_pyttsx3(text)
     
     def _speak_pyttsx3(self, text):
-        """Use pyttsx3 TTS (cross-platform)."""
+        """Use pyttsx3 TTS in a separate process."""
         try:
-            if self.engine:
-                self.engine.say(text)
-                self.engine.runAndWait()
+            p = multiprocessing.Process(target=run_tts_worker, args=(text, self.os_type))
+            p.start()
+            p.join() # Wait for speech to finish (blocking)
         except Exception as e:
             print(f"[!] pyttsx3 TTS error: {e}")
 
@@ -161,6 +167,6 @@ class Speaker:
             print(f"[!] TTS Error: {e}")
 
 if __name__ == "__main__":
+    multiprocessing.freeze_support() # Recommended for Windows
     s = Speaker()
     s.speak("System initialized. Cross-platform text to speech is working.")
-
