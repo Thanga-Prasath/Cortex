@@ -300,7 +300,12 @@
                 "move items",
                 "i want to move",
                 "cut file",
-                "cut folder"
+                "cut folder",
+                "move selected items",
+                "move selected files",
+                "move selected",
+                "move these files",
+                "move these"
             ],
             "responses": []
         },
@@ -331,7 +336,10 @@
                 "choose folder",
                 "grab folder",
                 "select the file",
-                "select the folder"
+                "select the folder",
+                "select these",
+                "select these files",
+                "get selected"
             ],
             "responses": []
         },

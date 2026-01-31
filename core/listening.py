@@ -6,6 +6,7 @@ try:
     import wave
     import time
     import numpy as np
+    import threading
     from faster_whisper import WhisperModel
     from .alsa_error import no_alsa_error
 except ImportError as e:
@@ -15,14 +16,40 @@ except ImportError as e:
 
 class Listener:
     def __init__(self):
+        # Use base.en for better accuracy
+        # local_files_only=True prevents hanging on network requests
         self.model_size = "base.en"
-        print(f"[System] Loading Whisper Model ({self.model_size})...")
+        self.model = None
+        self.p = None
         
-        # Suppress ALSA/Jack errors
-        with no_alsa_error():
-            # Run on CPU with INT8 quantization for speed/compatibility
-            self.model = WhisperModel(self.model_size, device="cpu", compute_type="int8")
-            self.p = pyaudio.PyAudio()
+        print(f"[System] Loading Whisper Model ({self.model_size})...")
+        print("[System] This should take just a few seconds...")
+        
+        # Try to load the model with better error handling
+        try:
+            with no_alsa_error():
+                # Run on CPU with INT8 quantization for speed/compatibility
+                # num_workers=1 to avoid threading issues
+                # local_files_only=True to prevent hanging on network requests
+                self.model = WhisperModel(
+                    self.model_size, 
+                    device="cpu", 
+                    compute_type="int8",
+                    num_workers=1,  # Single worker to avoid deadlocks
+                    local_files_only=True  # Use cached model, don't check HuggingFace Hub
+                )
+                self.p = pyaudio.PyAudio()
+            
+            print("[✓] Whisper Model loaded successfully!")
+            
+        except Exception as e:
+            print(f"\n[ERROR] Failed to load Whisper model: {e}")
+            print("[SOLUTION] Try these fixes:")
+            print("  1. Download the model first: python -c 'from faster_whisper import WhisperModel; WhisperModel(\"tiny.en\")'")
+            print("  2. Clear the model cache: rm -rf ~/.cache/huggingface/hub/models--Systran--faster-whisper-*")
+            print("  3. Reinstall faster-whisper: pip install --upgrade --force-reinstall faster-whisper")
+            raise RuntimeError("Whisper model loading failed")
+
 
         self.THRESHOLD = 1000  # Default, adjusted by calibration
         self.CHUNK = 1024

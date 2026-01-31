@@ -126,6 +126,80 @@ class FileManagerEngine:
             
         return self.desktop_path
 
+    def _get_selected_files_from_clipboard(self):
+        """
+        Detect files currently selected in the active file manager window.
+        Uses xdotool to simulate Ctrl+C and xclip to read clipboard.
+        Returns list of Path objects for selected files/folders.
+        """
+        import time
+        
+        # Check for required dependencies
+        try:
+            subprocess.run(['which', 'xdotool'], check=True, capture_output=True)
+        except subprocess.CalledProcessError:
+            self.speaker.speak("xdotool is not installed. Please install it to use clipboard-based file selection.")
+            print("[FileManager] Error: xdotool not found. Install with: sudo apt install xdotool")
+            return []
+        
+        try:
+            subprocess.run(['which', 'xclip'], check=True, capture_output=True)
+        except subprocess.CalledProcessError:
+            self.speaker.speak("xclip is not installed. Please install it to use clipboard-based file selection.")
+            print("[FileManager] Error: xclip not found. Install with: sudo apt install xclip")
+            return []
+        
+        try:
+            # Simulate Ctrl+C to copy selected files to clipboard
+            subprocess.run(['xdotool', 'key', 'ctrl+c'], check=True, stderr=subprocess.DEVNULL)
+            
+            # Wait briefly for clipboard to update
+            time.sleep(0.15)
+            
+            # Read clipboard content
+            result = subprocess.run(
+                ['xclip', '-selection', 'clipboard', '-o'],
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            
+            clipboard_content = result.stdout.strip()
+            
+            if not clipboard_content:
+                return []
+            
+            # Parse file URIs from clipboard
+            # File managers typically copy files as URIs: file:///path/to/file
+            selected_paths = []
+            
+            for line in clipboard_content.split('\n'):
+                line = line.strip()
+                
+                # Handle file:// URI format
+                if line.startswith('file://'):
+                    # Remove file:// prefix and decode URL encoding
+                    from urllib.parse import unquote
+                    path_str = unquote(line[7:])  # Remove 'file://'
+                    path = Path(path_str)
+                    
+                    if path.exists():
+                        selected_paths.append(path)
+                # Handle plain path format (some file managers)
+                elif line.startswith('/'):
+                    path = Path(line)
+                    if path.exists():
+                        selected_paths.append(path)
+            
+            return selected_paths
+            
+        except subprocess.TimeoutExpired:
+            print("[FileManager] Timeout reading clipboard")
+            return []
+        except Exception as e:
+            print(f"[FileManager] Error reading clipboard: {e}")
+            return []
+
     def _extract_name(self, command, keywords):
         """
         Extracts the target name from the command.
@@ -163,26 +237,40 @@ class FileManagerEngine:
 
     def _move_item(self, command):
         """
-        Simplified move command handler.
-        - If no filename given and no selection: prompt to select files first
-        - If filename given: select it and prompt for destination
-        - If no filename but has selection: remind to navigate and say 'move here'
+        Move command handler with clipboard-based file selection.
+        - Detects files manually selected in file manager via clipboard
+        - Supports voice-based filename for backward compatibility
+        - Prompts user to navigate to destination and say 'move here'
         """
-        # Extract filename from command
-        cleaned_cmd = command.lower().replace("move file", "").replace("move folder", "").replace("move items", "").replace("move", "").strip()
+        # Extract filename from command (for backward compatibility)
+        cleaned_cmd = command.lower().replace("move file", "").replace("move folder", "").replace("move items", "").replace("move selected", "").replace("move", "").strip()
         cleaned_cmd = cleaned_cmd.replace("'", "").replace('"', "")
 
-        # Case 1: Just "Move" with no filename
-        if not cleaned_cmd:
-            if self.selected_items:
+        # Case 1: "move" or "move selected items" - detect clipboard selection
+        if not cleaned_cmd or "selected" in command.lower():
+            # Try to get files from clipboard (manually selected in file manager)
+            clipboard_files = self._get_selected_files_from_clipboard()
+            
+            if clipboard_files:
+                # Add to selection, avoiding duplicates
+                for file_path in clipboard_files:
+                    if file_path not in self.selected_items:
+                        self.selected_items.append(file_path)
+                
                 count = len(self.selected_items)
                 item_word = "item" if count == 1 else "items"
-                self.speaker.speak(f"You have {count} {item_word} selected. Please navigate to the destination folder and say 'move here' or 'paste here'.")
+                self.speaker.speak(f"Selected {count} {item_word}. Navigate to the destination folder and say 'move here' or 'paste here'.")
+            elif self.selected_items:
+                # Already have selection from previous command
+                count = len(self.selected_items)
+                item_word = "item" if count == 1 else "items"
+                self.speaker.speak(f"You have {count} {item_word} selected. Navigate to the destination folder and say 'move here' or 'paste here'.")
             else:
-                self.speaker.speak("No files selected. Please select files first by saying 'select file' followed by the filename.")
+                # No files selected
+                self.speaker.speak("No files are currently selected. Please select files in your file manager and try again.")
             return
 
-        # Case 2: "Move [filename]" - Select the file and prompt for destination
+        # Case 2: "Move [filename]" - Voice-based selection for backward compatibility
         source_raw = cleaned_cmd
         active_loc = self._get_active_location()
         
@@ -203,22 +291,61 @@ class FileManagerEngine:
             self.selected_items.append(source_path)
             self.speaker.speak(f"Selected {source_raw}. Now navigate to the destination folder and say 'move here' or 'paste here'.")
         else:
-            self.speaker.speak(f"I could not find {source_raw} in {active_loc.name}.")
+            self.speaker.speak(f"I could not find {source_raw} in common locations. Please select the file manually in your file manager and say 'move selected items'.")
 
     def _select_item(self, command):
         """
         Select a file or folder for later moving.
-        Supports selecting multiple items in sequence.
+        Supports clipboard-based selection and voice-based filename selection.
         """
-        location = self._get_active_location()
-        
         keywords = ["select file", "select folder", "pick file", "choose file", "select", "pick", "grab", "copy file"]
         name = self._extract_name(command, keywords)
-        name = name.replace("'", "").replace('"', "")
+        name = name.replace("'", "").replace('"', "").strip()
         
-        target = location / name
-        if not target.exists():
-            self.speaker.speak(f"I cannot find {name} in {location.name}.")
+        # Case 1: "select these" or similar - use clipboard detection
+        if not name or name.lower() in ["these", "these files", "selected"]:
+            clipboard_files = self._get_selected_files_from_clipboard()
+            
+            if clipboard_files:
+                # Add to selection, avoiding duplicates
+                new_count = 0
+                for file_path in clipboard_files:
+                    if file_path not in self.selected_items:
+                        self.selected_items.append(file_path)
+                        new_count += 1
+                
+                total_count = len(self.selected_items)
+                if new_count > 0:
+                    item_word = "item" if total_count == 1 else "items"
+                    self.speaker.speak(f"Selected {new_count} new files. You now have {total_count} {item_word} selected. Navigate to destination and say 'move here'.")
+                else:
+                    self.speaker.speak(f"These files are already selected. You have {total_count} items selected.")
+            else:
+                self.speaker.speak("No files are currently selected in your file manager. Please select files and try again.")
+            return
+        
+        # Case 2: Voice-based filename selection (backward compatibility)
+        location = self._get_active_location()
+        
+        # Try to find the file in multiple locations
+        possible_locations = [
+            (location, location.name),
+            (self.desktop_path, "Desktop"),
+            (Path.home(), "Home")
+        ]
+        
+        target = None
+        found_location = None
+        
+        for loc, loc_name in possible_locations:
+            potential_target = loc / name
+            if potential_target.exists():
+                target = potential_target
+                found_location = loc_name
+                break
+        
+        if not target:
+            self.speaker.speak(f"I cannot find {name} in common locations. Please select the file manually in your file manager and say 'select these'.")
             return
         
         # Check if already selected
@@ -230,7 +357,8 @@ class FileManagerEngine:
         count = len(self.selected_items)
         
         if count == 1:
-            self.speaker.speak(f"Selected {name}. You can select more items or navigate to the destination and say 'move here'.")
+            location_info = f" from {found_location}" if found_location != location.name else ""
+            self.speaker.speak(f"Selected {name}{location_info}. You can select more items or navigate to the destination and say 'move here'.")
         else:
             item_word = "items" if count > 1 else "item"
             self.speaker.speak(f"Selected {name}. You now have {count} {item_word} selected. Navigate to destination and say 'move here'.")
