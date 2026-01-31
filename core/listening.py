@@ -1,7 +1,7 @@
 try:
     import json
     import pyaudio
-    import audioop
+
     import os
     import wave
     import time
@@ -72,7 +72,9 @@ class Listener:
             noise_levels = []
             for _ in range(30): # Listen for ~1.5 second
                 data = stream.read(self.CHUNK, exception_on_overflow=False)
-                rms = audioop.rms(data, 2)
+                # rms = audioop.rms(data, 2) - Replaced for Python 3.13 compatibility
+                samples = np.frombuffer(data, dtype=np.int16).astype(np.float32)
+                rms = np.sqrt(np.mean(samples**2))
                 noise_levels.append(rms)
             
             stream.stop_stream()
@@ -104,7 +106,9 @@ class Listener:
             
             while True:
                 data = stream.read(self.CHUNK, exception_on_overflow=False)
-                rms = audioop.rms(data, 2)
+                # rms = audioop.rms(data, 2) - Replaced for Python 3.13 compatibility
+                samples = np.frombuffer(data, dtype=np.int16).astype(np.float32)
+                rms = np.sqrt(np.mean(samples**2))
                 
                 if not started:
                     if rms > self.THRESHOLD:
