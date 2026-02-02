@@ -76,6 +76,14 @@ class Listener:
         self.SILENCE_LIMIT = 1.5 # Seconds of silence to stop recording
 
         self.calibrate_noise()
+        
+        # Default keywords (Safety net)
+        self.dynamic_keywords = "system, computer, cortana, siri, google, alexa, time, date, exit, stop"
+
+    def update_keywords(self, keywords_str):
+        """Updates the command vocabulary prompt for Whisper."""
+        self.dynamic_keywords = keywords_str
+        print(f"[System] Speech Recognition Vocabulary Updated ({len(keywords_str)} chars).")
 
     def calibrate_noise(self):
         """Measures ambient noise level to set dynamic threshold."""
@@ -163,13 +171,18 @@ class Listener:
             # print("\rProcessing...             ", end="", flush=True)
             # Beam size 1 is faster, but 5 is more accurate. 
             # We use initial_prompt to bias the model towards our command vocabulary.
-            keywords = "system scan, system cleanup, exit, stop, check ports, firewall, memory, disk, cpu, file manager, create folder, move file, search"
+            # Expanded keywords to prevent "parties to time" hallucinations.
+            # keywords = "what is the time, current date, system scan, system cleanup, exit, stop, check ports, firewall, memory, disk, cpu, file manager, create folder, move file, search, hello, greetings, system info"
+            
+            # Combine dynamic vocab with some static anchors
+            prompt_text = f"Commands: {self.dynamic_keywords}, system monitor, assistant"
+            
             segments, info = self.model.transcribe(
                 audio_np, 
-                beam_size=1, 
+                beam_size=5, # Accuracy > Speed
                 temperature=0, 
                 language="en",
-                initial_prompt=f"Commands: {keywords}"
+                initial_prompt=prompt_text
             )
             
             full_text = ""

@@ -9,8 +9,8 @@ class NeuralIntentModel:
     def __init__(self, data_file="data/commands.json", model_file="data/model.pkl"):
         self.data_file = data_file
         self.model_file = model_file
-        self.vectorizer = CountVectorizer(tokenizer=lambda x: x.split(), token_pattern=None, binary=True, ngram_range=(1, 2))
-        self.classifier = LogisticRegression()
+        self.vectorizer = CountVectorizer(analyzer='char_wb', ngram_range=(2, 4))
+        self.classifier = LogisticRegression(C=10.0)
         self.intents = []
         self.tags = []
         self.patterns = []
@@ -75,5 +75,24 @@ class NeuralIntentModel:
             predicted_tag = self.classifier.classes_[max_index]
             
             return predicted_tag, confidence
+            return predicted_tag, confidence
         except:
             return None, 0.0
+
+    def get_vocabulary_phrase(self):
+        """
+        Generates a comma-separated string of all patterns to help Whisper's context.
+        """
+        all_phrases = []
+        if self.training_data and 'intents' in self.training_data:
+            for intent in self.training_data['intents']:
+                # Add the tag itself (often a good keyword)
+                all_phrases.append(intent['tag'].replace("_", " "))
+                # Add patterns
+                for pattern in intent['patterns']:
+                    all_phrases.append(pattern)
+        
+        # Deduplicate and join
+        unique_phrases = list(set(all_phrases))
+        # Limit length if necessary, but base.en handles acceptable context length
+        return ", ".join(unique_phrases)

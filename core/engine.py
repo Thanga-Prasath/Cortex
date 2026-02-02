@@ -24,6 +24,10 @@ class CortexEngine:
         # NLU Model
         self.nlu = NeuralIntentModel()
         
+        # [NEW] Inject NLU Vocabulary into Hearing (Context Injection)
+        vocab_str = self.nlu.get_vocabulary_phrase()
+        self.listener.update_keywords(vocab_str)
+        
         # OS Detection
         self.system_os = platform.system()
         if hasattr(sys, 'getandroidapilevel') or 'ANDROID_ARGUMENT' in os.environ:
