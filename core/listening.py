@@ -17,9 +17,9 @@ except ImportError as e:
 class Listener:
     def __init__(self, status_queue=None):
         self.status_queue = status_queue
-        # Use small.en for better accuracy (trade-off: slightly slower than base)
-        # base.en is fast but prone to hallucinations like "exceed" -> "exit"
-        self.model_size = "small.en"
+        # Use base.en for faster speed (trade-off: slightly less accurate than small)
+        # small.en is ~461MB, base.en is ~142MB
+        self.model_size = "base.en"
         self.model = None
         self.p = None
         
@@ -31,14 +31,30 @@ class Listener:
             with no_alsa_error():
                 # Run on CPU with INT8 quantization for speed/compatibility
                 # num_workers=1 to avoid threading issues
-                # local_files_only=True to prevent hanging on network requests
-                self.model = WhisperModel(
-                    self.model_size, 
-                    device="cpu", 
-                    compute_type="int8",
-                    num_workers=1,  # Single worker to avoid deadlocks
-                    local_files_only=True  # Use cached model, don't check HuggingFace Hub
-                )
+                
+                print("[System] Checking for local Whisper model...")
+                try:
+                    # 1. Try to load from local cache first (FAST)
+                    self.model = WhisperModel(
+                        self.model_size, 
+                        device="cpu", 
+                        compute_type="int8",
+                        num_workers=1,
+                        local_files_only=True 
+                    )
+                    print("[✓] Found local model cache.")
+                except Exception:
+                    # 2. If not found, download it (SLOW but necessary once)
+                    print(f"[!] Local model not found. Downloading {self.model_size} (approx 140MB)...")
+                    print("[!] This happens only once. Please wait...")
+                    self.model = WhisperModel(
+                        self.model_size, 
+                        device="cpu", 
+                        compute_type="int8",
+                        num_workers=1,
+                        local_files_only=False
+                    )
+                
                 self.p = pyaudio.PyAudio()
             
             print("[✓] Whisper Model loaded successfully!")
