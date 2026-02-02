@@ -45,7 +45,7 @@ class TestFileManagerMove(unittest.TestCase):
         with patch.object(self.engine, '_get_active_location', return_value=self.source_dir):
             # User says "Move file test_doc.txt"
             print("Action: 'Move file test_doc.txt'")
-            self.engine._move_item("move file test_doc.txt")
+            self.engine._move_files("move file test_doc.txt")
             
             # Check if selected
             self.assertEqual(len(self.engine.selected_items), 1)
@@ -56,13 +56,13 @@ class TestFileManagerMove(unittest.TestCase):
         with patch.object(self.engine, '_get_active_location', return_value=self.dest_dir):
             # User says "Paste here"
             print("Action: 'Paste here'")
-            self.engine._move_selected_here("paste here")
+            self.engine._move_here("paste here")
             
             # Check if moved
             expected_dest_file = self.dest_dir / "test_doc.txt"
             self.assertTrue(expected_dest_file.exists())
             self.assertFalse(self.test_file.exists())
-            self.mock_speaker.speak.assert_called_with(f"Moved 1 items to {self.dest_dir.name}.")
+            self.mock_speaker.speak.assert_called_with(f"Successfully moved 1 item to {self.dest_dir.name}.")
             self.assertEqual(len(self.engine.selected_items), 0)
 
     def test_implicit_selection_flow(self):
@@ -71,10 +71,10 @@ class TestFileManagerMove(unittest.TestCase):
         self.engine.selected_items.append(self.test_file)
         
         # User says "Move" (no args)
-        self.engine._move_item("move")
+        self.engine._move_files("move")
         
         # Should prompt to navigate
-        self.mock_speaker.speak.assert_called_with(f"Ready to move 1 items. Please navigate to the destination folder and say 'paste here' or 'move here'.")
+        self.mock_speaker.speak.assert_called_with(f"Ready to move 1 item. Please navigate to the destination folder and say 'paste here' or 'move here'.")
 
     def test_direct_move(self):
         print("\n--- Testing Direct Move (A to B) ---")
