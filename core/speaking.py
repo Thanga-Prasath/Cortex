@@ -39,8 +39,9 @@ def run_tts_worker(text, os_type):
         print(f"[!] TTS Worker Error: {e}")
 
 class Speaker:
-    def __init__(self):
+    def __init__(self, status_queue=None):
         """Initialize TTS engine based on the operating system."""
+        self.status_queue = status_queue
         self.os_type = platform.system()  # 'Linux', 'Windows', 'Darwin' (macOS)
         self.piper_available = False
         self.pyttsx3_available = False
@@ -148,7 +149,7 @@ class Speaker:
         1. Linux: Piper (high quality) → pyttsx3 fallback
         2. Windows/macOS: pyttsx3 (native engines)
         """
-        print(f"Sunday: {text}")
+        print(f"Cortex: {text}")
         
         if not text:
             return
@@ -156,10 +157,14 @@ class Speaker:
         try:
             # Use Piper on Linux if available
             if self.os_type == 'Linux' and self.piper_available:
+                if self.status_queue: self.status_queue.put(("SPEAKING", None))
                 self._speak_piper(text)
+                if self.status_queue: self.status_queue.put(("IDLE", None))
             # Use pyttsx3 on Windows/macOS or as Linux fallback
             elif self.pyttsx3_available:
+                if self.status_queue: self.status_queue.put(("SPEAKING", None))
                 self._speak_pyttsx3(text)
+                if self.status_queue: self.status_queue.put(("IDLE", None))
             else:
                 print("[!] No TTS engine available. Text printed only.")
                 

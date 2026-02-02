@@ -7,7 +7,8 @@ from unittest.mock import MagicMock, patch
 # Import the class to test
 # We need to append the path to sys.path to import it
 import sys
-sys.path.append("/media/silver/software/Final Year Project/Sunday-manual")
+# sys.path.append("/media/silver/software/Final Year Project/Sunday-manual")
+sys.path.append(os.getcwd())
 from core.engines.file_manager import FileManagerEngine
 
 class TestFileManagerMove(unittest.TestCase):

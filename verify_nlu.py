@@ -7,7 +7,7 @@ def test_nlu():
     nlu = NeuralIntentModel()
     print(f"Model loaded in {time.time() - start_load:.4f}s")
 
-    test_phrases = ["hello", "hello hello", "time", "what is the time", "exit", "sunday stop"]
+    test_phrases = ["hello", "hello hello", "time", "what is the time", "exit", "cortex stop"]
     
     print("\n--- Confidence Test ---")
     for phrase in test_phrases:

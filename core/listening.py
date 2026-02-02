@@ -15,7 +15,8 @@ except ImportError as e:
     raise e
 
 class Listener:
-    def __init__(self):
+    def __init__(self, status_queue=None):
+        self.status_queue = status_queue
         # Use base.en for better accuracy
         # local_files_only=True prevents hanging on network requests
         self.model_size = "base.en"
@@ -98,6 +99,8 @@ class Listener:
                 stream = self.p.open(format=self.FORMAT, channels=self.CHANNELS, rate=self.RATE, input=True, frames_per_buffer=self.CHUNK)
             
             print("Listening...", end="", flush=True)
+            if self.status_queue:
+                self.status_queue.put(("LISTENING", None))
 
             # 1. Wait for speech to start (Voice Activity Detection)
             frames = []
@@ -114,6 +117,8 @@ class Listener:
                     if rms > self.THRESHOLD:
                         started = True
                         print("\rListening... (Speech detected)", end="", flush=True)
+                        if self.status_queue:
+                             self.status_queue.put(("PROCESSING", None))
                         frames.append(data)
                         last_speech_time = time.time()
                     # Else: discard silence before speech
@@ -161,7 +166,7 @@ class Listener:
             words = full_text.split()
             # Important: Included the security keywords
             important_keywords = [
-                "time", "date", "hello", "hi", "hey", "stop", "exit", "bye", "quit", "sunday", "help", 
+                "time", "date", "hello", "hi", "hey", "stop", "exit", "bye", "quit", "cortex", "help", 
                 "scan", "security", "firewall", "ports", "list", "check", "system"
             ]
             

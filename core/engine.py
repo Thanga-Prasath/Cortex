@@ -10,10 +10,11 @@ import os
 import datetime
 import random
 
-class SundayEngine:
-    def __init__(self):
-        self.speaker = Speaker()
-        self.listener = Listener()
+class CortexEngine:
+    def __init__(self, status_queue=None):
+        self.status_queue = status_queue
+        self.speaker = Speaker(status_queue)
+        self.listener = Listener(status_queue)
         
         # Sub-Engines
         self.general_engine = GeneralEngine(self.speaker)
@@ -63,12 +64,14 @@ class SundayEngine:
             command = command.lower()
 
             # Predict Intent
+            if self.status_queue:
+                self.status_queue.put(("THINKING", None))
             tag, confidence = self.nlu.predict(command)
             
             # --- SAFETY OVERRIDE ---
             # Even if NLU confidence is low, strictly obey specific global commands
             # This fixes the "exit not working" issue if the model isn't sure.
-            if command in ["stop", "exit", "bye", "shutdown", "quit", "sunday stop"]:
+            if command in ["stop", "exit", "bye", "shutdown", "quit", "cortex stop"]:
                 self.speaker.speak(random.choice([
                     "It has been a pleasure serving you, Sir. Have a wonderful rest of your day.",
                     "Closing down now. I look forward to our next interaction. Goodbye, Sir.",

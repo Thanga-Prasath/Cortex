@@ -314,7 +314,7 @@ class SystemEngine:
     def _kill_process(self, command):
         """Identifies and kills a running process based on user command with confirmation."""
         # Clean the command to get the app name
-        ignore_words = ["kill", "close", "terminate", "stop", "running", "program", "application", "process", "task", "the", "please", "sunday"]
+        ignore_words = ["kill", "close", "terminate", "stop", "running", "program", "application", "process", "task", "the", "please", "cortex"]
         
         words = command.lower().split()
         app_name = " ".join([w for w in words if w not in ignore_words]).strip()
