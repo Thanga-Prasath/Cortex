@@ -190,9 +190,10 @@ class SystemEngine:
                      self._run_in_separate_terminal('sudo rkhunter --check --sk', "SECURITY SCAN")
                 
         elif self.os_type == 'Windows':
-            # Windows Defender Quick Scan
-            defender_cmd = '"%ProgramFiles%\\Windows Defender\\MpCmdRun.exe" -Scan -ScanType 1'
-            self._run_in_separate_terminal(defender_cmd, "WINDOWS DEFENDER SCAN")
+            # Windows Defender Scan (using PowerShell for reliability)
+            # MpCmdRun.exe path can vary, but Start-MpScan is standard on Win10/11
+            ps_cmd = "Start-MpScan -ScanType QuickScan"
+            self._run_in_separate_terminal(f"powershell -Command \"{ps_cmd}\"", "WINDOWS DEFENDER SCAN")
             
         elif self.os_type == 'Darwin': # MacOS
             # Check Gatekeeper and SIP status
@@ -296,8 +297,9 @@ class SystemEngine:
              
         elif self.os_type == 'Windows':
              # Clean %TEMP% folder safely
+             # Removed 'msg' command as it's not available on all editions (e.g. Home)
              # /q = quiet, /f = force, /s = subdirectories
-             cmd = 'msg * "Cleaning temporary files..."; del /q /f /s %TEMP%\\* & echo Cleanup Complete!'
+             cmd = 'echo Cleaning temporary files... & del /q /f /s %TEMP%\\* & echo. & echo Cleanup Complete!'
              self._run_in_separate_terminal(cmd, "SYSTEM CLEANUP")
              
         elif self.os_type == 'Darwin': # MacOS

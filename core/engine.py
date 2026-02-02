@@ -116,6 +116,29 @@ class CortexEngine:
             # Added spaces to avoid partial matches (e.g. "grammar" -> "ram")
             padded_cmd = f" {command} "
             
+            # Fuzzy Matching for Common Mishearings (Levenshtein Distance)
+            if confidence <= 0.40:
+                from difflib import SequenceMatcher
+                
+                def is_similar(a, b, threshold=0.85):
+                     return SequenceMatcher(None, a, b).ratio() > threshold
+                
+                # Check for "Exit" mishearings (e.g. "exceed", "exist", "exact")
+                if is_similar(command, "exceed") or is_similar(command, "exist") or is_similar(command, "exact"):
+                     tag = 'exit'
+                     confidence = 0.95
+                     print(f"Fuzzy Match: '{command}' -> {tag}")
+                
+                # Check for "System Info" mishearings (e.g. "system in full", "system in four")
+                elif "system in" in command and ("full" in command or "four" in command or "fo" in command):
+                     tag = 'system_info'
+                     confidence = 0.95
+                     print(f"Fuzzy Match: '{command}' -> {tag}")
+                     
+                else: 
+                     # Continue with keyword matching logic
+                     pass
+            
             if confidence <= 0.40:
                 if ' memory ' in padded_cmd or ' ram ' in padded_cmd:
                      tag = 'system_memory'

@@ -26,7 +26,7 @@ def get_active_window_title():
     if title:
         return title
 
-    # Fallback to xprop
+    # Fallback to xprop (Linux X11)
     try:
         # 1. Get the active window ID
         root_check = subprocess.check_output(['xprop', '-root', '_NET_ACTIVE_WINDOW'], stderr=subprocess.DEVNULL)
@@ -57,7 +57,20 @@ def get_active_window_title():
             
     except (subprocess.CalledProcessError, FileNotFoundError, IndexError):
         pass
-        
+    
+    # Windows Check
+    if os.name == 'nt':
+        try:
+            import ctypes
+            hwnd = ctypes.windll.user32.GetForegroundWindow()
+            length = ctypes.windll.user32.GetWindowTextLengthW(hwnd)
+            buff = ctypes.create_unicode_buffer(length + 1)
+            ctypes.windll.user32.GetWindowTextW(hwnd, buff, length + 1)
+            if buff.value:
+                return buff.value
+        except Exception as e:
+            print(f"[FileManager] Windows detection error: {e}")
+
     return None
 
 def get_nautilus_path():
@@ -310,6 +323,12 @@ def get_active_location(desktop_path=None):
                 if std_path.is_dir():
                     print(f"[FileManager] Path from standard dir: {std_path}")
                     return std_path
+
+        # Pattern 5: Check if title matches current working directory (e.g., VS Code workspace)
+        cwd = Path.cwd()
+        if cwd.name in window_title:
+             print(f"[FileManager] Path from CWD match: {cwd}")
+             return cwd
 
     except Exception as e:
         print(f"[FileManager] Error in location detection: {e}")

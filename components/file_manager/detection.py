@@ -4,9 +4,14 @@ from pathlib import Path
 
 def get_selected_files_from_file_manager():
     """
-    Detect files selected in the active file manager window.
+    detect files selected in the active file manager window.
     Supports multiple file managers using different detection methods.
     """
+    import os
+    if os.name == 'nt':
+        print("[FileManager] File selection detection is not currently supported on Windows.")
+        return []
+        
     print("[FileManager] Trying detection method 1: qdbus (KDE/Dolphin)")
     # Method 1: Try qdbus for KDE file managers (Dolphin)
     try:

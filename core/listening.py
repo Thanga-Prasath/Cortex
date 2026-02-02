@@ -17,9 +17,9 @@ except ImportError as e:
 class Listener:
     def __init__(self, status_queue=None):
         self.status_queue = status_queue
-        # Use base.en for better accuracy
-        # local_files_only=True prevents hanging on network requests
-        self.model_size = "base.en"
+        # Use small.en for better accuracy (trade-off: slightly slower than base)
+        # base.en is fast but prone to hallucinations like "exceed" -> "exit"
+        self.model_size = "small.en"
         self.model = None
         self.p = None
         
@@ -145,8 +145,16 @@ class Listener:
 
             # Transcribe
             # print("\rProcessing...             ", end="", flush=True)
-            # Beam size 1 is faster (greedy decoding), temp 0 for deterministic
-            segments, info = self.model.transcribe(audio_np, beam_size=1, temperature=0, language="en")
+            # Beam size 1 is faster, but 5 is more accurate. 
+            # We use initial_prompt to bias the model towards our command vocabulary.
+            keywords = "system scan, system cleanup, exit, stop, check ports, firewall, memory, disk, cpu, file manager, create folder, move file, search"
+            segments, info = self.model.transcribe(
+                audio_np, 
+                beam_size=1, 
+                temperature=0, 
+                language="en",
+                initial_prompt=f"Commands: {keywords}"
+            )
             
             full_text = ""
             for segment in segments:

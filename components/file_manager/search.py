@@ -8,6 +8,66 @@ def background_search(query, speaker):
     Also requested "provide information of searching location in terminal".
     """
     
+    # Windows Implementation
+    if os.name == 'nt':
+        if speaker:
+             speaker.speak(f"Searching for {query}...")
+             
+        search_paths = [
+            (os.environ['USERPROFILE'], "User Home"),
+            ("D:\\", "D Drive"),
+            ("E:\\", "E Drive")
+        ]
+        
+        found_count = 0
+        
+        for root_path, name in search_paths:
+            if not os.path.exists(root_path):
+                continue
+                
+            print(f"[Search] Scanning {name} ({root_path})...")
+            
+            try:
+                # Use os.walk for Windows
+                for root, dirs, files in os.walk(root_path):
+                    # Basic exclusions
+                    if 'AppData' in root or 'Windows' in root or '$Recycle.Bin' in root:
+                         continue
+                         
+                    # Check files
+                    for file in files:
+                        if query.lower() in file.lower():
+                            full_path = os.path.join(root, file)
+                            print(f"[FOUND] {full_path}")
+                            
+                            # Exact match priority
+                            if file.lower() == query.lower():
+                                if speaker:
+                                    speaker.speak(f"Found exact match in {os.path.basename(root)}. Opening.")
+                                os.startfile(os.path.dirname(full_path))
+                                return
+
+                            # Store for related match fallback
+                            if found_count < 3:
+                                found_count += 1
+                                if found_count == 1 and speaker:
+                                     speaker.speak(f"Found {file}. Opening location.")
+                                     os.startfile(os.path.dirname(full_path))
+                                     
+                    if found_count >= 3:
+                        break
+            except Exception as e:
+                print(f"Error walking {root_path}: {e}")
+                
+            if found_count >= 3:
+                 break
+                 
+        if found_count == 0:
+             if speaker:
+                 speaker.speak(f"Sorry, I couldn't find any files matching {query}.")
+        return
+
+    # Linux Implementation (Original)
     user_home = str(Path.home())
     search_zones = [
         (user_home, "User Home"),
