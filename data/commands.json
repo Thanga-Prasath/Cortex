@@ -292,20 +292,27 @@
         {
             "tag": "file_move",
             "patterns": [
-                "move file",
-                "move folder",
-                "transfer file",
-                "cut and paste",
                 "move",
-                "move items",
-                "i want to move",
-                "cut file",
-                "cut folder",
-                "move selected items",
-                "move selected files",
+                "move these",
                 "move selected",
-                "move these files",
-                "move these"
+                "move files",
+                "move them",
+                "cut",
+                "cut these"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "file_move_here",
+            "patterns": [
+                "move here",
+                "paste here",
+                "paste",
+                "move them here",
+                "paste them here",
+                "put it here",
+                "drop here",
+                "paste it here"
             ],
             "responses": []
         },
@@ -319,44 +326,6 @@
                 "find folder",
                 "search for file",
                 "locate file"
-            ],
-            "responses": []
-        },
-        {
-            "tag": "file_select",
-            "patterns": [
-                "select file",
-                "select folder",
-                "pick file",
-                "choose file",
-                "grab file",
-                "copy file",
-                "select this",
-                "pick folder",
-                "choose folder",
-                "grab folder",
-                "select the file",
-                "select the folder",
-                "select these",
-                "select these files",
-                "get selected"
-            ],
-            "responses": []
-        },
-        {
-            "tag": "file_move_here",
-            "patterns": [
-                "move here",
-                "paste here",
-                "bring them here",
-                "move selected here",
-                "put it here",
-                "paste file",
-                "drop it here",
-                "paste them here",
-                "move them here",
-                "paste",
-                "move it here"
             ],
             "responses": []
         }
