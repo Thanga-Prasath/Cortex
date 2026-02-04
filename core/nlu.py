@@ -64,6 +64,34 @@ class NeuralIntentModel:
         if not text:
             return None, 0.0
 
+        # --- 1. Fuzzy Matching (Closest Match) ---
+        # "Execute the very closest match instead of first match"
+        from difflib import SequenceMatcher
+        
+        best_match_tag = None
+        best_match_score = 0.0
+        best_match_pattern = ""
+
+        # Check against all known patterns
+        for i in range(len(self.patterns)):
+            pattern = self.patterns[i]
+            input_text = text.lower()
+            pattern_text = pattern.lower()
+
+            # Using ratio() for similarity (0.0 to 1.0)
+            score = SequenceMatcher(None, input_text, pattern_text).ratio()
+            
+            if score > best_match_score:
+                best_match_score = score
+                best_match_tag = self.tags[i]
+                best_match_pattern = pattern
+
+        # If we have a very strong match (> 0.8), prefer it over the classifier
+        if best_match_score > 0.8:
+            print(f"NLU: Fuzzy Match '{text}' -> '{best_match_pattern}' ({best_match_tag}) Score: {best_match_score:.2f}")
+            return best_match_tag, 1.0
+
+        # --- 2. ML Classifier Fallback ---
         try:
             # Transform input
             X_input = self.vectorizer.transform([text])
@@ -74,7 +102,6 @@ class NeuralIntentModel:
             confidence = probs[max_index]
             predicted_tag = self.classifier.classes_[max_index]
             
-            return predicted_tag, confidence
             return predicted_tag, confidence
         except:
             return None, 0.0
