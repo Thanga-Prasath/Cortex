@@ -14,7 +14,7 @@ class CortexEngine:
     def __init__(self, status_queue=None):
         self.status_queue = status_queue
         self.speaker = Speaker(status_queue)
-        self.listener = Listener(status_queue)
+        self.listener = Listener(status_queue, is_speaking_flag=self.speaker.is_speaking_flag)
         
         # Sub-Engines
         self.general_engine = GeneralEngine(self.speaker)

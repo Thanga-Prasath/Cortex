@@ -8,8 +8,60 @@ def get_selected_files_from_file_manager():
     Supports multiple file managers using different detection methods.
     """
     import os
+    import os
     if os.name == 'nt':
-        print("[FileManager] File selection detection is not currently supported on Windows.")
+        print("[FileManager] Attempting Windows file selection detection via PowerShell...")
+        try:
+            # PowerShell script to access Shell.Application COM object
+            ps_script = """
+            $shell = New-Object -ComObject Shell.Application
+            $selectedFiles = @()
+            
+            # Use 'foreach' loop explicitly to iterate over Windows
+            foreach ($window in $shell.Windows()) {
+                try {
+                    # Check if it's an Explorer window (has Document object)
+                    if ($window.Document) {
+                        $items = $window.Document.SelectedItems()
+                        if ($items.Count -gt 0) {
+                            foreach ($item in $items) {
+                                $selectedFiles += $item.Path
+                            }
+                        }
+                    }
+                } catch {
+                    # Ignore errors for non-Explorer windows
+                }
+            }
+            
+            # Output unique paths, one per line
+            $selectedFiles | Select-Object -Unique | ForEach-Object { $_ }
+            """
+            
+            # Execute PowerShell script
+            result = subprocess.run(
+                ["powershell", "-Command", ps_script],
+                capture_output=True,
+                text=True,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+            )
+            
+            if result.returncode == 0 and result.stdout.strip():
+                paths = []
+                for line in result.stdout.strip().splitlines():
+                    path = Path(line.strip())
+                    if path.exists():
+                        paths.append(path)
+                
+                if paths:
+                    print(f"[FileManager] Windows detection found {len(paths)} files")
+                    return paths
+            else:
+                print(f"[FileManager] No selection found or PowerShell empty.")
+                
+        except Exception as e:
+            print(f"[FileManager] Windows detection failed: {e}")
+            
         return []
         
     print("[FileManager] Trying detection method 1: qdbus (KDE/Dolphin)")

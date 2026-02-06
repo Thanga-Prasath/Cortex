@@ -13,58 +13,108 @@ def background_search(query, speaker):
         if speaker:
              speaker.speak(f"Searching for {query}...")
              
+        user_profile = os.environ.get('USERPROFILE', 'C:\\')
+        desktop = os.path.join(user_profile, 'Desktop')
+        documents = os.path.join(user_profile, 'Documents')
+        
         search_paths = [
-            (os.environ['USERPROFILE'], "User Home"),
+            (desktop, "Desktop"),
+            (documents, "Documents"),
+            (user_profile, "User Home"),
+            ("C:\\", "System Drive"),
             ("D:\\", "D Drive"),
             ("E:\\", "E Drive")
         ]
         
+        # Paths to completely ignore to save time
+        ignored_dirs = {
+            'Windows', 'ProgramData', 'AppData', '$Recycle.Bin', 'System Volume Information',
+            'Microsoft', 'Intel', 'PerfLogs'
+        }
+        
         found_count = 0
+        searched_root_paths = set()
         
         for root_path, name in search_paths:
             if not os.path.exists(root_path):
                 continue
                 
+            # Avoid redundant searches (e.g. if Desktop is inside User Home)
+            # But here we do simple check: if we already searched a parent of this path?
+            # Actually, priority matters. We search Desktop first. If we later search User Home, 
+            # we might re-scan Desktop. Optimized way: Exclude previously searched paths?
+            # For simplicity and speed in this logic, we keep it simple but be mindful.
+            
+            # Simple deduplication of roots
+            if root_path in searched_root_paths:
+                continue
+            searched_root_paths.add(root_path)
+            
             print(f"[Search] Scanning {name} ({root_path})...")
             
             try:
                 # Use os.walk for Windows
                 for root, dirs, files in os.walk(root_path):
-                    # Basic exclusions
-                    if 'AppData' in root or 'Windows' in root or '$Recycle.Bin' in root:
-                         continue
-                         
-                    # Check files
+                    # In-place modification of dirs to prune search
+                    dirs[:] = [d for d in dirs if d not in ignored_dirs and not d.startswith('.')]
+                    
+                    # Check Directories (NEW)
+                    for d in dirs:
+                        if query.lower() in d.lower():
+                            full_path = os.path.join(root, d)
+                            
+                            # Exact Match Priority
+                            if d.lower() == query.lower():
+                                print(f"[FOUND DIR] {full_path}")
+                                if speaker:
+                                    speaker.speak(f"Found folder match for {query}. Opening.")
+                                os.startfile(full_path)
+                                return
+
+                            # Partial Match
+                            if found_count < 3:
+                                found_count += 1
+                                print(f"[RELATED DIR] {full_path}")
+                                if found_count == 1 and speaker:
+                                     speaker.speak(f"Found folder {d}. Opening location.")
+                                     os.startfile(root) # Open parent to show folder
+                                     # or os.startfile(full_path) to enter it? User usually wants to SEE it.
+                                     # Let's open the folder itself
+                                     os.startfile(full_path)
+
+                    # Check Files
                     for file in files:
                         if query.lower() in file.lower():
                             full_path = os.path.join(root, file)
-                            print(f"[FOUND] {full_path}")
                             
-                            # Exact match priority
+                            # Exact Match Priority
                             if file.lower() == query.lower():
+                                print(f"[FOUND FILE] {full_path}")
                                 if speaker:
-                                    speaker.speak(f"Found exact match in {os.path.basename(root)}. Opening.")
+                                    speaker.speak(f"Found exact file match in {os.path.basename(root)}. Opening.")
                                 os.startfile(os.path.dirname(full_path))
                                 return
 
-                            # Store for related match fallback
+                            # Partial Match
                             if found_count < 3:
                                 found_count += 1
+                                print(f"[RELATED FILE] {full_path}")
                                 if found_count == 1 and speaker:
-                                     speaker.speak(f"Found {file}. Opening location.")
+                                     speaker.speak(f"Found file {file}. Opening location.")
                                      os.startfile(os.path.dirname(full_path))
                                      
                     if found_count >= 3:
                         break
             except Exception as e:
-                print(f"Error walking {root_path}: {e}")
+                # Permission errors common in C:\
+                pass
                 
             if found_count >= 3:
                  break
                  
         if found_count == 0:
              if speaker:
-                 speaker.speak(f"Sorry, I couldn't find any files matching {query}.")
+                 speaker.speak(f"Sorry, I couldn't find any files or folders matching {query}.")
         return
 
     # Linux Implementation (Original)

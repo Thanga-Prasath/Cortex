@@ -11,7 +11,12 @@
                 "good morning",
                 "good afternoon",
                 "good evening",
-                "hey cortex"
+                "hey cortex",
+                "hello cortex",
+                "hi assistant",
+                "hey assistant",
+                "good morning cortex",
+                "yo cortex"
             ],
             "responses": [
                 "Hello Sir. How may I help you?",
@@ -28,7 +33,12 @@
                 "hour",
                 "what is the time",
                 "current time",
-                "tell me the time"
+                "tell me the time",
+                "what's the time",
+                "do you have the time",
+                "what time is it",
+                "current clock",
+                "tell time"
             ],
             "responses": []
         },
@@ -53,7 +63,14 @@
                 "stop",
                 "quit",
                 "shutdown",
-                "goodbye"
+                "goodbye",
+                "see you later",
+                "bye bye",
+                "bye for now",
+                "catch you later",
+                "close cortex",
+                "shut down",
+                "turn off"
             ],
             "responses": [
                 "Goodbye Sir.",

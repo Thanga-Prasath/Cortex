@@ -84,9 +84,39 @@ def move_files(command, file_manager_instance):
         
         if target_path.exists():
             file_manager_instance.selected_items = [target_path]
-            print(f"[FileManager] Found: {target_path}")
+            print(f"[FileManager] Found exact match: {target_path}")
             speaker.speak(f"Added {filename} to move list. Please navigate to the destination folder and say 'paste here' or 'move here'.")
             return
+        
+        # Fuzzy / Smart Matching if exact match fails
+        # e.g. User says "move space wallpaper", file is "space wallpaper.jpg"
+        print(f"[FileManager] Exact match not found. Trying fuzzy/smart matching in {active_location}...")
+        
+        candidates = []
+        try:
+            # Scan active location
+            for item in active_location.iterdir():
+                if item.is_file() or item.is_dir():
+                    # Check 1: Stem match (ignoring extension) - HIGH Priority
+                    if item.stem.lower() == filename.lower():
+                        candidates.append((item, 100)) # Score 100
+                    
+                    # Check 2: Name contains query - MEDIUM Priority
+                    elif filename.lower() in item.name.lower():
+                         candidates.append((item, 50))
+        except Exception as e:
+            print(f"[FileManager] Error scanning active location: {e}")
+
+        if candidates:
+            # Sort by score (descending)
+            candidates.sort(key=lambda x: x[1], reverse=True)
+            best_match = candidates[0][0]
+            
+            file_manager_instance.selected_items = [best_match]
+            print(f"[FileManager] Found smart match: {best_match}")
+            speaker.speak(f"Found {best_match.name}. Added to move list. Say 'move here' in destination.")
+            return
+
         else:
             print(f"[FileManager] File not found: {target_path}")
             speaker.speak(f"I could not find {filename} in {active_location.name}.")

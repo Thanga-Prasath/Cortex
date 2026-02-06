@@ -41,6 +41,16 @@ class FileManagerEngine:
             # Extract query
             keywords = ["search", "find", "look for", "searching"]
             query = extract_name(command, keywords)
+            
+            # Clean query prefixes
+            prefixes = ["file ", "folder ", "directory ", "for "]
+            for p in prefixes:
+                if query.lower().startswith(p):
+                    query = query[len(p):].strip()
+                    
+            if not query:
+                return False
+                
             threading.Thread(target=self._background_search, args=(query,)).start()
             return True
         

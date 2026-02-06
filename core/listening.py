@@ -15,8 +15,9 @@ except ImportError as e:
     raise e
 
 class Listener:
-    def __init__(self, status_queue=None):
+    def __init__(self, status_queue=None, is_speaking_flag=None):
         self.status_queue = status_queue
+        self.is_speaking_flag = is_speaking_flag
         # Use base.en for faster speed (trade-off: slightly less accurate than small)
         # small.en is ~461MB, base.en is ~142MB
         self.model_size = "base.en"
@@ -119,6 +120,11 @@ class Listener:
     def listen(self):
         """Records audio until silence and transcribes with Whisper."""
         try:
+            # Check for system speech to prevent self-listening
+            if self.is_speaking_flag:
+                while self.is_speaking_flag.value:
+                    time.sleep(0.1)
+            
             with no_alsa_error():
                 stream = self.p.open(format=self.FORMAT, channels=self.CHANNELS, rate=self.RATE, input=True, frames_per_buffer=self.CHUNK)
             
@@ -132,6 +138,17 @@ class Listener:
             last_speech_time = time.time()
             
             while True:
+                # Continuous check for system speach (Async interruption)
+                if self.is_speaking_flag and self.is_speaking_flag.value:
+                    print("\r[System Speaking] Pausing listener...", end="", flush=True)
+                    stream.stop_stream()
+                    stream.close()
+                    
+                    # Wait for speech to finish
+                    while self.is_speaking_flag.value:
+                        time.sleep(0.1)
+                    return ""
+                
                 data = stream.read(self.CHUNK, exception_on_overflow=False)
                 # rms = audioop.rms(data, 2) - Replaced for Python 3.13 compatibility
                 samples = np.frombuffer(data, dtype=np.int16).astype(np.float32)
