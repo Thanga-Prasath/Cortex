@@ -245,3 +245,10 @@ class CortexEngine:
                     continue
 
             self.speaker.speak("I heard you, but I am not sure I understand.")
+
+    def shutdown(self):
+        """Cleanly shutdown the engine and subsystems."""
+        print("[System] Shutting down...")
+        if self.speaker:
+            self.speaker.terminate()
+

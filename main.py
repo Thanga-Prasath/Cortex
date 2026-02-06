@@ -20,4 +20,6 @@ if __name__ == "__main__":
     finally:
         # Clean shutdown
         status_queue.put(("EXIT", None))
+        if 'app' in locals():
+            app.shutdown()
         ui_process.join()

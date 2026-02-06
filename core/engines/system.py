@@ -79,7 +79,7 @@ class SystemEngine:
         print(f"{'='*40}")
 
     def _report_system_info(self):
-        self.speaker.speak("Opening system information console.")
+        self.speaker.speak("Opening system information console.", blocking=False)
         
         if self.os_type == 'Linux':
             # Check for neofetch or fastfetch for a pretty output
@@ -138,14 +138,14 @@ class SystemEngine:
             self.speaker.speak("I could not open a new terminal window.")
 
     def _get_ip_address(self):
-        self.speaker.speak("Checking IP address.")
+        self.speaker.speak("Checking IP address.", blocking=False)
         if self.os_type == 'Windows':
             self._run_in_separate_terminal('ipconfig', "IP ADDRESS")
         else:
             self._run_in_separate_terminal('hostname -I', "IP ADDRESS")
 
     def _check_memory(self):
-        self.speaker.speak("Checking memory usage.")
+        self.speaker.speak("Checking memory usage.", blocking=False)
         if self.os_type == 'Linux':
             self._run_in_separate_terminal('free -h', "MEMORY USAGE")
         elif self.os_type == 'Darwin':
@@ -154,21 +154,21 @@ class SystemEngine:
             self._run_in_separate_terminal('systeminfo', "MEMORY USAGE")
 
     def _check_disk(self):
-        self.speaker.speak("Checking disk storage.")
+        self.speaker.speak("Checking disk storage.", blocking=False)
         if self.os_type == 'Windows':
              self._run_in_separate_terminal('wmic logicaldisk get size,freespace,caption', "DISK STORAGE")
         else:
              self._run_in_separate_terminal('df -h .', "DISK STORAGE")
 
     def _list_files(self):
-        self.speaker.speak("Listing files in current directory.")
+        self.speaker.speak("Listing files in current directory.", blocking=False)
         if self.os_type == 'Windows':
             self._run_in_separate_terminal('dir', "CURRENT DIRECTORY")
         else:
             self._run_in_separate_terminal('ls -la', "CURRENT DIRECTORY")
 
     def _run_security_scan(self):
-        self.speaker.speak("Initiating system security scan.")
+        self.speaker.speak("Initiating system security scan.", blocking=False)
         
         if self.os_type == 'Linux':
              # Prefer rkhunter, then clamav, auto-install rkhunter if neither
@@ -201,21 +201,21 @@ class SystemEngine:
             self._run_in_separate_terminal(mac_cmd, "SECURITY STATUS")
 
     def _check_ports(self):
-        self.speaker.speak("Checking open network ports.")
+        self.speaker.speak("Checking open network ports.", blocking=False)
         if self.os_type == 'Linux':
             self._run_in_separate_terminal('sudo ss -tulnp', "OPEN PORTS")
         else:
              self._run_in_separate_terminal('netstat -an', "OPEN PORTS")
 
     def _check_firewall(self):
-        self.speaker.speak("Checking firewall status.")
+        self.speaker.speak("Checking firewall status.", blocking=False)
         if self.os_type == 'Linux':
             self._run_in_separate_terminal('sudo ufw status verbose', "FIREWALL STATUS")
         elif self.os_type == 'Windows':
              self._run_in_separate_terminal('netsh advfirewall show allprofiles', "FIREWALL STATUS")
 
     def _check_connections(self):
-        self.speaker.speak("Listing active network connections.")
+        self.speaker.speak("Listing active network connections.", blocking=False)
         if self.os_type == 'Linux':
              self._run_in_separate_terminal('sudo ss -putan', "NETWORK CONNECTIONS")
         elif self.os_type == 'Windows':
@@ -224,7 +224,7 @@ class SystemEngine:
              self._run_in_separate_terminal('netstat -an', "NETWORK CONNECTIONS")
 
     def _check_processes(self):
-         self.speaker.speak("Opening process monitor.")
+         self.speaker.speak("Opening process monitor.", blocking=False)
          if self.os_type == 'Linux':
              # Auto-install htop
              cmd = self._get_cmd_with_auto_install('htop', 'htop')
@@ -235,14 +235,14 @@ class SystemEngine:
               self._run_in_separate_terminal('top', "PROCESS MONITOR")
 
     def _check_login_history(self):
-         self.speaker.speak("Checking login history.")
+         self.speaker.speak("Checking login history.", blocking=False)
          if self.os_type == 'Linux' or self.os_type == 'Darwin':
               self._run_in_separate_terminal('last', "LOGIN HISTORY")
          elif self.os_type == 'Windows':
               self._run_in_separate_terminal('query user', "LOGIN HISTORY")
 
     def _check_network_traffic(self):
-         self.speaker.speak("Checking network traffic usage.")
+         self.speaker.speak("Checking network traffic usage.", blocking=False)
          if self.os_type == 'Linux':
              # Try iftop first (needs sudo), then nload, then fallback
              if os.system("which iftop > /dev/null 2>&1") == 0:
@@ -260,7 +260,7 @@ class SystemEngine:
               self._run_in_separate_terminal('netstat -ib', "NETWORK TRAFFIC (Stats)")
 
     def _check_internet_speed(self):
-        self.speaker.speak("Running internet speed test.")
+        self.speaker.speak("Running internet speed test.", blocking=False)
         if self.os_type == 'Linux':
             # Fix 403 Error: Download latest script directly from GitHub
             # This bypasses the broken apt/pip versions entirely.
@@ -282,7 +282,7 @@ class SystemEngine:
              self._run_in_separate_terminal('ping 8.8.8.8 -t', "PING TEST (Latency)")
 
     def _clean_system(self):
-        self.speaker.speak("Starting system cleanup.")
+        self.speaker.speak("Starting system cleanup.", blocking=False)
         
         if self.os_type == 'Linux':
              # Safe cleanup: apt clean, autoremove (unused deps), and user thumbnail cache
