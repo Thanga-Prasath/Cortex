@@ -409,6 +409,120 @@
                 "close chrome"
             ],
             "responses": []
+        },
+        {
+            "tag": "wifi_list",
+            "patterns": [
+                "scan wifi",
+                "list wifi",
+                "show available networks",
+                "wifi networks",
+                "available wifi",
+                "check wifi"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "list_apps",
+            "patterns": [
+                "list apps",
+                "installed applications",
+                "show my apps",
+                "what apps are installed",
+                "list software",
+                "show installed apps"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "system_update",
+            "patterns": [
+                "check for updates",
+                "system update",
+                "update system",
+                "check updates",
+                "any updates",
+                "software update"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "cpu_info",
+            "patterns": [
+                "cpu info",
+                "processor info",
+                "cpu details",
+                "check cpu",
+                "processor details"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "system_temp",
+            "patterns": [
+                "check temperature",
+                "cpu temperature",
+                "system temp",
+                "how hot is my pc",
+                "computer temperature",
+                "thermal status"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "current_user",
+            "patterns": [
+                "who am i",
+                "current user",
+                "who is logged in",
+                "user info",
+                "which user is this"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "system_services",
+            "patterns": [
+                "list services",
+                "system services",
+                "show services",
+                "running services",
+                "check services"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "clear_dns",
+            "patterns": [
+                "clear dns",
+                "flush dns",
+                "reset dns",
+                "clean dns cache",
+                "flush dns cache"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "file_compress",
+            "patterns": [
+                "compress file",
+                "zip file",
+                "create archive",
+                "compress this",
+                "make zip"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "file_extract",
+            "patterns": [
+                "extract file",
+                "unzip file",
+                "extract archive",
+                "unzip this",
+                "extract here"
+            ],
+            "responses": []
         }
     ]
 }
