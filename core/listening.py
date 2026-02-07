@@ -218,10 +218,11 @@ class Listener:
             
             # Whitelist/Filter check
             words = full_text.split()
-            # Important: Included the security keywords
+            # Important: Included the security keywords and confirmation words
             important_keywords = [
                 "time", "date", "hello", "hi", "hey", "stop", "exit", "bye", "quit", "cortex", "help", 
-                "scan", "security", "firewall", "ports", "list", "check", "system"
+                "scan", "security", "firewall", "ports", "list", "check", "system",
+                "yes", "no", "yeah", "sure", "cancel", "confirm", "deny"
             ]
             
             # Relaxed filter: Allow if > 1 word OR is a keyword

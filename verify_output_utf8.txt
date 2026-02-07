@@ -1,0 +1,18 @@
+--- Testing App Detection ---
+'firefox' installed? True
+'explorer' installed? True
+'chrome' installed? False
+'notepad' installed? True
+'main.py' installed? True
+'non_existent_app' installed? False
+
+--- Testing App Launching (Dry Run) ---
+Simulating 'open firefox'...
+[Application] Request to open: firefox (Target: firefox.exe)
+Speaker: Opening firefox
+Simulating 'open main.py'...
+[Application] Request to open: main.py (Target: main.py)
+Speaker: Opening main.py
+Simulating 'open nonsense'...
+[Application] Request to open: nonsense (Target: nonsense)
+Speaker: I cannot find nonsense on your system.

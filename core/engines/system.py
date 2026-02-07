@@ -2,6 +2,10 @@ import platform
 import os
 import subprocess
 import sys
+from components.application.close_app import close_application
+
+
+
 
 class SystemEngine:
     def __init__(self, speaker, listener=None):
@@ -323,38 +327,26 @@ class SystemEngine:
         
         if not app_name:
             self.speaker.speak("Which application would you like me to close?")
-            # Ideally we should listen here too, but for now just return
             return
 
         self.speaker.speak(f"Are you sure you want to close {app_name}?")
         
         if self.listener:
+            print("[Debug] Listening for confirmation...")
             confirmation = self.listener.listen()
-            if not confirmation or "yes" not in confirmation.lower() and "yeah" not in confirmation.lower() and "do it" not in confirmation.lower() and "sure" not in confirmation.lower():
+            print(f"[Debug] Heard confirmation: '{confirmation}'")
+            
+            # Loose matching for confirmation
+            if not confirmation:
+                self.speaker.speak("Cancelled.")
+                return
+                
+            conf_lower = confirmation.lower()
+            valid_confirms = ["yes", "yeah", "yep", "sure", "do it", "go ahead", "confirm"]
+            
+            if not any(x in conf_lower for x in valid_confirms):
                  self.speaker.speak("Cancelled.")
                  return
-        else:
-             # Fallback if no listener provided (should not happen with new update)
-             pass
-
-        if self.os_type == 'Linux':
-             if os.system(f"pgrep -fi '{app_name}' > /dev/null") == 0:
-                 self.speaker.speak(f"Terminating {app_name}.")
-                 os.system(f"pkill -fi '{app_name}'")
-             else:
-                 self.speaker.speak(f"{app_name} is not running.")
-                 
-        elif self.os_type == 'Windows':
-             check_cmd = f'tasklist | findstr /I "{app_name}" > NUL'
-             if os.system(check_cmd) == 0:
-                  self.speaker.speak(f"Terminating {app_name}.")
-                  os.system(f'taskkill /IM "*{app_name}*" /F')
-             else:
-                  self.speaker.speak(f"{app_name} is not running.")
-                  
-        elif self.os_type == 'Darwin':
-             if os.system(f"pgrep -fi '{app_name}' > /dev/null") == 0:
-                 self.speaker.speak(f"Closing {app_name}.")
-                 os.system(f"pkill -fi '{app_name}'")
-             else:
-                 self.speaker.speak(f"{app_name} is not running.")
+        
+        # Use key-value mapping and robust close logic
+        close_application(app_name, self.speaker)
