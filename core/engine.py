@@ -3,6 +3,7 @@ from .listening import Listener
 from .engines.general import GeneralEngine
 from .engines.system import SystemEngine
 from .engines.file_manager import FileManagerEngine
+from .engines.application import ApplicationEngine
 from .nlu import NeuralIntentModel
 import platform
 import sys
@@ -20,6 +21,7 @@ class CortexEngine:
         self.general_engine = GeneralEngine(self.speaker)
         self.system_engine = SystemEngine(self.speaker, self.listener)
         self.file_manager = FileManagerEngine(self.speaker)
+        self.application_engine = ApplicationEngine(self.speaker)
         
         # NLU Model
         self.nlu = NeuralIntentModel()
@@ -104,7 +106,7 @@ class CortexEngine:
                 # Routing: Pass Tag to Engines
                 
                 # 1. System Engine (Check first for critical commands)
-                if self.system_engine.handle_intent(tag):
+                if self.system_engine.handle_intent(tag, command):
                     continue
 
                 # 2. File Manager Engine
@@ -213,9 +215,19 @@ class CortexEngine:
                      confidence = 1.0
                      print(f"Fallback: Deteced 'network traffic' -> {tag}")
                 elif (' kill ' in padded_cmd or ' close ' in padded_cmd or ' terminate ' in padded_cmd) and (' system ' not in padded_cmd): # Avoid "clean system" conflict
-                     tag = 'kill_process'
-                     confidence = 1.0
-                     print(f"Fallback: Detected 'kill process' -> {tag}")
+                     if ' application ' in padded_cmd or ' app ' in padded_cmd:
+                         tag = 'app_close'
+                         confidence = 1.0
+                         print(f"Fallback: Detected 'app_close' -> {tag}")
+                     else:
+                         tag = 'kill_process'
+                         confidence = 1.0
+                         print(f"Fallback: Detected 'kill process' -> {tag}")
+                elif ' open ' in padded_cmd or ' launch ' in padded_cmd or ' start ' in padded_cmd or ' run ' in padded_cmd:
+                     if ' application ' in padded_cmd or ' app ' in padded_cmd or True: # Broad catch for open commands
+                         tag = 'app_open'
+                         confidence = 1.0
+                         print(f"Fallback: Detected 'app_open' -> {tag}")
             
             # Re-check confidence after fallback
             if confidence > 0.40:
@@ -240,7 +252,11 @@ class CortexEngine:
                 if self.file_manager.handle_intent(tag, command):
                     continue
 
-                # 3. General Engine
+                # 3. Application Engine
+                if self.application_engine.handle_intent(tag, command):
+                    continue
+
+                # 4. General Engine
                 if self.general_engine.handle_intent(tag):
                     continue
 

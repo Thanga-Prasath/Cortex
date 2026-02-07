@@ -68,7 +68,6 @@
                 "bye bye",
                 "bye for now",
                 "catch you later",
-                "close cortex",
                 "shut down",
                 "turn off"
             ],
@@ -343,6 +342,36 @@
                 "find folder",
                 "search for file",
                 "locate file"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "app_open",
+            "patterns": [
+                "open application",
+                "launch application",
+                "start application",
+                "run application",
+                "open app",
+                "launch app",
+                "start app",
+                "run app",
+                "launch program",
+                "open program"
+            ],
+            "responses": []
+        },
+        {
+            "tag": "app_close",
+            "patterns": [
+                "close application",
+                "quit application",
+                "stop application",
+                "close app",
+                "quit app",
+                "stop app",
+                "close program",
+                "quit program"
             ],
             "responses": []
         }
