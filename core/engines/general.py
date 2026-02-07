@@ -4,8 +4,9 @@ import random
 import os
 
 class GeneralEngine:
-    def __init__(self, speaker):
+    def __init__(self, speaker, user_config=None):
         self.speaker = speaker
+        self.user_config = user_config if user_config else {"name": "Sir"}
         self.load_intents()
 
     def load_intents(self):
@@ -21,15 +22,17 @@ class GeneralEngine:
         """
         Executes action based on the identified tag.
         """
+        user_name = self.user_config.get('name', 'Sir')
+        
         # Dynamic Handlers (Logic)
         if tag == 'time':
             current_time = datetime.datetime.now().strftime("%I:%M %p")
-            self.speaker.speak(f"The time is {current_time}, Sir.")
+            self.speaker.speak(f"The time is {current_time}, {user_name}.")
             return True
         
         elif tag == 'date':
             current_date = datetime.datetime.now().strftime("%A, %B %d, %Y")
-            self.speaker.speak(f"Today is {current_date}, Sir.")
+            self.speaker.speak(f"Today is {current_date}, {user_name}.")
             return True
 
         # Static Responses (Text) from JSON
@@ -38,7 +41,13 @@ class GeneralEngine:
             if intent['tag'] == tag:
                 if intent.get('responses'):
                     response = random.choice(intent['responses'])
-                    self.speaker.speak(response)
+                    # Format response with name if placeholder exists
+                    try:
+                        formatted_response = response.format(name=user_name)
+                    except Exception:
+                        formatted_response = response
+                    
+                    self.speaker.speak(formatted_response)
                     return True
         
         return False

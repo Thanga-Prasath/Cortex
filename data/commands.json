@@ -19,11 +19,23 @@
                 "yo cortex"
             ],
             "responses": [
-                "Hello Sir. How may I help you?",
-                "Greetings Sir. I am online.",
-                "Hello Sir. Ready to assist.",
-                "Good day Sir."
+                "Hello {name}. How may I help you?",
+                "Greetings {name}. I am online.",
+                "Hello {name}. Ready to assist.",
+                "Good day {name}."
             ]
+        },
+        {
+            "tag": "change_name",
+            "patterns": [
+                "call me",
+                "change my name to",
+                "my name is",
+                "i am",
+                "call me {name}",
+                "change name to {name}"
+            ],
+            "responses": []
         },
         {
             "tag": "time",
@@ -72,10 +84,10 @@
                 "turn off"
             ],
             "responses": [
-                "Goodbye Sir.",
-                "Shutting down, Sir.",
-                "Have a good day, Sir.",
-                "See you later, Sir."
+                "Goodbye {name}.",
+                "Shutting down, {name}.",
+                "Have a good day, {name}.",
+                "See you later, {name}."
             ]
         },
         {

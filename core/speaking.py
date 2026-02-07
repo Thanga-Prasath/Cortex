@@ -13,11 +13,13 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
     engine = None
     use_piper = False
     
-    # Try initializing Piper if requested (Linux)
-    if os_type == 'Linux' and piper_path and model_path:
+    # Try initializing Piper if requested (Linux or Windows)
+    if (os_type == 'Linux' or os_type == 'Windows') and piper_path and model_path:
         if os.path.exists(piper_path) and os.path.exists(model_path):
              use_piper = True
-             pass
+             if os_type == 'Windows':
+                 import pyaudio
+
 
     print("[OK] TTS Worker Started Ready")
 
@@ -42,26 +44,59 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
             try: 
                 if use_piper:
                     try:
-                        # piper --model ... --output_raw | aplay ...
-                        piper_proc = subprocess.Popen(
-                            [piper_path, '--model', model_path, '--output_raw'], 
-                            stdin=subprocess.PIPE, 
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.DEVNULL
-                        )
-                        
-                        aplay_proc = subprocess.Popen(
-                            ['aplay', '-r', '22050', '-f', 'S16_LE', '-t', 'raw', '-q'], 
-                            stdin=piper_proc.stdout
-                        )
-                        
-                        # Write text directly to piper's stdin and close it
-                        piper_proc.stdin.write(text.encode('utf-8'))
-                        piper_proc.stdin.close()
-                        
-                        # Wait for aplay to finish playing
-                        aplay_proc.communicate() 
-                        piper_proc.wait()
+                        if os_type == 'Linux':
+                            # piper --model ... --output_raw | aplay ...
+                            piper_proc = subprocess.Popen(
+                                [piper_path, '--model', model_path, '--output_raw'], 
+                                stdin=subprocess.PIPE, 
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL
+                            )
+                            
+                            aplay_proc = subprocess.Popen(
+                                ['aplay', '-r', '22050', '-f', 'S16_LE', '-t', 'raw', '-q'], 
+                                stdin=piper_proc.stdout
+                            )
+                            
+                            # Write text directly to piper's stdin and close it
+                            piper_proc.stdin.write(text.encode('utf-8'))
+                            piper_proc.stdin.close()
+                            
+                            # Wait for aplay to finish playing
+                            aplay_proc.communicate() 
+                            piper_proc.wait()
+
+                        elif os_type == 'Windows':
+                             # Windows: Piper -> stdout -> PyAudio
+                            piper_proc = subprocess.Popen(
+                                [piper_path, '--model', model_path, '--output_raw'], 
+                                stdin=subprocess.PIPE, 
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL
+                            )
+
+                            p = pyaudio.PyAudio()
+                            # 22050Hz is standard for most Piper voices
+                            stream = p.open(format=pyaudio.paInt16, channels=1, rate=22050, output=True)
+
+                            # Write text
+                            piper_proc.stdin.write(text.encode('utf-8'))
+                            piper_proc.stdin.close()
+
+                            # Read and play in chunks
+                            chunk_size = 1024
+                            while True:
+                                data = piper_proc.stdout.read(chunk_size)
+                                if not data:
+                                    break
+                                stream.write(data)
+                            
+                            # Clean up
+                            stream.stop_stream()
+                            stream.close()
+                            p.terminate()
+                            piper_proc.wait()
+
                     except Exception as e:
                         print(f"[!] Piper Error: {e}")
                 
@@ -136,6 +171,10 @@ class Speaker:
             self._check_piper()
             if not self.piper_available:
                 self._check_pyttsx3()
+        elif self.os_type == 'Windows':
+            self._check_piper()
+            if not self.piper_available:
+                self._check_pyttsx3()
         else:
             self._check_pyttsx3()
             
@@ -151,7 +190,11 @@ class Speaker:
     def _check_piper(self):
         """Check Piper availability."""
         try:
-            self.piper_path = os.path.abspath("piper_engine/piper/piper")
+            if self.os_type == 'Windows':
+                 self.piper_path = os.path.abspath("piper_engine/piper_windows/piper/piper.exe")
+            else:
+                 self.piper_path = os.path.abspath("piper_engine/piper/piper")
+            
             self.model_path = os.path.abspath("piper_engine/voice.onnx")
             
             if os.path.exists(self.piper_path) and os.path.exists(self.model_path):
