@@ -22,7 +22,7 @@ def check_for_updates(speaker=None):
         cmd = "start ms-settings:windowsupdate"
         # But we need output in terminal?
         # Let's try:
-        cmd_show = "echo 'Opening Windows Update Settings...'; start ms-settings:windowsupdate"
+        cmd_show = "echo 'Opening Windows Update Settings...' & start ms-settings:windowsupdate"
         run_in_separate_terminal(cmd_show, "SYSTEM UPDATES", os_type, speaker)
     elif os_type == 'Darwin':
         cmd = "softwareupdate -l"

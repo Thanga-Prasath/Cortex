@@ -11,7 +11,7 @@ def manage_system_services(speaker=None):
         run_in_separate_terminal(cmd, "SYSTEM SERVICES", os_type, speaker)
     elif os_type == 'Windows':
         cmd = "net start" # or sc query
-        run_in_separate_terminal(cmd, "SYSTEM SERVICES", os_type, speaker)
+        run_in_separate_terminal(cmd, "SYSTEM SERVICES", os_type, speaker, admin=True)
     elif os_type == 'Darwin':
         cmd = "launchctl list"
         run_in_separate_terminal(cmd, "SYSTEM SERVICES", os_type, speaker)

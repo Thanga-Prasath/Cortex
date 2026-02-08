@@ -30,7 +30,7 @@ def run_security_scan(speaker=None):
         # Windows Defender Scan (using PowerShell for reliability)
         # MpCmdRun.exe path can vary, but Start-MpScan is standard on Win10/11
         ps_cmd = "Start-MpScan -ScanType QuickScan"
-        run_in_separate_terminal(f"powershell -Command \"{ps_cmd}\"", "WINDOWS DEFENDER SCAN", os_type, speaker)
+        run_in_separate_terminal(f"powershell -Command \"{ps_cmd}\"", "WINDOWS DEFENDER SCAN", os_type, speaker, admin=True)
         
     elif os_type == 'Darwin': # MacOS
         # Check Gatekeeper and SIP status

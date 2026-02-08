@@ -340,7 +340,7 @@ class CortexEngine:
 
             self.speaker.speak("I heard you, but I am not sure I understand.")
 
-            self.speaker.speak("I heard you, but I am not sure I understand.")
+
 
     def shutdown(self):
         """Cleanly shutdown the engine and subsystems."""

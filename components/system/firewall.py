@@ -9,4 +9,4 @@ def check_firewall(speaker=None):
     if os_type == 'Linux':
         run_in_separate_terminal('sudo ufw status verbose', "FIREWALL STATUS", os_type, speaker)
     elif os_type == 'Windows':
-            run_in_separate_terminal('netsh advfirewall show allprofiles', "FIREWALL STATUS", os_type, speaker)
+            run_in_separate_terminal('netsh advfirewall show allprofiles', "FIREWALL STATUS", os_type, speaker, admin=True)

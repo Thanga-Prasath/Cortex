@@ -23,7 +23,7 @@ def clean_system(speaker=None):
             # Removed 'msg' command as it's not available on all editions (e.g. Home)
             # /q = quiet, /f = force, /s = subdirectories
             cmd = 'echo Cleaning temporary files... & del /q /f /s %TEMP%\\* & echo. & echo Cleanup Complete!'
-            run_in_separate_terminal(cmd, "SYSTEM CLEANUP", os_type, speaker)
+            run_in_separate_terminal(cmd, "SYSTEM CLEANUP", os_type, speaker, admin=True)
             
     elif os_type == 'Darwin': # MacOS
             # Clear User Caches and brew cleanup if available

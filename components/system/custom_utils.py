@@ -12,7 +12,7 @@ def get_cmd_with_auto_install(command, package):
         return f"which {command} > /dev/null 2>&1 || (echo 'Tool {command} not found. Installing {package}...' && sudo apt install {package} -y); {command}"
     return command
 
-def run_in_separate_terminal(command, title="System Info", os_type=None, speaker=None):
+def run_in_separate_terminal(command, title="System Info", os_type=None, speaker=None, admin=False):
     """Launches a command in a new terminal window."""
     if os_type is None:
         os_type = get_os_type()
@@ -30,8 +30,23 @@ def run_in_separate_terminal(command, title="System Info", os_type=None, speaker
                 subprocess.Popen(['x-terminal-emulator', '-e', f"bash -c \"{full_cmd}\""])
                 
         elif os_type == 'Windows':
-            # start cmd /k keeps window open
-            subprocess.Popen(['start', 'cmd', '/k', f"echo {title} & echo ==================== & {command}"], shell=True)
+            # Create a temporary batch file to mitigate quoting hell
+            batch_file = os.path.join(os.getcwd(), "temp_cmd.bat")
+            with open(batch_file, "w") as f:
+                f.write("@echo off\n")
+                f.write(f"title {title}\n")
+                f.write(f"echo {title}\n")
+                f.write("echo ====================\n")
+                f.write(f"{command}\n")
+                f.write("echo.\n")
+                f.write("pause\n")
+                f.write(f"del \"{batch_file}\" & exit\n") # Self-delete
+            
+            if admin:
+                # Use PowerShell to run the batch file as Administrator
+                subprocess.Popen(["powershell", "-Command", f"Start-Process cmd -ArgumentList '/c {batch_file}' -Verb RunAs"], shell=True)
+            else:
+                subprocess.Popen(['start', 'cmd', '/c', batch_file], shell=True)
             
         elif os_type == 'Darwin': # MacOS
             # AppleScript to open Terminal
