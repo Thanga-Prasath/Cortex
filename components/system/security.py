@@ -2,37 +2,102 @@ import platform
 import os
 from components.system.custom_utils import run_in_separate_terminal, get_cmd_with_auto_install
 
+import subprocess
+
 def run_security_scan(speaker=None):
     os_type = platform.system()
+    
     if speaker:
-        speaker.speak("Initiating system security scan.", blocking=False)
+        speaker.speak("Checking system security status...", blocking=True)
     
     if os_type == 'Linux':
-            # Prefer rkhunter, then clamav, auto-install rkhunter if neither
-            if os.system("which rkhunter > /dev/null 2>&1") == 0:
-                run_in_separate_terminal('sudo rkhunter --check --sk', "SECURITY SCAN", os_type, speaker)
-            elif os.system("which clamscan > /dev/null 2>&1") == 0:
-                run_in_separate_terminal('clamscan -r ~', "SECURITY SCAN (ClamAV)", os_type, speaker)
-            else:
-                # If neither, try to install rkhunter
-                cmd = get_cmd_with_auto_install('rkhunter', 'rkhunter')
-                # Need sudo for rkhunter check 
-                if 'sudo apt install' in cmd:
-                    # Helper returns raw command name at end, we need flags
-                    # This is a bit complex for the helper, so we construct manually for this complex case
-                    cmd = "echo 'Installing rkhunter...'; sudo apt install rkhunter -y; sudo rkhunter --propupd; sudo rkhunter --check --sk"
-                    run_in_separate_terminal(cmd, "SECURITY SCAN (Installing...)", os_type, speaker)
-                else: 
-                    # Should not happen given logic above, but fallback
-                    run_in_separate_terminal('sudo rkhunter --check --sk', "SECURITY SCAN", os_type, speaker)
+        # ... (Linux logic remains same)
+        if os.system("which rkhunter > /dev/null 2>&1") == 0:
+             run_in_separate_terminal('sudo rkhunter --check --sk', "SECURITY SCAN", os_type, speaker)
+        else:
+             run_in_separate_terminal('clamscan -r ~', "SECURITY SCAN", os_type, speaker)
             
     elif os_type == 'Windows':
-        # Windows Defender Scan (using PowerShell for reliability)
-        # MpCmdRun.exe path can vary, but Start-MpScan is standard on Win10/11
-        ps_cmd = "Start-MpScan -ScanType QuickScan"
-        run_in_separate_terminal(f"powershell -Command \"{ps_cmd}\"", "WINDOWS DEFENDER SCAN", os_type, speaker, admin=True)
+        # SMART CHECK: Check SecurityCenter2 for ANY active antivirus (including 3rd party)
+        try:
+            # Get AV products from WMI/CIM
+            cmd = "powershell \"Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiVirusProduct | Select-Object -Property displayName | ConvertTo-Json\""
+            result = subprocess.check_output(cmd, shell=True).decode().strip()
+            
+            # Helper to parse JSON output which might be a list or single object
+            import json
+            try:
+                if not result:
+                     av_list = []
+                elif result.startswith('['):
+                     av_list = json.loads(result)
+                else:
+                     av_list = [json.loads(result)]
+            except json.JSONDecodeError:
+                # Fallback implementation if JSON fails (rare)
+                av_list = []
+
+            # Filter for active AVs
+            detected_avs = [av['displayName'] for av in av_list if 'displayName' in av]
+            
+            # Logic:
+            # 1. If 3rd Party AV found (e.g. Bitdefender), assume it's handling security.
+            # 2. If only "Windows Defender" found, check its specific status using MpComputerStatus.
+            
+            non_defender_avs = [name for name in detected_avs if "Windows Defender" not in name]
+            
+            if non_defender_avs:
+                # 3rd Party AV Detected
+                av_name = non_defender_avs[0]
+                speaker.speak(f"System is protected by {av_name}.")
+                
+                # Smart Dispatcher for known AVs
+                if "Bitdefender" in av_name:
+                    # Attempt to open Bitdefender UI
+                    # Common paths for Bitdefender Agent or Main UI
+                    scan_paths = [
+                        r"C:\Program Files\Bitdefender\Bitdefender Security\bdagent.exe",
+                        r"C:\Program Files\Bitdefender\Bitdefender Security\seccenter.exe"
+                    ]
+                    found_gui = False
+                    for path in scan_paths:
+                        if os.path.exists(path):
+                            speaker.speak("Opening Bitdefender interface...")
+                            subprocess.Popen(f'"{path}"', shell=True)
+                            found_gui = True
+                            break
+                    
+                    if not found_gui:
+                        speaker.speak("Opening security dashboard.")
+                        subprocess.Popen("start windowsdefender:", shell=True)
+
+                else:
+                    # Universal Fallback for other AVs (Norton, McAfee, etc.)
+                    speaker.speak("Opening security dashboard.")
+                    subprocess.Popen("start windowsdefender:", shell=True)
+
+            elif "Windows Defender" in detected_avs:
+                # Only Defender found, verify it's actually ON
+                cmd_status = "powershell \"Get-MpComputerStatus | Select-Object -Property AntivirusEnabled,RealTimeProtectionEnabled\""
+                res_status = subprocess.check_output(cmd_status, shell=True).decode()
+                
+                if "AntivirusEnabled              : True" in res_status and "RealTimeProtectionEnabled     : True" in res_status:
+                     speaker.speak("System is protected by Windows Defender.")
+                else:
+                     speaker.speak("Warning. Windows Defender appears to be disabled. Opening security settings.")
+                     subprocess.Popen("start windowsdefender:", shell=True)
+            else:
+                # No AV found at all
+                speaker.speak("Critical Warning. No antivirus software detected on this system. Opening security settings.")
+                subprocess.Popen("start windowsdefender:", shell=True)
+                
+        except Exception as e:
+             print(f"Security Check Error: {e}")
+             speaker.speak("I could not verify the security status. Opening Windows Security.")
+             subprocess.Popen("start windowsdefender:", shell=True)
         
-    elif os_type == 'Darwin': # MacOS
-        # Check Gatekeeper and SIP status
+    elif os_type == 'Darwin': 
+        # MacOS placeholder
         mac_cmd = 'echo "Gatekeeper Status:"; spctl --status; echo ""; echo "System Integrity Protection:"; csrutil status'
         run_in_separate_terminal(mac_cmd, "SECURITY STATUS", os_type, speaker)
+

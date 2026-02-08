@@ -1,8 +1,6 @@
 {
     "local": [
-        "CMatrix",
         "Calculator",
-        "Camera",
-        "Files"
+        "Camera"
     ]
 }

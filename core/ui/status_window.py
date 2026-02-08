@@ -30,11 +30,10 @@ class StatusWindow(QMainWindow):
         self.anim_timer.timeout.connect(self.animate)
         self.anim_timer.start(50)
         
-        # Enforce Always on Top (Windows specific fix)
-        if platform.system() == "Windows":
-            self.top_timer = QTimer()
-            self.top_timer.timeout.connect(self.enforce_topmost)
-            self.top_timer.start(500) # Check every 500ms
+        # Enforce Always on Top (All Platforms)
+        self.top_timer = QTimer()
+        self.top_timer.timeout.connect(self.enforce_topmost)
+        self.top_timer.start(500) # Check every 500ms
 
         # Colors - Neon Palette
         self.colors = {
@@ -46,11 +45,16 @@ class StatusWindow(QMainWindow):
         }
 
     def enforce_topmost(self):
-        # HWND_TOPMOST = -1
-        # SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE = 0x0002 | 0x0001 | 0x0010 = 0x0013
+        # Windows-specific low-level enforcement
         if platform.system() == "Windows":
+            # HWND_TOPMOST = -1
+            # SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE = 0x0002 | 0x0001 | 0x0010 = 0x0013
             hwnd = int(self.winId())
             ctypes.windll.user32.SetWindowPos(hwnd, -1, 0, 0, 0, 0, 0x0013)
+        else:
+            # Linux/macOS: Standard Qt raise to keep it visible
+            # Note: activateWindow() would steal focus, so we just use raise_()
+            self.raise_()
 
     def center_on_screen(self):
         # Position bottom-right by default

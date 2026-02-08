@@ -1,8 +1,8 @@
 @echo off
-title WINDOWS DEFENDER SCAN
-echo WINDOWS DEFENDER SCAN
+title NETWORK TRAFFIC (Bytes)
+echo NETWORK TRAFFIC (Bytes)
 echo ====================
-powershell -Command "Start-MpScan -ScanType QuickScan"
+netstat -e
 echo.
 pause
 del "C:\New folder\Sunday-final-year\temp_cmd.bat" & exit
