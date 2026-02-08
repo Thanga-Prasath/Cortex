@@ -4,6 +4,7 @@ from .engines.general import GeneralEngine
 from .engines.system import SystemEngine
 from .engines.file_manager import FileManagerEngine
 from .engines.application import ApplicationEngine
+from .engines.workspace import WorkspaceEngine
 from .nlu import NeuralIntentModel
 import platform
 import sys
@@ -26,6 +27,7 @@ class CortexEngine:
         self.system_engine = SystemEngine(self.speaker, self.listener)
         self.file_manager = FileManagerEngine(self.speaker)
         self.application_engine = ApplicationEngine(self.speaker)
+        self.workspace_engine = WorkspaceEngine(self.speaker, self.status_queue)
         
         # NLU Model
         self.nlu = NeuralIntentModel()
@@ -61,7 +63,13 @@ class CortexEngine:
             'file_move_here': "Paste files here",
             'file_search': "Search for a file",
             'app_open': "Open an application",
-            'app_close': "Close an application"
+            'app_close': "Close an application",
+            'workspace_create': "Create a workspace",
+            'workspace_launch': "Launch a workspace",
+            'workspace_close': "Close workspace",
+            'workspace_edit': "Edit workspace",
+            'workspace_remove': "Remove workspace",
+            'workspace_list': "List workspaces"
         }
 
     def get_confirmation_message(self, tag, command):
@@ -174,7 +182,11 @@ class CortexEngine:
         if self.application_engine.handle_intent(tag, command):
             return True
 
-        # 4. General Engine
+        # 4. Workspace Engine
+        if self.workspace_engine.handle_intent(tag, command):
+            return True
+
+        # 5. General Engine
         if self.general_engine.handle_intent(tag):
             return True
             
