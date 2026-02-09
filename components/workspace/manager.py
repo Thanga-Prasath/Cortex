@@ -75,18 +75,52 @@ class WorkspaceManager:
         return dict(sorted(apps.items()))
 
     def _get_windows_apps(self):
-        # Uses PowerShell to find Start Menu shortcuts and UWP apps
+        # Hybrid Approach: 
+        # 1. Use classic Shortcut scan for Desktop apps (to get real paths for PIDs)
+        # 2. Use Get-StartApps for UWP apps
+        
         apps = {}
-        ps_script = """
+        
+        # Part 1: Classic LNK Scan
+        ps_lnk_script = """
         [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-        Get-StartApps | ForEach-Object {
+        $paths = @(
+            [Environment]::GetFolderPath('CommonStartMenu'),
+            [Environment]::GetFolderPath('StartMenu')
+        )
+        $shortcuts = Get-ChildItem -Path $paths -Recurse -Include *.lnk
+        foreach ($s in $shortcuts) {
+            try {
+                $sh = New-Object -ComObject WScript.Shell
+                $target = $sh.CreateShortcut($s.FullName).TargetPath
+                if ($target -match '\\.exe$') {
+                    Write-Output "$($s.BaseName)|$target"
+                }
+            } catch {}
+        }
+        """
+        try:
+            cmd = ["powershell", "-NoProfile", "-Command", ps_lnk_script]
+            result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8')
+            for line in result.stdout.splitlines():
+                if '|' in line:
+                    try:
+                        name, target = line.split('|', 1)
+                        apps[name.strip()] = target.strip()
+                    except ValueError:
+                        continue
+        except Exception as e:
+            print(f"LNK Scan failed: {e}")
+
+        # Part 2: UWP Scan
+        ps_uwp_script = """
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+        Get-StartApps | Where-Object { $_.AppID -like "*!*" } | ForEach-Object {
             Write-Output "$($_.Name)|$($_.AppID)"
         }
         """
         try:
-            # Run PowerShell command to get apps
-            cmd = ["powershell", "-NoProfile", "-Command", ps_script]
-            # Use distinct encoding to avoid issues
+            cmd = ["powershell", "-NoProfile", "-Command", ps_uwp_script]
             result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8')
             for line in result.stdout.splitlines():
                 if '|' in line:
@@ -95,18 +129,14 @@ class WorkspaceManager:
                         name = name.strip()
                         app_id = app_id.strip()
                         
-                        # Store as shell:AppsFolder command for UWP or regular path if it looks like one (though Get-StartApps returns AppIDs)
-                        # Actually Get-StartApps returns AppIDs for everything. 
-                        # For desktop apps, AppID is often the path or a specific ID. Launching via shell:AppsFolder works for both if AppID is valid?
-                        # Let's test: shell:AppsFolder\Microsoft.WindowsCalculator_8wekyb3d8bbwe!App works.
-                        # shell:AppsFolder\Chrome works? No, usually distinct.
-                        # But Get-StartApps returns everything needed to launch via shell:AppsFolder usually.
-                        
-                        apps[name] = f"shell:AppsFolder\\{app_id}"
+                        # Only add if not already found (LNKs take precedence for cleaner paths)
+                        if name not in apps:
+                            apps[name] = f"shell:AppsFolder\\{app_id}"
                     except ValueError:
                         continue
         except Exception as e:
-            print(f"Windows app scan failed: {e}")
+            print(f"UWP Scan failed: {e}")
+            
         return dict(sorted(apps.items()))
 
     def _get_mac_apps(self):

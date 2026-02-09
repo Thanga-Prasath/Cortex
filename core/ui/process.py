@@ -12,6 +12,7 @@ def ui_process_target(status_queue):
     Initializes QApplication and the StatusWindow.
     """
     app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)
     
     # Persistent windows
     window = StatusWindow()

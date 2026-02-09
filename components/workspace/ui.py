@@ -134,6 +134,13 @@ class WorkspaceEditor(QMainWindow):
         # App List
         layout.addWidget(QLabel("Select Applications:"))
         
+        # Search Bar
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Search apps...")
+        self.search_input.setStyleSheet("color: white; border: 1px solid #00FFFF; padding: 5px; border-radius: 5px;")
+        self.search_input.textChanged.connect(self.filter_apps)
+        layout.addWidget(self.search_input)
+        
         # Scroll Area for Apps
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
@@ -188,6 +195,14 @@ class WorkspaceEditor(QMainWindow):
         self.manager.create_workspace(name, selected_apps)
         self.close()
 
+    def filter_apps(self, text):
+        text = text.lower()
+        for app_name, cb in self.app_checkboxes.items():
+            if text in app_name.lower():
+                cb.show()
+            else:
+                cb.hide()
+
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self.windowHandle().startSystemMove()
@@ -241,6 +256,12 @@ class WorkspaceSelector(QMainWindow):
         layout.addWidget(header)
         
         # List
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Search workspaces...")
+        self.search_input.setStyleSheet("color: white; border: 1px solid #574B90; padding: 5px; border-radius: 5px;")
+        self.search_input.textChanged.connect(self.filter_workspaces)
+        layout.addWidget(self.search_input)
+        
         self.list_widget = QListWidget()
         workspaces = self.manager.get_workspace_names()
         for ws in workspaces:
@@ -295,6 +316,12 @@ class WorkspaceSelector(QMainWindow):
             self.editor = WorkspaceEditor(self.manager, name)
             self.editor.show()
     
+    def filter_workspaces(self, text):
+        text = text.lower()
+        for i in range(self.list_widget.count()):
+            item = self.list_widget.item(i)
+            item.setHidden(text not in item.text().lower())
+
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self.windowHandle().startSystemMove()

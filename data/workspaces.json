@@ -6,5 +6,9 @@
     "Hi": [
         "Excel",
         "Krita (x64)"
+    ],
+    "browsers": [
+        "Firefox",
+        "Microsoft Edge"
     ]
 }
