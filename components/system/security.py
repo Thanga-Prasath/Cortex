@@ -21,7 +21,8 @@ def run_security_scan(speaker=None):
         # SMART CHECK: Check SecurityCenter2 for ANY active antivirus (including 3rd party)
         try:
             # Get AV products from WMI/CIM
-            cmd = "powershell \"Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiVirusProduct | Select-Object -Property displayName | ConvertTo-Json\""
+            # [FIX] Added -NoProfile to prevent user profile output (like venv activation) from messing up JSON parsing
+            cmd = "powershell -NoProfile \"Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiVirusProduct | Select-Object -Property displayName | ConvertTo-Json\""
             result = subprocess.check_output(cmd, shell=True).decode().strip()
             
             # Helper to parse JSON output which might be a list or single object
@@ -40,21 +41,16 @@ def run_security_scan(speaker=None):
             # Filter for active AVs
             detected_avs = [av['displayName'] for av in av_list if 'displayName' in av]
             
-            # Logic:
-            # 1. If 3rd Party AV found (e.g. Bitdefender), assume it's handling security.
-            # 2. If only "Windows Defender" found, check its specific status using MpComputerStatus.
-            
             non_defender_avs = [name for name in detected_avs if "Windows Defender" not in name]
             
             if non_defender_avs:
                 # 3rd Party AV Detected
                 av_name = non_defender_avs[0]
-                speaker.speak(f"System is protected by {av_name}.")
+                speaker.speak(f"System is protected by {av_name}. Can't do automated system scan with third party antivirus system, user action needed.")
                 
                 # Smart Dispatcher for known AVs
                 if "Bitdefender" in av_name:
                     # Attempt to open Bitdefender UI
-                    # Common paths for Bitdefender Agent or Main UI
                     scan_paths = [
                         r"C:\Program Files\Bitdefender\Bitdefender Security\bdagent.exe",
                         r"C:\Program Files\Bitdefender\Bitdefender Security\seccenter.exe"
@@ -78,14 +74,41 @@ def run_security_scan(speaker=None):
 
             elif "Windows Defender" in detected_avs:
                 # Only Defender found, verify it's actually ON
-                cmd_status = "powershell \"Get-MpComputerStatus | Select-Object -Property AntivirusEnabled,RealTimeProtectionEnabled\""
-                res_status = subprocess.check_output(cmd_status, shell=True).decode()
-                
-                if "AntivirusEnabled              : True" in res_status and "RealTimeProtectionEnabled     : True" in res_status:
-                     speaker.speak("System is protected by Windows Defender.")
-                else:
-                     speaker.speak("Warning. Windows Defender appears to be disabled. Opening security settings.")
-                     subprocess.Popen("start windowsdefender:", shell=True)
+                # [FIX] Use JSON output for robustness AND -NoProfile
+                cmd_status = "powershell -NoProfile \"Get-MpComputerStatus | Select-Object -Property AntivirusEnabled,RealTimeProtectionEnabled | ConvertTo-Json\""
+                try:
+                    res_status = subprocess.check_output(cmd_status, shell=True).decode().strip()
+                    status_json = json.loads(res_status)
+                    
+                    # Handle case where ConvertTo-Json might return a single object or list
+                    if isinstance(status_json, list):
+                        status_json = status_json[0]
+                        
+                    av_enabled = status_json.get('AntivirusEnabled', False)
+                    # RealTimeProtection might be off but scanning still works, but let's check AV enabled.
+
+                    if av_enabled:
+                         speaker.speak("Starting a Quick Scan with Windows Defender...")
+                         
+                         # Launch PyQt6 GUI for scanning
+                         # Using sys.executable to ensure we use the same python interpreter (virtualenv)
+                         import sys
+                         gui_script = os.path.abspath(os.path.join("components", "system", "scan_gui.py"))
+                         
+                         if os.path.exists(gui_script):
+                             # Run detached to not block
+                             subprocess.Popen([sys.executable, gui_script], cwd=os.getcwd())
+                         else:
+                             speaker.speak("Scan GUI not found. Falling back to dashboard.")
+                             subprocess.Popen("start windowsdefender:", shell=True)
+                    else:
+                         speaker.speak("Warning. Windows Defender appears to be disabled. Opening security settings.")
+                         subprocess.Popen("start windowsdefender:", shell=True)
+                except Exception as e:
+                    print(f"Error parsing Defender status: {e}")
+                    speaker.speak("Windows Defender is present but I cannot verify its status. Opening security settings.")
+                    subprocess.Popen("start windowsdefender:", shell=True)
+
             else:
                 # No AV found at all
                 speaker.speak("Critical Warning. No antivirus software detected on this system. Opening security settings.")
