@@ -1,8 +1,8 @@
 @echo off
-title NETWORK TRAFFIC (Bytes)
-echo NETWORK TRAFFIC (Bytes)
+title CURRENT DIRECTORY
+echo CURRENT DIRECTORY
 echo ====================
-netstat -e
+dir
 echo.
 pause
 del "C:\New folder\Sunday-final-year\temp_cmd.bat" & exit
