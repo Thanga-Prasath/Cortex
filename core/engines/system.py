@@ -38,6 +38,15 @@ class SystemEngine:
         elif tag == 'system_scan':
             security.run_security_scan(self.speaker)
             return True
+        elif tag == 'scan_drivers':
+            self.speaker.speak("Opening Driver Manager.")
+            try:
+                # Launch the GUI as a separate process
+                subprocess.Popen([sys.executable, "-m", "core.ui.driver_window"])
+            except Exception as e:
+                self.speaker.speak(f"Failed to open driver manager: {e}")
+                print(f"Error launching driver window: {e}")
+            return True
         elif tag == 'check_ports':
             ports.check_ports(self.speaker)
             return True

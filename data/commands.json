@@ -170,6 +170,18 @@
             "responses": []
         },
         {
+            "tag": "scan_drivers",
+            "patterns": [
+                "scan drivers",
+                "check drivers",
+                "update drivers",
+                "driver updates",
+                "check for driver updates",
+                "scan for driver updates"
+            ],
+            "responses": []
+        },
+        {
             "tag": "check_ports",
             "patterns": [
                 "check ports",

@@ -46,6 +46,7 @@ class CortexEngine:
             'system_disk': "Check disk space",
             'list_curr_dir': "List files in directory",
             'system_info': "Check system information",
+            'scan_drivers': "Scan for driver updates",
             'system_scan': "Run a security scan",
             'check_ports': "Check open ports",
             'check_firewall': "Check firewall status",
