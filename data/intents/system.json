@@ -1,0 +1,383 @@
+{
+    "intents": [
+        {
+            "tag": "system_ip",
+            "patterns": [
+                "what is my ip",
+                "ip address",
+                "check network",
+                "icy",
+                "eye pea",
+                "what is my icy",
+                "what is the address"
+            ],
+            "responses": [],
+            "keywords": [
+                "ip address",
+                "check network"
+            ]
+        },
+        {
+            "tag": "system_memory",
+            "patterns": [
+                "check ram",
+                "memory usage",
+                "how much ram",
+                "system memory",
+                "six memory",
+                "text memory",
+                "term memory",
+                "it's a memory"
+            ],
+            "responses": [],
+            "keywords": [
+                "system memory",
+                "check ram"
+            ]
+        },
+        {
+            "tag": "system_disk",
+            "patterns": [
+                "disk space",
+                "storage status",
+                "check disk",
+                "hard drive space",
+                "what is their storage status"
+            ],
+            "responses": [],
+            "keywords": [
+                "disk space",
+                "storage status",
+                "check disk"
+            ]
+        },
+        {
+            "tag": "system_info",
+            "patterns": [
+                "system info",
+                "computer specs",
+                "what os is this",
+                "operating system"
+            ],
+            "responses": [],
+            "keywords": [
+                "system info",
+                "computer specs",
+                "operating system"
+            ]
+        },
+        {
+            "tag": "system_scan",
+            "patterns": [
+                "scan system",
+                "security scan",
+                "run security check",
+                "check for viruses",
+                "system security",
+                "scan computer",
+                "check security",
+                "is my system safe",
+                "run virus scan",
+                "scan for threats",
+                "security check",
+                "inspect system"
+            ],
+            "responses": [],
+            "keywords": [
+                "scan system",
+                "security scan",
+                "run virus scan"
+            ]
+        },
+        {
+            "tag": "scan_drivers",
+            "patterns": [
+                "scan drivers",
+                "check drivers",
+                "update drivers",
+                "driver updates",
+                "check for driver updates",
+                "scan for driver updates"
+            ],
+            "responses": [],
+            "keywords": [
+                "scan drivers",
+                "update drivers"
+            ]
+        },
+        {
+            "tag": "check_ports",
+            "patterns": [
+                "check ports",
+                "open ports",
+                "show open ports",
+                "network ports",
+                "check network ports",
+                "what ports are open",
+                "list ports",
+                "show me ports",
+                "are my ports open",
+                "scan ports",
+                "port status"
+            ],
+            "responses": [],
+            "keywords": [
+                "port",
+                "ports"
+            ]
+        },
+        {
+            "tag": "check_firewall",
+            "patterns": [
+                "check firewall",
+                "firewall status",
+                "is firewall on",
+                "show firewall",
+                "firewall check",
+                "security wall",
+                "firewall",
+                "is the firewall active",
+                "check ufw"
+            ],
+            "responses": [],
+            "keywords": [
+                "firewall"
+            ]
+        },
+        {
+            "tag": "console_clear",
+            "patterns": [
+                "clear screen",
+                "clear console",
+                "clean terminal",
+                "cls"
+            ],
+            "responses": [],
+            "keywords": [
+                "clear screen",
+                "clear console"
+            ]
+        },
+        {
+            "tag": "check_connections",
+            "patterns": [
+                "check connections",
+                "network connections",
+                "who am i talking to",
+                "active connections",
+                "list connections",
+                "show connections"
+            ],
+            "responses": [],
+            "keywords": [
+                "connections"
+            ]
+        },
+        {
+            "tag": "system_processes",
+            "patterns": [
+                "process monitor",
+                "task manager",
+                "check running processes",
+                "top",
+                "show processes",
+                "list processes",
+                "what is running"
+            ],
+            "responses": [],
+            "keywords": [
+                "process",
+                "processes",
+                "task manager"
+            ]
+        },
+        {
+            "tag": "login_history",
+            "patterns": [
+                "login history",
+                "who logged in",
+                "check users",
+                "user history",
+                "sign in history"
+            ],
+            "responses": [],
+            "keywords": [
+                "login",
+                "history",
+                "users"
+            ]
+        },
+        {
+            "tag": "network_traffic",
+            "patterns": [
+                "network traffic",
+                "internet monitor",
+                "traffic monitor",
+                "data usage"
+            ],
+            "responses": [],
+            "keywords": [
+                "network",
+                "traffic",
+                "data usage"
+            ]
+        },
+        {
+            "tag": "internet_speed",
+            "patterns": [
+                "check internet speed",
+                "run speed test",
+                "how fast is my internet",
+                "speedtest",
+                "net speed",
+                "check speed",
+                "test connection speed"
+            ],
+            "responses": [],
+            "keywords": [
+                "internet",
+                "speed",
+                "speedtest"
+            ]
+        },
+        {
+            "tag": "system_cleanup",
+            "patterns": [
+                "clean system",
+                "clean temporary files",
+                "delete temp files",
+                "remove junk files",
+                "clean my pc",
+                "disk cleanup",
+                "clear cache"
+            ],
+            "responses": [],
+            "keywords": [
+                "clean system",
+                "delete temp files",
+                "disk cleanup"
+            ]
+        },
+        {
+            "tag": "kill_process",
+            "patterns": [
+                "kill process",
+                "terminate program",
+                "end task",
+                "stop running",
+                "kill application"
+            ],
+            "responses": [],
+            "keywords": [
+                "kill process",
+                "terminate program",
+                "end task"
+            ]
+        },
+        {
+            "tag": "wifi_list",
+            "patterns": [
+                "scan wifi",
+                "list wifi",
+                "show available networks",
+                "wifi networks",
+                "available wifi",
+                "check wifi"
+            ],
+            "responses": [],
+            "keywords": [
+                "wifi"
+            ]
+        },
+        {
+            "tag": "system_update",
+            "patterns": [
+                "check for updates",
+                "system update",
+                "update system",
+                "check updates",
+                "any updates",
+                "software update"
+            ],
+            "responses": [],
+            "keywords": [
+                "system update",
+                "check for updates"
+            ]
+        },
+        {
+            "tag": "cpu_info",
+            "patterns": [
+                "cpu info",
+                "processor info",
+                "cpu details",
+                "check cpu",
+                "processor details"
+            ],
+            "responses": [],
+            "keywords": [
+                "cpu",
+                "processor"
+            ]
+        },
+        {
+            "tag": "system_temp",
+            "patterns": [
+                "check temperature",
+                "cpu temperature",
+                "system temp",
+                "how hot is my pc",
+                "computer temperature",
+                "thermal status"
+            ],
+            "responses": [],
+            "keywords": [
+                "temperature",
+                "temp"
+            ]
+        },
+        {
+            "tag": "current_user",
+            "patterns": [
+                "who am i",
+                "current user",
+                "who is logged in",
+                "user info",
+                "which user is this"
+            ],
+            "responses": [],
+            "keywords": [
+                "user",
+                "who am i"
+            ]
+        },
+        {
+            "tag": "system_services",
+            "patterns": [
+                "list services",
+                "system services",
+                "show services",
+                "running services",
+                "check services"
+            ],
+            "responses": [],
+            "keywords": [
+                "services"
+            ]
+        },
+        {
+            "tag": "clear_dns",
+            "patterns": [
+                "clear dns",
+                "flush dns",
+                "reset dns",
+                "clean dns cache",
+                "flush dns cache"
+            ],
+            "responses": [],
+            "keywords": [
+                "dns"
+            ]
+        }
+    ]
+}

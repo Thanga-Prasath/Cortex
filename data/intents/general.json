@@ -1,0 +1,164 @@
+{
+    "intents": [
+        {
+            "tag": "greet",
+            "patterns": [
+                "hello",
+                "hi",
+                "hey",
+                "greetings",
+                "cortex",
+                "good morning",
+                "good afternoon",
+                "good evening",
+                "hey cortex",
+                "hello cortex",
+                "hi assistant",
+                "hey assistant",
+                "good morning cortex",
+                "yo cortex"
+            ],
+            "responses": [
+                "Hello {name}. How may I help you?",
+                "Greetings {name}. I am online.",
+                "Hello {name}. Ready to assist.",
+                "Good day {name}."
+            ],
+            "keywords": [
+                "hello",
+                "hi",
+                "hey",
+                "greetings"
+            ]
+        },
+        {
+            "tag": "change_name",
+            "patterns": [
+                "call me",
+                "change my name to",
+                "my name is",
+                "i am",
+                "call me {name}",
+                "change name to {name}"
+            ],
+            "responses": [],
+            "keywords": [
+                "call me",
+                "name"
+            ]
+        },
+        {
+            "tag": "time",
+            "patterns": [
+                "time",
+                "clock",
+                "hour",
+                "what is the time",
+                "current time",
+                "tell me the time",
+                "what's the time",
+                "do you have the time",
+                "what time is it",
+                "current clock",
+                "tell time"
+            ],
+            "responses": [],
+            "keywords": [
+                "time",
+                "clock"
+            ]
+        },
+        {
+            "tag": "date",
+            "patterns": [
+                "date",
+                "today",
+                "day",
+                "year",
+                "month",
+                "what is today",
+                "tell me the date"
+            ],
+            "responses": [],
+            "keywords": [
+                "date",
+                "today"
+            ]
+        },
+        {
+            "tag": "exit",
+            "patterns": [
+                "exit",
+                "bye",
+                "stop",
+                "quit",
+                "shutdown",
+                "goodbye",
+                "see you later",
+                "bye bye",
+                "bye for now",
+                "catch you later",
+                "shut down",
+                "turn off"
+            ],
+            "responses": [
+                "Goodbye {name}.",
+                "Shutting down, {name}.",
+                "Have a good day, {name}.",
+                "See you later, {name}.",
+                "Closing remaining processes. Goodbye.",
+                "System shutdown initiated."
+            ],
+            "keywords": [
+                "exit",
+                "bye",
+                "quit",
+                "shutdown"
+            ]
+        },
+        {
+            "tag": "system_power_advanced",
+            "patterns": [
+                "sleep",
+                "go to sleep",
+                "lock screen",
+                "lock pc",
+                "lock computer",
+                "hibernate",
+                "monitor off",
+                "turn off monitor",
+                "screen off"
+            ],
+            "responses": [
+                "Sleeping now.",
+                "Locking the system.",
+                "Turning off monitor.",
+                "Hibernating."
+            ],
+            "keywords": [
+                "monitor off",
+                "screen off"
+            ]
+        },
+        {
+            "tag": "dictation_mode",
+            "patterns": [
+                "start dictation",
+                "enable dictation",
+                "start typing",
+                "type what i say",
+                "dictation mode",
+                "voice typing"
+            ],
+            "responses": [
+                "Dictation mode enabled. Say 'stop dictation' to exit.",
+                "I am listening. Start speaking to type."
+            ],
+            "keywords": [
+                "dictation",
+                "typing",
+                "type"
+            ]
+        }
+    ]
+}

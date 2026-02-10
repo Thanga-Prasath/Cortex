@@ -1,0 +1,67 @@
+{
+    "intents": [
+        {
+            "tag": "clipboard_view",
+            "patterns": [
+                "read clipboard",
+                "what is on my clipboard",
+                "show clipboard",
+                "check clipboard"
+            ],
+            "responses": [],
+            "keywords": [
+                "read clipboard",
+                "show clipboard"
+            ]
+        },
+        {
+            "tag": "clipboard_clear",
+            "patterns": [
+                "clear clipboard",
+                "empty clipboard",
+                "delete clipboard"
+            ],
+            "responses": [
+                "Clipboard cleared."
+            ],
+            "keywords": [
+                "clear clipboard"
+            ]
+        },
+        {
+            "tag": "note_take",
+            "patterns": [
+                "take a note",
+                "write a note",
+                "new note",
+                "note down",
+                "create note"
+            ],
+            "responses": [
+                "What should I write?",
+                "I am listening.",
+                "Ready to take a note."
+            ],
+            "keywords": [
+                "take note",
+                "write note"
+            ]
+        },
+        {
+            "tag": "timer_set",
+            "patterns": [
+                "set a timer",
+                "start a timer",
+                "count down",
+                "timer for"
+            ],
+            "responses": [
+                "How long?",
+                "For how many minutes?"
+            ],
+            "keywords": [
+                "set timer"
+            ]
+        }
+    ]
+}

@@ -1,0 +1,27 @@
+{
+    "intents": [
+        {
+            "tag": "media_control",
+            "patterns": [
+                "play music",
+                "pause music",
+                "stop music",
+                "resume music",
+                "next song",
+                "previous song",
+                "volume up",
+                "volume down",
+                "mute volume",
+                "unmute volume"
+            ],
+            "responses": [],
+            "keywords": [
+                "music",
+                "volume",
+                "play",
+                "pause",
+                "song"
+            ]
+        }
+    ]
+}

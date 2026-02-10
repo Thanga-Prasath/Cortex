@@ -15,9 +15,10 @@ except ImportError as e:
     raise e
 
 class Listener:
-    def __init__(self, status_queue=None, is_speaking_flag=None):
+    def __init__(self, status_queue=None, is_speaking_flag=None, reset_event=None):
         self.status_queue = status_queue
         self.is_speaking_flag = is_speaking_flag
+        self.reset_event = reset_event
         # Use base.en for faster speed (trade-off: slightly less accurate than small)
         # small.en is ~461MB, base.en is ~142MB
         self.model_size = "base.en"
@@ -107,9 +108,9 @@ class Listener:
             stream.close()
             
             avg_noise = sum(noise_levels) / len(noise_levels)
-            self.THRESHOLD = avg_noise * 1.3 # Set threshold 30% above noise floor
+            self.THRESHOLD = avg_noise * 1.5 # Set threshold 50% above noise floor (increased from 30%)
             # Clamp minimum threshold to avoid super sensitivity
-            if self.THRESHOLD < 300: self.THRESHOLD = 300
+            if self.THRESHOLD < 400: self.THRESHOLD = 400 # Increased from 300
             
             print(f"Calibration Complete. Threshold set to: {self.THRESHOLD:.2f} (Avg Noise: {avg_noise:.2f})")
             
@@ -117,8 +118,11 @@ class Listener:
             print(f"Calibration failed: {e}. Using default threshold.")
             self.THRESHOLD = 1000
 
-    def listen(self):
-        """Records audio until silence and transcribes with Whisper."""
+    def listen(self, timeout=None):
+        """
+        Records audio until silence and transcribes with Whisper.
+        :param timeout: Max time to wait for speech start (seconds). Returns None if timeout.
+        """
         try:
             # Check for system speech to prevent self-listening
             if self.is_speaking_flag:
@@ -135,9 +139,21 @@ class Listener:
             # 1. Wait for speech to start (Voice Activity Detection)
             frames = []
             started = False
+            start_time = time.time()
             last_speech_time = time.time()
             
             while True:
+                # Check for reset signal
+                if self.reset_event and self.reset_event.is_set():
+                    return None
+
+                # Timeout Check (Waiting for speech)
+                if timeout and not started:
+                    if time.time() - start_time > timeout:
+                        print("\rListening... (Timeout)        ", end="", flush=True)
+                        stream.stop_stream()
+                        stream.close()
+                        return None
                 # Continuous check for system speach (Async interruption)
                 if self.is_speaking_flag and self.is_speaking_flag.value:
                     print("\r[System Speaking] Pausing listener...", end="", flush=True)
@@ -192,7 +208,9 @@ class Listener:
             # keywords = "what is the time, current date, system scan, system cleanup, exit, stop, check ports, firewall, memory, disk, cpu, file manager, create folder, move file, search, hello, greetings, system info"
             
             # Combine dynamic vocab with some static anchors
-            prompt_text = f"Commands: {self.dynamic_keywords}, system monitor, assistant"
+            # IMPORTANT: Add directional keywords to prevent "left"/"right" being heard as "list"/"write"
+            # IMPORTANT: Add common app names for better app launch recognition
+            prompt_text = f"Commands: {self.dynamic_keywords}, left, right, up, down, snap left, snap right, move left, move right, window left, window right, WhatsApp, Chrome, Firefox, Notepad, Discord, Spotify, Visual Studio Code, Excel, Word, PowerPoint, system monitor, assistant, open, close, minimize, maximize"
             
             segments, info = self.model.transcribe(
                 audio_np, 
@@ -216,13 +234,33 @@ class Listener:
             # Remove punctuation (Whisper adds it)
             full_text = full_text.replace(".", "").replace("?", "").replace(",", "").replace("!", "")
             
+            # --- SMART CORRECTIONS FOR COMMON MISRECOGNITIONS ---
+            # Fix "snap list" → "snap left" (common Whisper error)
+            if "snap list" in full_text:
+                full_text = full_text.replace("snap list", "snap left")
+                print(f"[Correction] 'snap list' → 'snap left'")
+            
+            # Fix "move list" → "move left"
+            if "move list" in full_text:
+                full_text = full_text.replace("move list", "move left")
+                print(f"[Correction] 'move list' → 'move left'")
+            
+            # Fix "window list" → "window left" (if user says "minimize window list")
+            # But be careful not to break "list windows"
+            if " window list" in full_text or full_text.startswith("window list"):
+                full_text = full_text.replace("window list", "window left")
+                print(f"[Correction] 'window list' → 'window left'")
+            
             # Whitelist/Filter check
             words = full_text.split()
             # Important: Included the security keywords and confirmation words
             important_keywords = [
                 "time", "date", "hello", "hi", "hey", "stop", "exit", "bye", "quit", "cortex", "help", 
                 "scan", "security", "firewall", "ports", "list", "check", "system",
-                "yes", "no", "yeah", "sure", "cancel", "confirm", "deny"
+                "yes", "no", "yeah", "sure", "cancel", "confirm", "deny",
+                "open", "close", "launch", "start", "monitor", "sleep", "lock",
+                "minimize", "maximize", "restore", "snap", "show", "switch",
+                "clipboard", "note", "timer", "create", "delete", "remove", "edit"
             ]
             
             # Relaxed filter: Allow if > 1 word OR is a keyword
@@ -240,6 +278,12 @@ class Listener:
         except Exception as e:
             print(f"\nError in listening: {e}")
             return ""
+
+    def terminate(self):
+        """Clean resource release."""
+        if self.p:
+            self.p.terminate()
+            self.p = None
 
 if __name__ == "__main__":
     l = Listener()

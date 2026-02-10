@@ -1,0 +1,84 @@
+{
+    "intents": [
+        {
+            "tag": "app_open",
+            "patterns": [
+                "open application",
+                "launch application",
+                "start application",
+                "run application",
+                "open app",
+                "launch app",
+                "start app",
+                "run app",
+                "launch program",
+                "open program",
+                "open {app_name}",
+                "start {app_name}",
+                "launch {app_name}",
+                "run {app_name}",
+                "play {app_name}",
+                "can you open {app_name}",
+                "please open {app_name}",
+                "open powerpoint",
+                "open word",
+                "open excel",
+                "open spotify",
+                "open whatsapp"
+            ],
+            "responses": [],
+            "keywords": [
+                "open application",
+                "launch application",
+                "start application"
+            ]
+        },
+        {
+            "tag": "app_close",
+            "patterns": [
+                "close application",
+                "quit application",
+                "stop application",
+                "close app",
+                "quit app",
+                "stop app",
+                "close program",
+                "quit program",
+                "close {app_name}",
+                "quit {app_name}",
+                "stop {app_name}",
+                "terminate {app_name}",
+                "kill {app_name}",
+                "close powerpoint",
+                "close word",
+                "close excel",
+                "close spotify",
+                "close whatsapp",
+                "close chrome"
+            ],
+            "responses": [],
+            "keywords": [
+                "close application",
+                "quit application",
+                "stop application"
+            ]
+        },
+        {
+            "tag": "list_apps",
+            "patterns": [
+                "list apps",
+                "installed applications",
+                "show my apps",
+                "what apps are installed",
+                "list software",
+                "show installed apps"
+            ],
+            "responses": [],
+            "keywords": [
+                "list",
+                "apps",
+                "installed"
+            ]
+        }
+    ]
+}

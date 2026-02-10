@@ -6,7 +6,7 @@ from .status_window import StatusWindow
 from components.workspace.ui import WorkspaceEditor, WorkspaceSelector
 from components.workspace.manager import WorkspaceManager
 
-def ui_process_target(status_queue):
+def ui_process_target(status_queue, reset_event=None):
     """
     Target function for the UI process.
     Initializes QApplication and the StatusWindow.
@@ -14,8 +14,8 @@ def ui_process_target(status_queue):
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     
-    # Persistent windows
-    window = StatusWindow()
+    # Persistent windows - pass reset_event to StatusWindow
+    window = StatusWindow(reset_event=reset_event)
     window.show()
     
     # Track workspace windows to prevent garbage collection
@@ -62,6 +62,6 @@ def ui_process_target(status_queue):
                 pass
                 
     timer.timeout.connect(check_queue)
-    timer.start(100) # Check every 100ms
+    timer.start(30) # Check every 30ms for responsiveness
     
     sys.exit(app.exec())

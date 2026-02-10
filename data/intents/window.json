@@ -1,0 +1,119 @@
+{
+    "intents": [
+        {
+            "tag": "window_minimize",
+            "patterns": [
+                "minimize window",
+                "minimize this",
+                "hide window",
+                "drop window"
+            ],
+            "responses": [
+                "Minimizing window."
+            ],
+            "keywords": [
+                "minimize"
+            ]
+        },
+        {
+            "tag": "window_maximize",
+            "patterns": [
+                "maximize window",
+                "maximize this",
+                "full screen",
+                "expand window"
+            ],
+            "responses": [
+                "Maximizing window."
+            ],
+            "keywords": [
+                "maximize"
+            ]
+        },
+        {
+            "tag": "window_restore",
+            "patterns": [
+                "restore window",
+                "restore down",
+                "unmaximize"
+            ],
+            "responses": [
+                "Restoring window."
+            ],
+            "keywords": [
+                "restore"
+            ]
+        },
+        {
+            "tag": "window_snap_left",
+            "patterns": [
+                "snap left",
+                "move window left",
+                "dock left"
+            ],
+            "responses": [
+                "Snapping left."
+            ],
+            "keywords": [
+                "snap left"
+            ]
+        },
+        {
+            "tag": "window_snap_right",
+            "patterns": [
+                "snap right",
+                "move window right",
+                "dock right"
+            ],
+            "responses": [
+                "Snapping right."
+            ],
+            "keywords": [
+                "snap right"
+            ]
+        },
+        {
+            "tag": "window_close",
+            "patterns": [
+                "close window",
+                "close this window",
+                "terminate window"
+            ],
+            "responses": [
+                "Closing window."
+            ],
+            "keywords": [
+                "close window"
+            ]
+        },
+        {
+            "tag": "window_switch",
+            "patterns": [
+                "switch window",
+                "next window",
+                "swap window"
+            ],
+            "responses": [
+                "Switching window."
+            ],
+            "keywords": [
+                "switch window"
+            ]
+        },
+        {
+            "tag": "window_show_desktop",
+            "patterns": [
+                "show desktop",
+                "hide all windows",
+                "minimize all",
+                "go to desktop"
+            ],
+            "responses": [
+                "Showing desktop."
+            ],
+            "keywords": [
+                "desktop"
+            ]
+        }
+    ]
+}

@@ -1,0 +1,135 @@
+{
+    "intents": [
+        {
+            "tag": "list_curr_dir",
+            "patterns": [
+                "list files",
+                "show directory",
+                "what is in this folder",
+                "ls",
+                "list file",
+                "mister file",
+                "so directory"
+            ],
+            "responses": [],
+            "keywords": [
+                "list files",
+                "show directory"
+            ]
+        },
+        {
+            "tag": "file_create_folder",
+            "patterns": [
+                "create folder",
+                "make directory",
+                "new folder",
+                "create directory",
+                "make folder"
+            ],
+            "responses": [],
+            "keywords": [
+                "create folder",
+                "make folder",
+                "new folder",
+                "create directory"
+            ]
+        },
+        {
+            "tag": "file_create_file",
+            "patterns": [
+                "create file",
+                "new file",
+                "make file",
+                "generate file"
+            ],
+            "responses": [],
+            "keywords": [
+                "create file",
+                "make file"
+            ]
+        },
+        {
+            "tag": "file_move",
+            "patterns": [
+                "move",
+                "move these",
+                "move selected",
+                "move files",
+                "move them",
+                "cut",
+                "cut these"
+            ],
+            "responses": [],
+            "keywords": [
+                "move",
+                "cut"
+            ]
+        },
+        {
+            "tag": "file_move_here",
+            "patterns": [
+                "move here",
+                "paste here",
+                "paste",
+                "move them here",
+                "paste them here",
+                "put it here",
+                "drop here",
+                "paste it here"
+            ],
+            "responses": [],
+            "keywords": [
+                "paste",
+                "here"
+            ]
+        },
+        {
+            "tag": "file_search",
+            "patterns": [
+                "search file",
+                "find file",
+                "look for folder",
+                "look for folders",
+                "find folder",
+                "search for file",
+                "locate file"
+            ],
+            "responses": [],
+            "keywords": [
+                "search file",
+                "find file",
+                "locate file"
+            ]
+        },
+        {
+            "tag": "file_compress",
+            "patterns": [
+                "compress file",
+                "zip file",
+                "create archive",
+                "compress this",
+                "make zip"
+            ],
+            "responses": [],
+            "keywords": [
+                "compress",
+                "zip"
+            ]
+        },
+        {
+            "tag": "file_extract",
+            "patterns": [
+                "extract file",
+                "unzip file",
+                "extract archive",
+                "unzip this",
+                "extract here"
+            ],
+            "responses": [],
+            "keywords": [
+                "extract",
+                "unzip"
+            ]
+        }
+    ]
+}

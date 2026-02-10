@@ -1,0 +1,100 @@
+{
+    "intents": [
+        {
+            "tag": "workspace_create",
+            "patterns": [
+                "create workspace",
+                "make workspace",
+                "new workspace",
+                "setup workspace",
+                "build workspace"
+            ],
+            "responses": [],
+            "keywords": [
+                "create workspace",
+                "make workspace",
+                "new workspace"
+            ]
+        },
+        {
+            "tag": "workspace_launch",
+            "patterns": [
+                "open workspace",
+                "launch workspace",
+                "start workspace",
+                "run workspace",
+                "activate workspace",
+                "open workspace {name}",
+                "launch workspace {name}",
+                "start workspace {name}",
+                "run workspace {name}"
+            ],
+            "responses": [],
+            "keywords": [
+                "open workspace",
+                "launch workspace",
+                "start workspace"
+            ]
+        },
+        {
+            "tag": "workspace_close",
+            "patterns": [
+                "close workspace",
+                "stop workspace",
+                "shutdown workspace",
+                "exit workspace",
+                "end workspace",
+                "terminate workspace"
+            ],
+            "responses": [],
+            "keywords": [
+                "close workspace",
+                "stop workspace",
+                "exit workspace"
+            ]
+        },
+        {
+            "tag": "workspace_edit",
+            "patterns": [
+                "edit workspace",
+                "modify workspace",
+                "change workspace",
+                "update workspace"
+            ],
+            "responses": [],
+            "keywords": [
+                "edit workspace",
+                "modify workspace"
+            ]
+        },
+        {
+            "tag": "workspace_remove",
+            "patterns": [
+                "remove workspace",
+                "delete workspace",
+                "clear workspace",
+                "erase workspace"
+            ],
+            "responses": [],
+            "keywords": [
+                "remove workspace",
+                "delete workspace"
+            ]
+        },
+        {
+            "tag": "workspace_list",
+            "patterns": [
+                "list workspaces",
+                "show workspaces",
+                "display workspaces",
+                "what workspaces do i have",
+                "available workspaces"
+            ],
+            "responses": [],
+            "keywords": [
+                "list workspaces",
+                "show workspaces"
+            ]
+        }
+    ]
+}

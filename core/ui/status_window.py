@@ -1,11 +1,11 @@
-from PyQt6.QtWidgets import QMainWindow, QWidget, QLabel
+from PyQt6.QtWidgets import QMainWindow, QWidget, QLabel, QMenu, QApplication
 from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QRect, QEasingCurve, QPoint
-from PyQt6.QtGui import QColor, QPainter, QBrush, QPen, QRadialGradient
+from PyQt6.QtGui import QColor, QPainter, QBrush, QPen, QRadialGradient, QAction
 import ctypes
 import platform
 
 class StatusWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, reset_event=None):
         super().__init__()
         
         # Window Flags: Frameless, Always on Top, Tool (no taskbar icon)
@@ -19,6 +19,7 @@ class StatusWindow(QMainWindow):
         self.center_on_screen()
         
         # State
+        self.reset_event = reset_event
         self.current_state = "IDLE"
         self.wave_phase = 0
         self.wave_amplitude = 10
@@ -66,71 +67,118 @@ class StatusWindow(QMainWindow):
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self.windowHandle().startSystemMove()
+        elif event.button() == Qt.MouseButton.RightButton:
+            self.show_context_menu(event.globalPosition().toPoint())
 
-    def mouseMoveEvent(self, event):
-        pass # Not needed for system move
+    def show_context_menu(self, position):
+        """Show context menu with Reset option."""
+        menu = QMenu(self)
+        
+        # Style the menu to match the neon theme
+        menu.setStyleSheet("""
+            QMenu {
+                background-color: #1a1a1a;
+                border: 2px solid #39FF14;
+                border-radius: 8px;
+                padding: 5px;
+            }
+            QMenu::item {
+                color: #FFFFFF;
+                padding: 8px 20px;
+                border-radius: 4px;
+            }
+            QMenu::item:selected {
+                background-color: #39FF14;
+                color: #000000;
+            }
+        """)
+        
+        reset_action = QAction("🔄 Reset Assistant", self)
+        reset_action.triggered.connect(self.reset_assistant)
+        menu.addAction(reset_action)
+        
+        menu.exec(position)
+    
+    def reset_assistant(self):
+        """Signal the main process to restart the assistant in-place."""
+        print("[System] Reset requested. Signaling main process...")
+        if self.reset_event:
+            self.reset_event.set()  # Signal the main process
+        else:
+            print("[!] Reset event not available.")
 
     def update_status(self, status, data=None):
         self.current_state = status
         self.update() # Trigger repaint
+    
+    def closeEvent(self, event):
+        """Stop timers before closing to prevent Qt event loop crashes."""
+        self.anim_timer.stop()
+        self.top_timer.stop()
+        event.accept()
 
     def animate(self):
-        import random
-        import math
-        
-        if self.current_state == "SPEAKING":
-            # Beatbox Animation: Randomize bar heights
-            self.bar_heights = [random.randint(5, 20) for _ in range(5)]
-            self.update()
+        try:
+            import random
+            import math
             
-        elif self.current_state == "THINKING":
-            # Sine Wave Bars (Organized Flow)
-            move_speed = 0.2
-            self.wave_phase += move_speed
-            
-            # Calculate heights based on sine wave
-            new_heights = []
-            for i in range(5):
-                # Phase offset for each bar to create wave
-                offset = i * 0.5 
-                val = math.sin(self.wave_phase + offset)
-                # Map [-1, 1] to [5, 20]
-                height = 12 + (val * 8) 
-                new_heights.append(height)
-            self.bar_heights = new_heights
-            self.update()
-
-        elif self.current_state == "PROCESSING":
-             # Scanner / Ripple (Knight Rider style)
-            move_speed = 0.3
-            self.wave_phase += move_speed
-            
-            # Position of the "head" (0 to 4)
-            # Use saw-tooth or sine to move back and forth? Let's do simple cycle for now
-            # Cycle 0 -> 5
-            pos = (self.wave_phase * 2) % 6 
-            
-            new_heights = []
-            for i in range(5):
-                # Distance from current position
-                dist = abs(i - pos)
-                if dist < 1.5:
-                    height = 20 - (dist * 10)
-                else:
-                    height = 5
+            if self.current_state == "SPEAKING":
+                # Beatbox Animation: Randomize bar heights
+                self.bar_heights = [random.randint(5, 20) for _ in range(5)]
+                self.update()
                 
-                # Clamp
-                height = max(5, min(20, height))
-                new_heights.append(height)
+            elif self.current_state == "THINKING":
+                # Sine Wave Bars (Organized Flow)
+                move_speed = 0.2
+                self.wave_phase += move_speed
                 
-            self.bar_heights = new_heights
-            self.update()
+                # Use a fixed amplitude for THINKING to avoid interference from LISTENING state
+                thinking_amplitude = 10
+                
+                for i in range(5):
+                    offset = i * 1.0
+                    # Ensure height is always positive: 12 + (-10 to 10) = 2 to 22
+                    val = int(thinking_amplitude * math.sin(self.wave_phase + offset) + 12)
+                    self.bar_heights[i] = max(2, val) # Clamp to minimum 2
+                self.update()
 
-        else:
-             self.wave_phase = 0
-             self.wave_amplitude = 10
-             self.bar_heights = [5, 5, 5, 5, 5]
-             self.update()
+            elif self.current_state == "PROCESSING":
+                # Scanner Animation (Ping-Pong)
+                # We can use wave_phase to drive a scanner
+                speed = 0.5
+                self.wave_phase += speed
+                
+                # Calculate active index (0 to 4) using sine wave mapped to index range
+                # sin goes -1 to 1. Map to 0 to 4.
+                # (sin + 1) / 2 * 4
+                norm_pos = (math.sin(self.wave_phase) + 1) / 2
+                active_idx = int(norm_pos * 4.99) # 0 to 4
+                
+                for i in range(5):
+                    if i == active_idx:
+                        self.bar_heights[i] = 20
+                    else:
+                        self.bar_heights[i] = 5
+                self.update()
+                
+            elif self.current_state == "LISTENING":
+                # Pulse Animation (Gentle Breathing)
+                if self.wave_amplitude >= 15:
+                    self.pulse_direction = -1
+                elif self.wave_amplitude <= 5:
+                    self.pulse_direction = 1
+                    
+                self.wave_amplitude += self.pulse_direction * 0.5
+                self.bar_heights = [int(self.wave_amplitude)] * 5
+                self.update()
+                
+            elif self.current_state == "IDLE":
+                # Static low bars
+                self.bar_heights = [5, 5, 5, 5, 5]
+                self.update()
+        except Exception as e:
+            # Silently ignore animation errors to prevent crashes
+            pass
 
     def paintEvent(self, event):
         self.setFixedSize(self.width_val, self.height_val)
