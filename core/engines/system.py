@@ -7,7 +7,9 @@ import sys
 from components.system import (
     wifi, apps, update, cpu, temperature, user, compression, services, dns,
     info, console, ip, memory, disk, directory, security, ports, firewall,
-    connections, processes, login, traffic, speedtest, cleanup, kill
+    connections, processes, login, traffic, speedtest, cleanup, kill,
+    uptime, battery, recycle_bin, screenshot, audio, wifi_password, hidden_files, awake, dark_mode,
+    tools, power, volume
 )
 
 class SystemEngine:
@@ -94,9 +96,7 @@ class SystemEngine:
         elif tag == 'current_user':
             user.get_current_user(self.speaker)
             return True
-        elif tag == 'system_services':
-            services.manage_system_services(self.speaker)
-            return True
+
         elif tag == 'clear_dns':
             dns.clear_dns_cache(self.speaker)
             return True
@@ -109,6 +109,129 @@ class SystemEngine:
             return True
         elif tag == 'file_extract':
             self.speaker.speak("Extraction is not yet fully interactive via voice.")
+            return True
+            
+        # New Feature Handlers
+        elif tag == 'system_uptime':
+            uptime.get_system_uptime(self.speaker)
+            return True
+        elif tag == 'check_battery':
+            battery.check_battery_status(self.speaker)
+            return True
+        elif tag == 'empty_bin':
+            recycle_bin.empty_recycle_bin(self.speaker)
+            return True
+        elif tag == 'take_screenshot':
+            screenshot.take_screenshot(self.speaker)
+            return True
+        elif tag == 'restart_audio':
+            audio.restart_audio_service(self.speaker)
+            return True
+
+        # Round 2 Features
+        elif tag == 'wifi_password':
+            self.speaker.speak("Retrieving Wi-Fi info.")
+            gui_script = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "core", "ui", "wifi_password_gui.py")
+            
+            try:
+                if platform.system() == 'Windows':
+                     subprocess.Popen([sys.executable, gui_script], creationflags=subprocess.CREATE_NO_WINDOW)
+                else:
+                     subprocess.Popen([sys.executable, gui_script], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception as e:
+                self.speaker.speak(f"Failed to open Wi-Fi GUI: {e}")
+                # Fallback to speech
+                wifi_password.report_wifi_password(self.speaker)
+                
+            return True
+
+        elif tag == 'toggle_hidden_files':
+            # Basic toggle logic based on command pattern could be added,
+            # but for now we'll just toggle state (smart nlu contexts can be added later)
+            if "show" in command or "reveal" in command:
+                hidden_files.toggle_hidden_files(self.speaker, show=True)
+            elif "hide" in command:
+                hidden_files.toggle_hidden_files(self.speaker, show=False)
+            else:
+                hidden_files.toggle_hidden_files(self.speaker, show=None) # Toggle
+            return True
+        elif tag == 'keep_awake':
+            awake.enable_keep_awake(self.speaker)
+            return True
+        elif tag == 'stop_keep_awake':
+            awake.disable_keep_awake(self.speaker)
+            return True
+        elif tag == 'toggle_dark_mode':
+            dark_mode.toggle_dark_mode(self.speaker)
+            return True
+        
+        # Round 3: Tools
+        elif tag == 'open_task_manager':
+            tools.open_task_manager(self.speaker)
+            return True
+        elif tag == 'open_control_panel':
+            tools.open_control_panel(self.speaker)
+            return True
+        elif tag == 'open_terminal':
+            tools.open_terminal(self.speaker)
+            return True
+        elif tag == 'open_msconfig':
+            tools.open_system_config(self.speaker)
+            return True
+        elif tag == 'open_device_manager':
+            tools.open_device_manager(self.speaker)
+            return True
+        elif tag == 'open_registry_editor':
+            tools.open_registry_editor(self.speaker)
+            return True
+
+        # Round 4: Power & System Management
+        elif tag == 'system_lock':
+            power.lock_screen(self.speaker)
+            return True
+        elif tag == 'system_sleep':
+            power.sleep_system(self.speaker)
+            return True
+        elif tag == 'system_restart':
+            power.restart_system(self.speaker, self.listener)
+            return True
+        elif tag == 'system_shutdown':
+            power.shutdown_system(self.speaker, self.listener)
+            return True
+            
+        elif tag == 'volume_mute':
+            volume.mute_volume(self.speaker)
+            return True
+        elif tag == 'volume_unmute':
+            volume.unmute_volume(self.speaker)
+            return True
+        elif tag == 'volume_set':
+            # Basic volume setting (defaulting to 50 if not specified for now, 
+            # ideally we parse numbers from command in a helper)
+            import re
+            numbers = re.findall(r'\d+', command)
+            if numbers:
+                volume.set_volume(numbers[0], self.speaker)
+            else:
+                self.speaker.speak("To set volume, please say set volume to a percentage, like set volume to 50.")
+            return True
+            
+        elif tag == 'clear_dns':
+            dns.clear_dns_cache(self.speaker)
+            return True
+        elif tag == 'system_services':
+            self.speaker.speak("Opening System Services Manager.")
+            gui_script = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "core", "ui", "services_window.py")
+            
+            try:
+                if os.name == 'nt':
+                     subprocess.Popen([sys.executable, gui_script], creationflags=subprocess.CREATE_NO_WINDOW)
+                else:
+                     # Fallback for Linux/macOS
+                     services.manage_system_services(self.speaker)
+            except Exception as e:
+                self.speaker.speak(f"Failed to open services manager: {e}")
+                
             return True
             
         return False

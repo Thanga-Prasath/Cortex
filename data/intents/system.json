@@ -286,7 +286,9 @@
             ],
             "responses": [],
             "keywords": [
-                "wifi"
+                "scan wifi",
+                "list wifi",
+                "available networks"
             ]
         },
         {
@@ -377,6 +379,354 @@
             "responses": [],
             "keywords": [
                 "dns"
+            ]
+        },
+        {
+            "tag": "system_uptime",
+            "patterns": [
+                "system uptime",
+                "how long has computer been on",
+                "check uptime",
+                "uptime"
+            ],
+            "responses": [],
+            "keywords": [
+                "uptime"
+            ]
+        },
+        {
+            "tag": "check_battery",
+            "patterns": [
+                "check battery",
+                "battery status",
+                "power level",
+                "how much battery",
+                "battery percentage"
+            ],
+            "responses": [],
+            "keywords": [
+                "battery",
+                "power"
+            ]
+        },
+        {
+            "tag": "empty_bin",
+            "patterns": [
+                "empty recycle bin",
+                "clean trash",
+                "empty trash",
+                "clear recycle bin",
+                "delete trash"
+            ],
+            "responses": [],
+            "keywords": [
+                "recycle bin",
+                "trash"
+            ]
+        },
+        {
+            "tag": "take_screenshot",
+            "patterns": [
+                "take screenshot",
+                "capture screen",
+                "screenshot",
+                "print screen",
+                "snapshot"
+            ],
+            "responses": [],
+            "keywords": [
+                "screenshot",
+                "capture"
+            ]
+        },
+        {
+            "tag": "wifi_password",
+            "patterns": [
+                "what is the wifi password",
+                "show wifi password",
+                "get wifi key",
+                "wifi password",
+                "reveal wifi password"
+            ],
+            "responses": [],
+            "keywords": [
+                "wifi password",
+                "wifi key",
+                "reveal wifi password"
+            ]
+        },
+        {
+            "tag": "toggle_hidden_files",
+            "patterns": [
+                "show hidden files",
+                "hide hidden files",
+                "toggle hidden files",
+                "reveal hidden files",
+                "make hidden files visible"
+            ],
+            "responses": [],
+            "keywords": [
+                "hidden files",
+                "show",
+                "hide"
+            ]
+        },
+        {
+            "tag": "keep_awake",
+            "patterns": [
+                "keep computer awake",
+                "don't sleep",
+                "prevent sleep",
+                "stay awake",
+                "stop sleeping"
+            ],
+            "responses": [],
+            "keywords": [
+                "keep computer awake",
+                "prevent sleep",
+                "stay awake",
+                "awake"
+            ]
+        },
+        {
+            "tag": "stop_keep_awake",
+            "patterns": [
+                "stop keeping awake",
+                "allow sleep",
+                "disable awake mode",
+                "let computer sleep"
+            ],
+            "responses": [],
+            "keywords": [
+                "stop keeping awake",
+                "disable awake mode",
+                "stop",
+                "awake"
+            ]
+        },
+        {
+            "tag": "toggle_dark_mode",
+            "patterns": [
+                "enable dark mode",
+                "switch to dark mode",
+                "enable light mode",
+                "switch to light mode",
+                "toggle theme",
+                "change theme"
+            ],
+            "responses": [],
+            "keywords": [
+                "dark mode",
+                "light mode",
+                "theme"
+            ]
+        },
+        {
+            "tag": "open_task_manager",
+            "patterns": [
+                "open task manager",
+                "show running processes",
+                "activity monitor",
+                "kill process",
+                "system monitor"
+            ],
+            "responses": [],
+            "keywords": [
+                "task manager",
+                "activity monitor"
+            ]
+        },
+        {
+            "tag": "open_control_panel",
+            "patterns": [
+                "open control panel",
+                "system settings",
+                "open settings",
+                "configure system",
+                "preferences"
+            ],
+            "responses": [],
+            "keywords": [
+                "control panel",
+                "settings",
+                "preferences"
+            ]
+        },
+        {
+            "tag": "open_terminal",
+            "patterns": [
+                "open terminal",
+                "command prompt",
+                "open cmd",
+                "launch terminal",
+                "open shell",
+                "powershell"
+            ],
+            "responses": [],
+            "keywords": [
+                "terminal",
+                "command prompt",
+                "powershell"
+            ]
+        },
+        {
+            "tag": "open_msconfig",
+            "patterns": [
+                "open msconfig",
+                "system configuration",
+                "ms config",
+                "config tool"
+            ],
+            "responses": [],
+            "keywords": [
+                "msconfig",
+                "system configuration"
+            ]
+        },
+        {
+            "tag": "open_device_manager",
+            "patterns": [
+                "open device manager",
+                "check devices",
+                "hardware manager",
+                "dev management"
+            ],
+            "responses": [],
+            "keywords": [
+                "device manager",
+                "hardware"
+            ]
+        },
+        {
+            "tag": "open_registry_editor",
+            "patterns": [
+                "open registry",
+                "open regedit",
+                "registry editor",
+                "edit registry"
+            ],
+            "responses": [],
+            "keywords": [
+                "registry",
+                "regedit"
+            ]
+        },
+        {
+            "tag": "system_lock",
+            "patterns": [
+                "lock screen",
+                "lock computer",
+                "lock pc"
+            ],
+            "responses": [],
+            "keywords": [
+                "lock",
+                "lock screen"
+            ]
+        },
+        {
+            "tag": "system_sleep",
+            "patterns": [
+                "go to sleep",
+                "sleep mode",
+                "hibernate"
+            ],
+            "responses": [],
+            "keywords": [
+                "sleep",
+                "hibernate"
+            ]
+        },
+        {
+            "tag": "system_restart",
+            "patterns": [
+                "restart computer",
+                "reboot system",
+                "restart pc"
+            ],
+            "responses": [],
+            "keywords": [
+                "restart",
+                "reboot"
+            ]
+        },
+        {
+            "tag": "system_shutdown",
+            "patterns": [
+                "shutdown computer",
+                "power off",
+                "turn off pc",
+                "shutdown system"
+            ],
+            "responses": [],
+            "keywords": [
+                "shutdown",
+                "power off"
+            ]
+        },
+        {
+            "tag": "volume_mute",
+            "patterns": [
+                "mute volume",
+                "silence audio",
+                "mute sound"
+            ],
+            "responses": [],
+            "keywords": [
+                "mute",
+                "silence"
+            ]
+        },
+        {
+            "tag": "volume_unmute",
+            "patterns": [
+                "unmute volume",
+                "enable sound",
+                "unmute audio"
+            ],
+            "responses": [],
+            "keywords": [
+                "unmute",
+                "sound on"
+            ]
+        },
+        {
+            "tag": "volume_set",
+            "patterns": [
+                "set volume to",
+                "change volume to",
+                "volume level"
+            ],
+            "responses": [],
+            "keywords": [
+                "volume",
+                "level",
+                "set volume"
+            ]
+        },
+        {
+            "tag": "clear_dns",
+            "patterns": [
+                "flush dns",
+                "clear dns cache",
+                "reset dns"
+            ],
+            "responses": [],
+            "keywords": [
+                "dns",
+                "flush"
+            ]
+        },
+        {
+            "tag": "system_services",
+            "patterns": [
+                "manage services",
+                "open services",
+                "list services"
+            ],
+            "responses": [],
+            "keywords": [
+                "services"
             ]
         }
     ]

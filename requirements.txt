@@ -4,3 +4,7 @@ scikit-learn
 numpy
 pyttsx3>=2.90
 PyQt6
+psutil
+pyautogui
+winshell
+Pillow

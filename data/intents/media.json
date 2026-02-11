@@ -9,15 +9,12 @@
                 "resume music",
                 "next song",
                 "previous song",
-                "volume up",
-                "volume down",
-                "mute volume",
-                "unmute volume"
+                "next song",
+                "previous song"
             ],
             "responses": [],
             "keywords": [
                 "music",
-                "volume",
                 "play",
                 "pause",
                 "song"

@@ -90,39 +90,32 @@ class NeuralIntentModel:
         # --- 1. Keyword Boosting (Dynamic Logic) ---
         # Checks if ALL keywords for a specific intent are present in the text.
         # If so, boost confidence to 1.0 immediately.
+        # --- 1. Keyword Boosting (Dynamic Logic) ---
+        # Strategy: Find the intent with the LONGEST matching keyword phrase.
+        # This prevents generic keywords (e.g., "wifi") from shadowing specific ones (e.g., "wifi password").
+        
+        best_keyword_match_tag = None
+        max_keyword_len = 0
+        
         for tag, keywords in self.intent_keywords.items():
             if not keywords: continue
             
-            # Check if all keywords are in the text
-            # Logic: If query is "set volume up" and keywords for 'media_control' are ['volume'], it matches.
-            # But we need to be careful. Let's look for strong matches.
-            # Strategy: If the input contains specific unique keywords, boost it.
-            
-            # Simple Strict Match: If any single keyword is a multi-word phrase in the text? 
-            # Or if ALL keywords in the list are present?
-            # Let's go with: If ANY of the 'keywords' list is in the input? 
-            # No, that's too loose (e.g. 'time' keyword matches 'time for bed' -> 'time' tag).
-            # Existing hardcoded logic was: if ' memory ' in text -> system_memory.
-            
-            # Let's iterate and see if any keyword *phrase* is in the text.
-            # Let's iterate and see if any keyword *phrase* is in the text.
             for keyword in keywords:
                 # pad with spaces to match whole words if short
                 padded_text = f" {text} "
                 padded_keyword = f" {keyword} "
                 
-                # Check 1: Exact word boundary match for ALL keywords (prevents "sopen", "opening")
+                # Check 1: Exact word boundary match for ALL keywords
                 if padded_keyword in padded_text:
-                    
-                     # Check 2: Uniqueness/Length Heuristic
-                     # If it's a single word and very short/common, be careful.
-                     # We trust that the JSON files should NOT contain generic single words like "open"
-                     # if they are not unique enough.
-                     # However, to be safe, let's say if it's a single word < 5 chars, we might require more context?
-                     # Actually, the best fix is to remove generic words from JSON and trust this logic:
-                     
-                     print(f"NLU: Keyword Boost '{keyword}' -> {tag}")
-                     return tag, 1.0
+                     # Check length of the matched keyword
+                     k_len = len(keyword)
+                     if k_len > max_keyword_len:
+                         max_keyword_len = k_len
+                         best_keyword_match_tag = tag
+        
+        if best_keyword_match_tag:
+             print(f"NLU: Keyword Boost '{best_keyword_match_tag}' (Length: {max_keyword_len})")
+             return best_keyword_match_tag, 1.0
         
         # --- 2. Fuzzy Matching (Closest Match) ---
         best_match_tag = None

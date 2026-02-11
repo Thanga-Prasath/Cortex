@@ -83,7 +83,8 @@ class AppsWindow(QWidget):
                 background-color: #0078d4;
                 color: white;
                 border: none;
-                padding: 8px 16px;
+                padding: 4px 10px;
+                min-height: 25px;
                 border-radius: 4px;
                 font-weight: bold;
             }
@@ -159,6 +160,8 @@ class AppsWindow(QWidget):
         
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.verticalHeader().setDefaultSectionSize(45)
         self.table.verticalHeader().setVisible(False)
         self.table.setShowGrid(False)
         self.table.setAlternatingRowColors(True)

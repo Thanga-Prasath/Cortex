@@ -128,37 +128,44 @@ class StatusWindow(QMainWindow):
                 self.update()
                 
             elif self.current_state == "THINKING":
-                # Sine Wave Bars (Organized Flow)
-                move_speed = 0.2
-                self.wave_phase += move_speed
-                
-                # Use a fixed amplitude for THINKING to avoid interference from LISTENING state
-                thinking_amplitude = 10
+                # Superimposed Sine Waves (Brain Waves)
+                # Use two waves with different frequencies and phases for organic look
+                self.wave_phase += 0.2
                 
                 for i in range(5):
-                    offset = i * 1.0
-                    # Ensure height is always positive: 12 + (-10 to 10) = 2 to 22
-                    val = int(thinking_amplitude * math.sin(self.wave_phase + offset) + 12)
-                    self.bar_heights[i] = max(2, val) # Clamp to minimum 2
+                    # Primary slow wave
+                    val1 = math.sin(self.wave_phase + (i * 0.5))
+                    # Secondary fast wave
+                    val2 = math.sin((self.wave_phase * 1.5) + (i * 0.8))
+                    
+                    # Combine and map to height (range 3 to 18)
+                    combined = (val1 + val2) / 2 # -1 to 1
+                    height = 10 + (combined * 7) 
+                    self.bar_heights[i] = max(3, int(height))
                 self.update()
 
             elif self.current_state == "PROCESSING":
-                # Scanner Animation (Ping-Pong)
-                # We can use wave_phase to drive a scanner
-                speed = 0.5
+                # Smooth Gaussian Wave (Knight Rider / Cylon effect)
+                speed = 0.4
                 self.wave_phase += speed
                 
-                # Calculate active index (0 to 4) using sine wave mapped to index range
-                # sin goes -1 to 1. Map to 0 to 4.
-                # (sin + 1) / 2 * 4
-                norm_pos = (math.sin(self.wave_phase) + 1) / 2
-                active_idx = int(norm_pos * 4.99) # 0 to 4
+                # Ping-pong the peak position between 0 and 4
+                # Use sine to oscillate between -1 and 1, map to 0-4
+                norm_pos = (math.sin(self.wave_phase) + 1) / 2 # 0 to 1
+                peak_pos = norm_pos * 4.0 # 0 to 4.0 floating point
+                
+                # Sigma controls the width of the wave (spread)
+                sigma = 0.8 
                 
                 for i in range(5):
-                    if i == active_idx:
-                        self.bar_heights[i] = 20
-                    else:
-                        self.bar_heights[i] = 5
+                    # Gaussian function: e^(-(x - mu)^2 / (2*sigma^2))
+                    # x=i, mu=peak_pos
+                    diff = i - peak_pos
+                    intensity = math.exp(-(diff * diff) / (2 * sigma * sigma))
+                    
+                    # Map intensity (0 to 1) to height (5 to 22)
+                    height = 5 + (intensity * 17)
+                    self.bar_heights[i] = int(height)
                 self.update()
                 
             elif self.current_state == "LISTENING":
