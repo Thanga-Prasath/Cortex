@@ -15,10 +15,11 @@ except ImportError as e:
     raise e
 
 class Listener:
-    def __init__(self, status_queue=None, is_speaking_flag=None, reset_event=None):
+    def __init__(self, status_queue=None, is_speaking_flag=None, reset_event=None, shutdown_event=None):
         self.status_queue = status_queue
         self.is_speaking_flag = is_speaking_flag
         self.reset_event = reset_event
+        self.shutdown_event = shutdown_event
         # Use base.en for faster speed (trade-off: slightly less accurate than small)
         # small.en is ~461MB, base.en is ~142MB
         self.model_size = "base.en"
@@ -143,8 +144,10 @@ class Listener:
             last_speech_time = time.time()
             
             while True:
-                # Check for reset signal
+                # Check for reset or shutdown signal
                 if self.reset_event and self.reset_event.is_set():
+                    return None
+                if self.shutdown_event and self.shutdown_event.is_set():
                     return None
 
                 # Timeout Check (Waiting for speech)

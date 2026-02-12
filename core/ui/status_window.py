@@ -6,7 +6,7 @@ import platform
 import os
 
 class StatusWindow(QMainWindow):
-    def __init__(self, reset_event=None):
+    def __init__(self, reset_event=None, shutdown_event=None):
         super().__init__()
         
         # Window Flags: Frameless, Always on Top, Tool (no taskbar icon)
@@ -14,11 +14,9 @@ class StatusWindow(QMainWindow):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         
-        # Load Config for Theme Colors (Reset colors based on theme if needed, but for now just loading logic)
-        # Status Window paints itself via QPainter, so it doesn't strictly use the Stylesheet,
-        # BUT the Context Menu DOES.
+        # Config & Theme
         self.config_path = os.path.join(os.getcwd(), 'data', 'user_config.json')
-        self.theme_accent = "#39FF14" # Default Neon Green
+        self.theme_accent = "#39FF14"
         
         # Dimensions
         self.width_val = 140
@@ -28,6 +26,7 @@ class StatusWindow(QMainWindow):
         
         # State
         self.reset_event = reset_event
+        self.shutdown_event = shutdown_event
         self.current_state = "IDLE"
         self.wave_phase = 0
         self.wave_amplitude = 10
@@ -158,7 +157,20 @@ class StatusWindow(QMainWindow):
         reset_action.triggered.connect(self.reset_assistant)
         menu.addAction(reset_action)
         
+        exit_action = QAction("🛑 Exit Assistant", self)
+        exit_action.triggered.connect(self.shutdown_assistant)
+        menu.addAction(exit_action)
+        
         menu.exec(position)
+
+    def shutdown_assistant(self):
+        """Signal the main process to shutdown the assistant."""
+        print("[System] Shutdown requested. Signaling main process...")
+        if self.shutdown_event:
+            self.shutdown_event.set()
+        else:
+            # Fallback if event missing
+            QApplication.quit()
 
     def log_activity(self, message):
         """Forward log message to Hub if it is open."""

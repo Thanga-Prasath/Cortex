@@ -74,18 +74,19 @@ if __name__ == "__main__":
     # Create communication queue
     status_queue = multiprocessing.Queue()
     
-    # Create reset event
+    # Create reset and shutdown events
     reset_event = multiprocessing.Event()
+    shutdown_event = multiprocessing.Event()
     
     # Start UI Process
-    ui_process = multiprocessing.Process(target=ui_process_target, args=(status_queue, reset_event))
+    ui_process = multiprocessing.Process(target=ui_process_target, args=(status_queue, reset_event, shutdown_event))
     ui_process.start()
     
     app = None
     result = None
     
     try:
-        app = CortexEngine(status_queue, reset_event=reset_event)
+        app = CortexEngine(status_queue, reset_event=reset_event, shutdown_event=shutdown_event)
         result = app.run()
     except KeyboardInterrupt:
         result = "EXIT"

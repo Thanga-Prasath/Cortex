@@ -1,80 +1,195 @@
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
-                             QLabel, QPushButton, QLineEdit, QTextBrowser,
-                             QGraphicsView, QGraphicsScene, QGraphicsEllipseItem, 
-                             QGraphicsLineItem, QGraphicsItem, QFrame)
-from PyQt6.QtCore import Qt, QRectF, QPointF
-from PyQt6.QtGui import QBrush, QPen, QColor, QPainter, QPainterPath
+                             QLabel, QLineEdit, QScrollArea, QFrame, 
+                             QGridLayout, QPushButton, QStackedWidget, QSizePolicy)
+from PyQt6.QtCore import Qt, QSize, QPropertyAnimation, QEasingCurve, QRect
+from PyQt6.QtGui import QColor, QFont, QIcon, QPalette
 from .styles import get_stylesheet, THEME_COLORS
 import json
 import os
-import math
 
-class GraphNode(QGraphicsEllipseItem):
-    """Visual Node in the Knowledge Graph."""
-    def __init__(self, text, node_type, data=None):
-        super().__init__(-25, -25, 50, 50)
-        self.text = text
-        self.node_type = node_type # 'root', 'category', 'intent'
-        self.data = data or {}
-        self.edges = []
-        
-        self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsMovable | 
-                      QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges |
-                      QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
-        
-        # Color based on type
-        if node_type == 'root': self.color = QColor("#FFD700") # Gold
-        elif node_type == 'category': self.color = QColor("#00FFFF") # Cyan
-        else: self.color = QColor("#39FF14") # Green
+# --- 1. Custom UI Components ---
 
-    def add_edge(self, edge):
-        self.edges.append(edge)
-
-    def itemChange(self, change, value):
-        if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
-            for edge in self.edges:
-                edge.update_position()
-        return super().itemChange(change, value)
-
-    def paint(self, painter, option, widget):
-        # Body
-        painter.setBrush(QBrush(self.color if not self.isSelected() else Qt.GlobalColor.white))
-        painter.setPen(QPen(Qt.GlobalColor.black, 1))
-        painter.drawEllipse(self.rect())
-        
-        # Label (Shortened)
-        painter.setPen(Qt.GlobalColor.black)
-        font = painter.font()
-        font.setPointSize(8)
-        font.setBold(True)
-        painter.setFont(font)
-        
-        display_text = self.text if len(self.text) < 10 else self.text[:8] + ".."
-        painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, display_text)
-
-class GraphEdge(QGraphicsLineItem):
-    """Line connecting two GraphNodes."""
-    def __init__(self, source, target):
+class ClickableCard(QFrame):
+    """A premium interactive card with hover effects."""
+    def __init__(self, title, subtitle, icon="📁", accent="#39FF14", callback=None):
         super().__init__()
-        self.source = source
-        self.target = target
-        self.source.add_edge(self)
-        self.target.add_edge(self)
+        self.callback = callback
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setObjectName("BentoCard")
+        self.setMinimumSize(180, 160)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         
-        self.setZValue(-1)
-        pen = QPen(QColor(100, 100, 100, 150), 1)
-        self.setPen(pen)
-        self.update_position()
+        self.setStyleSheet(f"""
+            QFrame#BentoCard {{
+                background-color: #1e1e1e;
+                border: 1px solid #333;
+                border-radius: 15px;
+            }}
+            QFrame#BentoCard:hover {{
+                background-color: #252526;
+                border: 1.5px solid {accent};
+            }}
+            QLabel {{ color: white; background: transparent; }}
+        """)
+        
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        # Icon
+        self.icon_label = QLabel(icon)
+        self.icon_label.setStyleSheet("font-size: 40px; margin-bottom: 5px;")
+        self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.icon_label)
+        
+        # Title
+        self.title_label = QLabel(title)
+        self.title_label.setStyleSheet(f"font-size: 16px; font-weight: bold; color: {accent};")
+        self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.title_label)
+        
+        # Subtitle
+        self.sub_label = QLabel(subtitle)
+        self.sub_label.setStyleSheet("font-size: 11px; color: #888;")
+        self.sub_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.sub_label)
 
-    def update_position(self):
-        self.setLine(self.source.scenePos().x(), self.source.scenePos().y(),
-                     self.target.scenePos().x(), self.target.scenePos().y())
+    def mousePressEvent(self, event):
+        if self.callback: self.callback()
+        super().mousePressEvent(event)
+
+class FunctionCard(QFrame):
+    """Smaller card for individual intents/functions with expand logic."""
+    def __init__(self, tag, data, accent="#39FF14"):
+        super().__init__()
+        self.tag = tag
+        self.data = data
+        self.accent = accent
+        self.expanded = False
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        
+        self.setStyleSheet(f"""
+            QFrame {{
+                background-color: #2a2a2a;
+                border: 1px solid #444;
+                border-radius: 10px;
+                padding: 5px;
+            }}
+            QFrame:hover {{
+                border: 1px solid {accent};
+                background-color: #333;
+            }}
+        """)
+        
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(10, 10, 10, 10)
+        self.main_layout.setSpacing(5)
+
+        # Header Row
+        header = QWidget()
+        h_layout = QHBoxLayout(header)
+        h_layout.setContentsMargins(0, 0, 0, 0)
+        
+        icon = QLabel("⚙️")
+        icon.setFixedWidth(25)
+        h_layout.addWidget(icon)
+        
+        label = QLabel(tag)
+        label.setStyleSheet("color: #eee; font-size: 14px; font-weight: bold; border:none;")
+        h_layout.addWidget(label)
+        
+        self.arrow = QLabel("▼" if self.expanded else "▶")
+        self.arrow.setStyleSheet(f"color: {accent}; font-weight: bold; border:none;")
+        self.arrow.setAlignment(Qt.AlignmentFlag.AlignRight)
+        h_layout.addWidget(self.arrow)
+        
+        self.main_layout.addWidget(header)
+
+        # Hidden Detail Area
+        self.details = QWidget()
+        self.details.setVisible(False)
+        d_layout = QVBoxLayout(self.details)
+        d_layout.setContentsMargins(30, 5, 10, 5)
+        
+        patterns = data.get('patterns', [])
+        if patterns:
+            p_label = QLabel("<b>Triggers:</b>")
+            p_label.setStyleSheet("color: #888; border:none;")
+            d_layout.addWidget(p_label)
+            
+            # Sub-container for extra patterns
+            self.p_container = QWidget()
+            pc_layout = QVBoxLayout(self.p_container)
+            pc_layout.setContentsMargins(0, 0, 0, 0)
+            pc_layout.setSpacing(2)
+            
+            for i, p in enumerate(patterns):
+                pl = QLabel(f"• {p}")
+                pl.setStyleSheet("color: #ccc; font-size: 11px; border:none;")
+                pl.setWordWrap(True)
+                pc_layout.addWidget(pl)
+                if i >= 5: pl.setVisible(False) # Hide extras
+            
+            d_layout.addWidget(self.p_container)
+            
+            if len(patterns) > 5:
+                self.btn_more = QPushButton(f"+ {len(patterns)-5} more...")
+                self.btn_more.setCursor(Qt.CursorShape.PointingHandCursor)
+                self.btn_more.setStyleSheet(f"""
+                    QPushButton {{
+                        color: {accent};
+                        border: 1px solid #444;
+                        border-radius: 5px;
+                        padding: 2px 10px;
+                        font-size: 10px;
+                        text-align: left;
+                    }}
+                    QPushButton:hover {{ background: #444; }}
+                """)
+                self.btn_more.clicked.connect(self.reveal_all_patterns)
+                d_layout.addWidget(self.btn_more)
+
+        responses = data.get('responses', [])
+        if responses:
+            r_label = QLabel("<br><b>Sample Response:</b>")
+            r_label.setStyleSheet("color: #888; border:none;")
+            d_layout.addWidget(r_label)
+            rl = QLabel(responses[0])
+            rl.setStyleSheet("color: #aaa; font-size: 11px; font-style: italic; border:none;")
+            rl.setWordWrap(True)
+            d_layout.addWidget(rl)
+
+        self.main_layout.addWidget(self.details)
+
+    def reveal_all_patterns(self):
+        """Show all hidden pattern labels."""
+        layout = self.p_container.layout()
+        for i in range(layout.count()):
+            layout.itemAt(i).widget().setVisible(True)
+        self.btn_more.setVisible(False)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.toggle_expand()
+        super().mousePressEvent(event)
+
+    def toggle_expand(self):
+        self.expanded = not self.expanded
+        self.details.setVisible(self.expanded)
+        self.arrow.setText("▼" if self.expanded else "▶")
+        # Update styling to highlight expanded state
+        if self.expanded:
+            self.setStyleSheet(f"QFrame {{ background-color: #333; border: 1.5px solid {self.accent}; border-radius: 10px; padding: 5px; }}")
+        else:
+            self.setStyleSheet(f"QFrame {{ background-color: #2a2a2a; border: 1px solid #444; border-radius: 10px; padding: 5px; }}")
+
+
+# --- 2. Main Window ---
 
 class KnowledgeWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Cortex Intelligence - Knowledge Graph")
-        self.setGeometry(150, 150, 1100, 750)
+        self.setWindowTitle("Cortex Intelligence - Knowledge Hub")
+        self.setGeometry(150, 150, 1000, 750)
         
         # Theme
         try:
@@ -83,138 +198,174 @@ class KnowledgeWindow(QMainWindow):
                 theme = json.load(f).get("theme", "Neon Green")
         except: theme = "Neon Green"
         self.setStyleSheet(get_stylesheet(theme))
-        
         self.accent_color = THEME_COLORS.get(theme, "#39FF14")
 
-        # Main Layout
-        central = QWidget()
-        self.setCentralWidget(central)
-        layout = QHBoxLayout(central)
+        # Layout Logic
+        self.central = QWidget()
+        self.setCentralWidget(self.central)
+        self.main_layout = QVBoxLayout(self.central)
         
-        # Left: Graph Sidebar & Search
-        left_panel = QWidget()
-        left_panel.setFixedWidth(250)
-        left_layout = QVBoxLayout(left_panel)
+        # 1. Header with Breadcrumbs & Search
+        header = QFrame()
+        header.setFixedHeight(80)
+        header.setStyleSheet("background: #111; border-bottom: 1px solid #222;")
+        h_layout = QHBoxLayout(header)
         
-        left_layout.addWidget(QLabel("Knowledge Explorer", objectName="SubHeader"))
+        self.breadcrumb = QLabel("<b>KNOWLEDGE HUB</b>")
+        self.breadcrumb.setStyleSheet(f"font-size: 18px; color: {self.accent_color}; margin-left: 10px;")
+        h_layout.addWidget(self.breadcrumb)
+        
+        h_layout.addStretch()
         
         self.search_bar = QLineEdit()
-        self.search_bar.setPlaceholderText("Search intents...")
-        self.search_bar.textChanged.connect(self.filter_graph)
-        left_layout.addWidget(self.search_bar)
+        self.search_bar.setPlaceholderText("Search all functions...")
+        self.search_bar.setFixedWidth(350)
+        self.search_bar.setStyleSheet("""
+            QLineEdit {
+                background: #1e1e1e;
+                border: 1px solid #444;
+                border-radius: 18px;
+                padding: 8px 15px;
+                color: white;
+            }
+            QLineEdit:focus { border: 1.5px solid #555; }
+        """)
+        self.search_bar.textChanged.connect(self.handle_search)
+        h_layout.addWidget(self.search_bar)
         
-        self.info_panel = QTextBrowser()
-        self.info_panel.setHtml("<p style='color: gray;'>Click a node to view metadata...</p>")
-        left_layout.addWidget(QLabel("Node Details:"))
-        left_layout.addWidget(self.info_panel)
+        self.btn_back = QPushButton("← Back")
+        self.btn_back.setFixedWidth(80)
+        self.btn_back.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_back.setVisible(False)
+        self.btn_back.clicked.connect(self.go_home)
+        h_layout.addWidget(self.btn_back)
         
-        layout.addWidget(left_panel)
-        
-        # Right: Canvas
-        self.scene = QGraphicsScene()
-        self.scene.setSceneRect(-1000, -1000, 2000, 2000)
-        self.view = QGraphicsView(self.scene)
-        self.view.setRenderHint(QPainter.RenderHint.Antialiasing)
-        self.view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
-        layout.addWidget(self.view)
-        
-        # Initialize
-        self.nodes = []
-        self.load_graph_data()
-        
-        # Selection event
-        self.scene.selectionChanged.connect(self.on_selection_changed)
+        self.main_layout.addWidget(header)
 
-    def load_graph_data(self):
-        """Loads intents from JSON and builds the visual tree."""
-        # 1. Create Root
-        cortex_root = GraphNode("Cortex", "root")
-        self.scene.addItem(cortex_root)
-        cortex_root.setPos(0, 0)
-        self.nodes.append(cortex_root)
+        # 2. Content Stack
+        self.stack = QStackedWidget()
+        self.main_layout.addWidget(self.stack)
         
+        # Page: Hub Grid
+        self.hub_scroll = QScrollArea()
+        self.hub_scroll.setWidgetResizable(True)
+        self.hub_scroll.setStyleSheet("background: transparent; border: none;")
+        self.hub_content = QWidget()
+        self.hub_grid = QGridLayout(self.hub_content)
+        self.hub_grid.setContentsMargins(30, 30, 30, 30)
+        self.hub_grid.setSpacing(25)
+        self.hub_scroll.setWidget(self.hub_content)
+        self.stack.addWidget(self.hub_scroll)
+        
+        # Page: Category Detail
+        self.detail_scroll = QScrollArea()
+        self.detail_scroll.setWidgetResizable(True)
+        self.detail_scroll.setStyleSheet("background: transparent; border: none;")
+        self.detail_content = QWidget()
+        self.detail_layout = QVBoxLayout(self.detail_content)
+        self.detail_layout.setContentsMargins(40, 20, 40, 40)
+        self.detail_scroll.setWidget(self.detail_content)
+        self.stack.addWidget(self.detail_scroll)
+
+        # Metadata Cache
+        self.all_intents = {} # {category: [intents]}
+        self.load_data()
+
+    def load_data(self):
         intents_dir = os.path.join(os.getcwd(), 'data', 'intents')
         if not os.path.exists(intents_dir): return
         
-        files = [f for f in os.listdir(intents_dir) if f.endswith('.json')]
+        files = sorted([f for f in os.listdir(intents_dir) if f.endswith('.json')])
         
-        # 2. Add Category Nodes (Level 1)
-        angle_step = (2 * math.pi) / len(files) if files else 0
-        radius_lvl1 = 250
+        icon_map = {
+            "automation": "⚡", "system": "🖥️", "media": "🎵", "general": "💬",
+            "files": "📁", "apps": "🚀", "browser": "🌐", "window": "🪟", "workspace": "🏢"
+        }
         
-        for i, filename in enumerate(files):
-            category_name = filename.replace('.json', '').capitalize()
-            angle = i * angle_step
-            x = radius_lvl1 * math.cos(angle)
-            y = radius_lvl1 * math.sin(angle)
+        row, col = 0, 0
+        for filename in files:
+            cat_key = filename.replace('.json', '')
+            cat_name = cat_key.capitalize()
             
-            cat_node = GraphNode(category_name, "category")
-            self.scene.addItem(cat_node)
-            cat_node.setPos(x, y)
-            self.nodes.append(cat_node)
-            
-            # Connect to root
-            self.scene.addItem(GraphEdge(cortex_root, cat_node))
-            
-            # 3. Add Intent Nodes (Level 2)
             try:
                 with open(os.path.join(intents_dir, filename), 'r') as f:
                     data = json.load(f)
-                    
                 intents = data.get('intents', [])
-                intent_angle_step = (math.pi * 0.5) / (len(intents) if intents else 1) # Spread in an arc 
-                radius_lvl2 = 180
+                self.all_intents[cat_key] = intents
                 
-                for j, intent in enumerate(intents):
-                    # Offset position relative to category
-                    # We want them to spread outwards from the center
-                    io_angle = angle + (j - len(intents)/2) * 0.15
-                    ix = x + radius_lvl2 * math.cos(io_angle)
-                    iy = y + radius_lvl2 * math.sin(io_angle)
+                # Create Tile
+                icon = icon_map.get(cat_key, "📦")
+                tile = ClickableCard(cat_name, f"{len(intents)} Functions", icon, self.accent_color, 
+                                     lambda c=cat_key: self.show_category(c))
+                self.hub_grid.addWidget(tile, row, col)
+                
+                col += 1
+                if col > 3: # 4 Columns
+                    col = 0
+                    row += 1
                     
-                    int_node = GraphNode(intent['tag'], "intent", intent)
-                    self.scene.addItem(int_node)
-                    int_node.setPos(ix, iy)
-                    self.nodes.append(int_node)
-                    
-                    self.scene.addItem(GraphEdge(cat_node, int_node))
-                    
-            except Exception as e:
-                print(f"Error loading {filename}: {e}")
+            except Exception as e: print(f"[Error] Hub load {filename}: {e}")
 
-    def on_selection_changed(self):
-        selected = self.scene.selectedItems()
-        if selected and isinstance(selected[0], GraphNode):
-            node = selected[0]
-            if node.node_type == 'intent':
-                patterns = node.data.get('patterns', [])
-                responses = node.data.get('responses', [])
-                
-                html = f"<h3>Intent: {node.text}</h3>"
-                html += "<b>Patterns (Triggers):</b><ul>"
-                for p in patterns[:10]: html += f"<li>{p}</li>"
-                if len(patterns) > 10: html += "<li>...</li>"
-                html += "</ul>"
-                
-                if responses:
-                    html += "<b>Sample Responses:</b><ul>"
-                    for r in responses[:5]: html += f"<li>{r}</li>"
-                    html += "</ul>"
-                
-                self.info_panel.setHtml(html)
-            else:
-                self.info_panel.setHtml(f"<h3>{node.text}</h3><p>Category node grouping intents.</p>")
+    def show_category(self, cat_key):
+        """Transition to detailed list for a category."""
+        # Clear previous safely
+        while self.detail_layout.count():
+            child = self.detail_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+            
+        intents = self.all_intents.get(cat_key, [])
+        cat_name = cat_key.capitalize()
+        
+        # Add Title & Summary
+        title = QLabel(f"<span style='color: {self.accent_color};'>{cat_name}</span> Environment")
+        title.setStyleSheet("font-size: 24px; font-weight: bold; margin-bottom: 5px;")
+        self.detail_layout.addWidget(title)
+        
+        desc = QLabel(f"Managed tools and automation for {cat_key} operations.")
+        desc.setStyleSheet("color: #888; margin-bottom: 20px;")
+        self.detail_layout.addWidget(desc)
+        
+        # Add Function List (Full width to avoid stretching neighbors)
+        list_container = QWidget()
+        list_layout = QVBoxLayout(list_container)
+        list_layout.setSpacing(12)
+        self.detail_layout.addWidget(list_container)
+        
+        for i in intents:
+            card = FunctionCard(i['tag'], i, self.accent_color)
+            list_layout.addWidget(card)
+        
+        self.detail_layout.addStretch()
+        
+        # UI State
+        self.breadcrumb.setText(f"KNOWLEDGE HUB > <b>{cat_name.upper()}</b>")
+        self.btn_back.setVisible(True)
+        self.stack.setCurrentIndex(1)
 
-    def filter_graph(self, text):
+    def go_home(self):
+        self.stack.setCurrentIndex(0)
+        self.btn_back.setVisible(False)
+        self.breadcrumb.setText("<b>KNOWLEDGE HUB</b>")
+        self.search_bar.clear()
+
+    def handle_search(self, text):
+        """Powerful search that filters either Hub tiles or Detail cards."""
         text = text.lower()
-        for node in self.nodes:
-            if not text:
-                node.setSelected(False)
-                node.update()
-                continue
-                
-            if text in node.text.lower():
-                node.setSelected(True)
-            else:
-                node.setSelected(False)
-            node.update()
+        if self.stack.currentIndex() == 0:
+            # Filter Hub Tiles
+            for i in range(self.hub_grid.count()):
+                widget = self.hub_grid.itemAt(i).widget()
+                if isinstance(widget, ClickableCard):
+                    widget.setVisible(text in widget.title_label.text().lower())
+        else:
+            # Filter Detail Cards
+            # Get the grid inside detail_layout (it's at index 2)
+            grid_widget = self.detail_layout.itemAt(2).widget()
+            grid = grid_widget.layout()
+            for i in range(grid.count()):
+                widget = grid.itemAt(i).widget()
+                if isinstance(widget, FunctionCard):
+                    # Match tag or patterns
+                    match = text in widget.tag.lower() or any(text in p.lower() for p in widget.data.get('patterns', []))
+                    widget.setVisible(match)

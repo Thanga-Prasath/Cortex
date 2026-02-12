@@ -19,11 +19,12 @@ except ImportError:
     pyautogui = None
 
 class CortexEngine:
-    def __init__(self, status_queue=None, reset_event=None):
+    def __init__(self, status_queue=None, reset_event=None, shutdown_event=None):
         self.status_queue = status_queue
         self.reset_event = reset_event
+        self.shutdown_event = shutdown_event
         self.speaker = Speaker(status_queue)
-        self.listener = Listener(status_queue, is_speaking_flag=self.speaker.is_speaking_flag, reset_event=reset_event)
+        self.listener = Listener(status_queue, is_speaking_flag=self.speaker.is_speaking_flag, reset_event=reset_event, shutdown_event=shutdown_event)
         
         # Load User Config
         self.user_config = self._load_user_config()
@@ -236,10 +237,14 @@ class CortexEngine:
         self.greet_user()
         
         while True:
-            # Check for reset signal from UI
+            # Check for reset or shutdown signal from UI
             if self.reset_event and self.reset_event.is_set():
                 print("[Engine] Reset signal received. Restarting...")
                 return "RESTART"
+            
+            if self.shutdown_event and self.shutdown_event.is_set():
+                print("[Engine] Shutdown signal received. Exiting...")
+                return "EXIT"
 
             # listen() blocks safely now
             command = self.listener.listen(timeout=None) # Default timeout None for main loop
