@@ -3,6 +3,7 @@ from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QRect, QEasingCurve, QP
 from PyQt6.QtGui import QColor, QPainter, QBrush, QPen, QRadialGradient, QAction
 import ctypes
 import platform
+import os
 
 class StatusWindow(QMainWindow):
     def __init__(self, reset_event=None):
@@ -11,6 +12,13 @@ class StatusWindow(QMainWindow):
         # Window Flags: Frameless, Always on Top, Tool (no taskbar icon)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        
+        # Load Config for Theme Colors (Reset colors based on theme if needed, but for now just loading logic)
+        # Status Window paints itself via QPainter, so it doesn't strictly use the Stylesheet,
+        # BUT the Context Menu DOES.
+        self.config_path = os.path.join(os.getcwd(), 'data', 'user_config.json')
+        self.theme_accent = "#39FF14" # Default Neon Green
         
         # Dimensions
         self.width_val = 140
@@ -25,6 +33,14 @@ class StatusWindow(QMainWindow):
         self.wave_amplitude = 10
         self.pulse_direction = 1
         self.bar_heights = [5, 10, 15, 10, 5] # Initial heights for beatbox bars
+        
+        # GUI Module Manager (Lazy Loading)
+        self.windows = {
+            "hub": None,
+            "automation": None,
+            "settings": None,
+            "knowledge": None
+        }
         
         # Timer for animation
         self.anim_timer = QTimer()
@@ -44,6 +60,25 @@ class StatusWindow(QMainWindow):
             "SPEAKING": QColor(138, 43, 226, 255),    # Neon Purple (BlueViolet)
             "PROCESSING": QColor(0, 255, 255, 255)    # Neon Cyan
         }
+        
+        # Load Config for Theme Colors
+        self.load_theme_config()
+
+    def load_theme_config(self):
+        import json
+        from .styles import THEME_COLORS
+        
+        try:
+            if os.path.exists(self.config_path):
+                with open(self.config_path, 'r') as f:
+                    data = json.load(f)
+                    theme_name = data.get("theme", "Neon Green")
+                    self.theme_accent = THEME_COLORS.get(theme_name, "#39FF14")
+        except:
+            self.theme_accent = "#39FF14"
+            
+        # Update Colors
+        # self.colors["LISTENING"] = QColor(self.theme_accent) # KEEP GREEN per user request
 
     def enforce_topmost(self):
         # Windows-specific low-level enforcement
@@ -71,34 +106,97 @@ class StatusWindow(QMainWindow):
             self.show_context_menu(event.globalPosition().toPoint())
 
     def show_context_menu(self, position):
-        """Show context menu with Reset option."""
+        """Show context menu with Reset option and New GUIs."""
         menu = QMenu(self)
         
         # Style the menu to match the neon theme
-        menu.setStyleSheet("""
-            QMenu {
+        # Style the menu to match the neon theme
+        menu.setStyleSheet(f"""
+            QMenu {{
                 background-color: #1a1a1a;
-                border: 2px solid #39FF14;
+                border: 2px solid {self.theme_accent};
                 border-radius: 8px;
                 padding: 5px;
-            }
-            QMenu::item {
+            }}
+            QMenu::item {{
                 color: #FFFFFF;
                 padding: 8px 20px;
                 border-radius: 4px;
-            }
-            QMenu::item:selected {
-                background-color: #39FF14;
+            }}
+            QMenu::item:selected {{
+                background-color: {self.theme_accent};
                 color: #000000;
-            }
+            }}
+            QMenu::separator {{
+                height: 1px;
+                background-color: {self.theme_accent};
+                margin: 5px 10px;
+            }}
         """)
         
+        # --- New GUI Modules ---
+        hub_action = QAction("📊 Open Hub", self)
+        hub_action.triggered.connect(lambda: self.open_module("hub"))
+        menu.addAction(hub_action)
+
+        auto_action = QAction("🧠 Neural Sync", self)
+        auto_action.triggered.connect(lambda: self.open_module("automation"))
+        menu.addAction(auto_action)
+        
+        settings_action = QAction("⚙️ Cortex Control", self)
+        settings_action.triggered.connect(lambda: self.open_module("settings"))
+        menu.addAction(settings_action)
+        
+        know_action = QAction("🌐 Knowledge Graph", self)
+        know_action.triggered.connect(lambda: self.open_module("knowledge"))
+        menu.addAction(know_action)
+        
+        menu.addSeparator()
+
+        # --- System Actions ---
         reset_action = QAction("🔄 Reset Assistant", self)
         reset_action.triggered.connect(self.reset_assistant)
         menu.addAction(reset_action)
         
         menu.exec(position)
-    
+
+    def log_activity(self, message):
+        """Forward log message to Hub if it is open."""
+        if self.windows["hub"] and self.windows["hub"].isVisible():
+            self.windows["hub"].add_log_entry(message)
+
+    def open_module(self, module_name):
+        """Lazy load and show the requested UI module."""
+        try:
+            if self.windows[module_name] is None:
+                print(f"[UI] Lazy loading module: {module_name}...")
+                
+                if module_name == "hub":
+                    from core.ui.hub_window import HubWindow
+                    self.windows["hub"] = HubWindow()
+                    
+                elif module_name == "automation":
+                    from core.ui.automation_window import AutomationWindow
+                    self.windows["automation"] = AutomationWindow()
+                    
+                elif module_name == "settings":
+                    from core.ui.settings_window import SettingsWindow
+                    self.windows["settings"] = SettingsWindow(self.reset_event)
+                    
+                elif module_name == "knowledge":
+                    from core.ui.knowledge_window import KnowledgeWindow
+                    self.windows["knowledge"] = KnowledgeWindow()
+            
+            # Show and Bring to Front
+            window = self.windows[module_name]
+            window.show()
+            window.raise_()
+            window.activateWindow()
+            print(f"[UI] Opened {module_name}")
+            
+        except Exception as e:
+            print(f"[Error] Failed to open module {module_name}: {e}")
+
     def reset_assistant(self):
         """Signal the main process to restart the assistant in-place."""
         print("[System] Reset requested. Signaling main process...")

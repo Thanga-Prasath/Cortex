@@ -94,7 +94,8 @@ class CortexEngine:
             'clipboard_view': "Read Clipboard",
             'clipboard_clear': "Clear Clipboard",
             'note_take': "Take a Note",
-            'timer_set': "Set Timer"
+            'timer_set': "Set Timer",
+            'run_workflow': "Run Automation"
         }
 
     def get_confirmation_message(self, tag, command):
@@ -112,6 +113,12 @@ class CortexEngine:
             
         # Default to standard mapping
         return self.intent_names.get(tag, tag.replace("_", " "))
+
+    def _log(self, message):
+        """Helper to send log messages to the Hub UI."""
+        if self.status_queue:
+            self.status_queue.put(("LOG", message))
+        print(f"[Log] {message}")
 
     def _extract_param(self, command, triggers):
         """Simple extraction helper for confirmation messages."""
@@ -171,6 +178,7 @@ class CortexEngine:
 
     def execute_intent(self, tag, command):
         """Helper to route intent to the correct engine."""
+        self._log(f"Executing: {tag}")
 
         # Check Global/System exits first
         if tag == 'exit':
@@ -260,9 +268,14 @@ class CortexEngine:
             # Predict Intent
             if self.status_queue:
                 self.status_queue.put(("THINKING", None))
+            
+            # Log User Speech
+            self._log(f"User: {command}")
+            
             tag, confidence = self.nlu.predict(command)
             
             # Debug decision
+            self._log(f"Predicted: {tag} ({confidence:.2f})")
             print(f"Predicted: {tag} ({confidence:.2f})")
             
             # --- CONTEXT DETECTION FOR LONG SPEECH ---

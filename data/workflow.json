@@ -1,0 +1,67 @@
+{
+    "nodes": [
+        {
+            "id": "a0831a75-1589-4466-bdd0-ad3c470fb413",
+            "type": "End",
+            "x": 2461.0,
+            "y": 2653.0,
+            "data": {
+                "value": ""
+            }
+        },
+        {
+            "id": "f723855f-c5c2-4eb1-a4bd-b34a2e90b33a",
+            "type": "Speak",
+            "x": 2470.0,
+            "y": 2547.0,
+            "data": {
+                "value": "Golday!"
+            }
+        },
+        {
+            "id": "ce46f8a2-fe54-4f0c-a1cd-7e6d4b7599f0",
+            "type": "Speak",
+            "x": 2435.0,
+            "y": 2342.0,
+            "data": {
+                "value": "F, U, C, K"
+            }
+        },
+        {
+            "id": "a360f22f-63de-4dba-982a-8bf4860bc595",
+            "type": "Speak",
+            "x": 2437.0,
+            "y": 2434.0,
+            "data": {
+                "value": "Y O U"
+            }
+        },
+        {
+            "id": "6e522098-e249-4e5f-b05a-e553971eb48b",
+            "type": "Start",
+            "x": 2312.0,
+            "y": 2226.0,
+            "data": {
+                "value": ""
+            }
+        }
+    ],
+    "connections": [
+        {
+            "from": "f723855f-c5c2-4eb1-a4bd-b34a2e90b33a",
+            "to": "a0831a75-1589-4466-bdd0-ad3c470fb413"
+        },
+        {
+            "from": "a360f22f-63de-4dba-982a-8bf4860bc595",
+            "to": "f723855f-c5c2-4eb1-a4bd-b34a2e90b33a"
+        },
+        {
+            "from": "ce46f8a2-fe54-4f0c-a1cd-7e6d4b7599f0",
+            "to": "a360f22f-63de-4dba-982a-8bf4860bc595"
+        },
+        {
+            "from": "6e522098-e249-4e5f-b05a-e553971eb48b",
+            "to": "ce46f8a2-fe54-4f0c-a1cd-7e6d4b7599f0"
+        }
+    ]
+}

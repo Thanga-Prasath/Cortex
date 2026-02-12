@@ -16,7 +16,7 @@ def get_platform():
         return "linux"
 
 def get_app_path_from_registry(app_name):
-    """
+    r"""
     Attempts to find the application path from the Windows Registry.
     Searches in HKLM and HKCU under Software\Microsoft\Windows\CurrentVersion\App Paths
     """

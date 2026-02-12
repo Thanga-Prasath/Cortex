@@ -7,7 +7,7 @@ import sys
 from components.system import (
     wifi, apps, update, cpu, temperature, user, compression, services, dns,
     info, console, ip, memory, disk, directory, security, ports, firewall,
-    connections, processes, login, traffic, speedtest, cleanup, kill,
+    connections, processes, login, traffic, cleanup, kill,
     uptime, battery, recycle_bin, screenshot, audio, wifi_password, hidden_files, awake, dark_mode,
     tools, power, volume
 )
@@ -67,9 +67,10 @@ class SystemEngine:
         elif tag == 'network_traffic':
             traffic.check_network_traffic(self.speaker)
             return True
-        elif tag == 'internet_speed':
-            speedtest.check_internet_speed(self.speaker)
-            return True
+        # elif tag == 'internet_speed':
+        #     # speedtest.check_internet_speed(self.speaker)
+        #     self.speaker.speak("Speed test module is currently unavailable.")
+        #     return True
         elif tag == 'system_cleanup':
             cleanup.clean_system(self.speaker)
             return True

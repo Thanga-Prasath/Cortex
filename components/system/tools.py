@@ -54,7 +54,7 @@ def open_system_config(speaker):
     if os_type == 'Windows':
         _run_command("start msconfig", speaker)
     elif os_type == 'Darwin':
-        _run_command("open /Applications/Utilities/System\ Information.app", speaker)
+        _run_command(r"open /Applications/Utilities/System\ Information.app", speaker)
     elif os_type == 'Linux':
         # usually hardinfo or similar, but generic replacement is system monitor
         speaker.speak("Opening System Monitor as alternative.")

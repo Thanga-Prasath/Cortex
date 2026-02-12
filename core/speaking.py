@@ -10,6 +10,10 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
     Persistent Worker function to run TTS in a separate process.
     Initializes the engine ONCE and then waits for messages.
     """
+    import os
+    import json
+    import audioop
+    
     engine = None
     use_piper = False
     
@@ -23,6 +27,8 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
 
     print("[OK] TTS Worker Started Ready")
 
+    config_path = os.path.join(os.getcwd(), 'data', 'user_config.json')
+
     while True:
         try:
             # Get item from queue
@@ -32,6 +38,17 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
                 break
                 
             text = item
+            
+            # Load Config PER UTTERANCE
+            voice_rate = 175
+            voice_volume = 1.0
+            try:
+                if os.path.exists(config_path):
+                    with open(config_path, 'r') as f:
+                        data = json.load(f)
+                        voice_rate = data.get("voice_rate", 175)
+                        voice_volume = data.get("voice_volume", 1.0)
+            except: pass
             
             # SIGNAL START
             if is_speaking_flag:
@@ -43,33 +60,63 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
 
             try: 
                 if use_piper:
+                    # Calculate Length Scale for Speed (inv proportional)
+                    # Base 175 = 1.0. Faster rate = smaller scale.
+                    # Limit to reasonable bounds
+                    length_scale = 175.0 / max(50, voice_rate)
+                    length_scale = max(0.5, min(2.0, length_scale))
+                    
                     try:
                         if os_type == 'Linux':
-                            # piper --model ... --output_raw | aplay ...
+                            # piper --model ... --output_raw --length_scale ... | aplay ...
                             piper_proc = subprocess.Popen(
-                                [piper_path, '--model', model_path, '--output_raw'], 
+                                [piper_path, '--model', model_path, '--output_raw', '--length_scale', str(length_scale)], 
                                 stdin=subprocess.PIPE, 
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.DEVNULL
                             )
                             
+                            # Note: aplay doesn't support software volume scaling easily without -v (which is deprecated/plugin based)
+                            # We could pipe through 'sox' if installed, but for now we skip volume on Linux aplay
+                            # UNLESS we do python-side processing and write to aplay stdin.
+                            # Let's try python-side processing for consistency if performance allows.
+                            
                             aplay_proc = subprocess.Popen(
                                 ['aplay', '-r', '22050', '-f', 'S16_LE', '-t', 'raw', '-q'], 
-                                stdin=piper_proc.stdout
+                                stdin=subprocess.PIPE 
                             )
                             
-                            # Write text directly to piper's stdin and close it
+                            # Create a thread or just write? 
+                            # If we process in python we must read piper stdout and write to aplay stdin
+                            # This is complex to do while streaming.
+                            # Fallback: Just ignore volume on Linux for now, only speed.
+                            # Actually, we can't easily do both read/write without threads.
+                            # Revert to pipe for Linux
+                            
+                            # WRITE TEXT
                             piper_proc.stdin.write(text.encode('utf-8'))
                             piper_proc.stdin.close()
                             
-                            # Wait for aplay to finish playing
-                            aplay_proc.communicate() 
+                            # READ PIPER -> WRITE APLAY
+                            chunk_size = 1024
+                            while True:
+                                data = piper_proc.stdout.read(chunk_size)
+                                if not data: break
+                                # Apply Volume
+                                if voice_volume != 1.0:
+                                    try:
+                                        data = audioop.mul(data, 2, voice_volume)
+                                    except: pass
+                                aplay_proc.stdin.write(data)
+                                
+                            aplay_proc.stdin.close()
+                            aplay_proc.wait()
                             piper_proc.wait()
 
                         elif os_type == 'Windows':
                              # Windows: Piper -> stdout -> PyAudio
                             piper_proc = subprocess.Popen(
-                                [piper_path, '--model', model_path, '--output_raw'], 
+                                [piper_path, '--model', model_path, '--output_raw', '--length_scale', str(length_scale)], 
                                 stdin=subprocess.PIPE, 
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.DEVNULL
@@ -77,6 +124,8 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
 
                             p = pyaudio.PyAudio()
                             # 22050Hz is standard for most Piper voices
+                            # Note: Piper sometimes output 16khz depending on voice. 
+                            # Assuming 22050 based on original code.
                             stream = p.open(format=pyaudio.paInt16, channels=1, rate=22050, output=True)
 
                             # Write text
@@ -89,6 +138,13 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
                                 data = piper_proc.stdout.read(chunk_size)
                                 if not data:
                                     break
+                                
+                                # Apply Volume
+                                if voice_volume != 1.0:
+                                    try:
+                                        data = audioop.mul(data, 2, voice_volume)
+                                    except: pass
+                                    
                                 stream.write(data)
                             
                             # Clean up
@@ -120,8 +176,8 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
                                         engine.setProperty('voice', voice.id)
                                         break
                             
-                            engine.setProperty('rate', 175)
-                            engine.setProperty('volume', 0.9)
+                            engine.setProperty('rate', voice_rate)
+                            engine.setProperty('volume', voice_volume)
                         except Exception as e:
                             # Be less verbose about config errors to avoid spam
                             pass
@@ -224,6 +280,10 @@ class Speaker:
         We rely on the queue to handle operations sequentially.
         """
         print(f"Cortex: {text}")
+        
+        # Log to Hub UI
+        if self.status_queue:
+            self.status_queue.put(("LOG", f"Cortex: {text}"))
         
         if not text:
             return

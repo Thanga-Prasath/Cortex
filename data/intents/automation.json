@@ -1,0 +1,21 @@
+{
+    "intents": [
+        {
+            "tag": "run_workflow",
+            "patterns": [
+                "run workflow",
+                "start automation",
+                "execute workflow",
+                "run my flow",
+                "start neural sync",
+                "activate automation"
+            ],
+            "responses": [
+                "Starting your automation workflow.",
+                "Executing the defined workflow now.",
+                "Running Neural Sync sequence."
+            ],
+            "context_set": ""
+        }
+    ]
+}

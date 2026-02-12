@@ -1,3 +1,6 @@
 {
-    "name": "sir"
+    "name": "Sir",
+    "theme": "Fiery Red",
+    "voice_rate": 189,
+    "voice_volume": 1.0
 }

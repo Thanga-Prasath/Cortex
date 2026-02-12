@@ -43,6 +43,10 @@ class AutomationEngine:
             self.speaker.speak("Timer functionality is not yet implemented.")
             return True
 
+        if tag == 'run_workflow':
+            self.execute_workflow()
+            return True
+
         return False
 
     def _handle_window_ops(self, tag):
@@ -136,14 +140,113 @@ class AutomationEngine:
         Quick Note Taking: appends to a local notes.txt file.
         """
         self.speaker.speak("What would you like to note down?")
-        # Note: This requires a callback or blocking listen, which we don't have direct access 
-        # to inside this class easily without passing 'listener'. 
-        # IMPORTANT: Engines usually receive (tag, command). 
-        # If the command was "note down buy milk", we can extract "buy milk".
-        # If just "take a note", we might need to ask. 
-        # FOR NOW: Let's assume we capture from the initial command if possible, 
-        # or simplified flow where we just open Notepad.
-        
-        # Simple implementation: Open Notepad
         subprocess.Popen(["notepad.exe"])
         self.speaker.speak("Opening Notepad for your note.")
+
+    def execute_workflow(self, workflow_path=None):
+        """
+        Executes the saved workflow JSON.
+        """
+        import json, os, time
+        
+        if not workflow_path:
+            workflow_path = os.path.join(os.getcwd(), 'data', 'workflow.json')
+            
+        if not os.path.exists(workflow_path):
+            self.speaker.speak("No workflow found.")
+            return
+
+        try:
+            with open(workflow_path, 'r') as f:
+                data = json.load(f)
+                
+            nodes = {n['id']: n for n in data['nodes']}
+            # Build Adjacency Map: from_id -> list of to_ids
+            edges = {} 
+            for conn in data['connections']:
+                if conn['from'] not in edges:
+                    edges[conn['from']] = []
+                edges[conn['from']].append(conn['to'])
+                
+            # Find Start Node
+            current_id = None
+            for nid, node in nodes.items():
+                if node['type'] == 'Start':
+                    current_id = nid
+                    break
+            
+            if not current_id:
+                print("[Automation] No Start node found.")
+                return
+                
+            print("[Automation] Starting Workflow Execution...")
+            self.speaker.speak("Starting automation workflow.")
+            
+            # BFS Traversal for Branching
+            queue = [current_id]
+            steps = 0
+            MAX_STEPS = 100 # Safety limit for loops
+            
+            while queue and steps < MAX_STEPS:
+                current_id = queue.pop(0)
+                steps += 1
+                
+                node = nodes.get(current_id)
+                if not node: continue
+                
+                node_type = node['type']
+                print(f"[Automation] Executing: {node_type}")
+                
+                # Execute Logic
+                node_data = node.get('data', {})
+                val = node_data.get('value', '').strip()
+
+                if node_type == 'Speak':
+                    text_to_speak = val if val else "No text provided for speak node."
+                    self.speaker.speak(text_to_speak)
+                    
+                elif node_type == 'Delay' or node_type == 'Delay (5s)':
+                    # Use provided value if it's a number, else default to 5
+                    try:
+                        d_time = float(val) if val else 5.0
+                    except:
+                        d_time = 5.0
+                    time.sleep(d_time)
+                    
+                elif node_type == 'System Command':
+                    if val:
+                        self.speaker.speak(f"Running command: {val}")
+                        try:
+                            # 1. Check if it's a directory
+                            if os.path.isdir(val):
+                                os.startfile(val)
+                                self.speaker.speak("Opening folder.")
+                            else:
+                                # 2. Try executing as a command in a NEW WINDOW
+                                # 'start' is a shell command in Windows
+                                # 'cmd /k' keeps the window open after execution
+                                cmd_str = f'start cmd /k "{val}"'
+                                subprocess.Popen(cmd_str, shell=True) 
+                        except Exception as e:
+                            print(f"[Automation] Command Error: {e}")
+                            self.speaker.speak("I could not run that command.")
+                    else:
+                        self.speaker.speak("No command provided for system node.")
+                    
+                elif node_type == 'End':
+                    print("[Automation] Reached End.")
+                    if not queue: # Only say complete if no other branches running
+                        self.speaker.speak("Workflow completed.")
+                
+                # Add children to queue
+                children = edges.get(current_id, [])
+                for child in children:
+                    queue.append(child)
+                
+                # Small yield for UI responsiveness if needed (though running in thread/process usually)
+                time.sleep(0.1) 
+
+                
+        except Exception as e:
+            print(f"[Automation] Execution Error: {e}")
+            self.speaker.speak("Error executing workflow.")

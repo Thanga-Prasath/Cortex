@@ -53,6 +53,10 @@ def ui_process_target(status_queue, reset_event=None):
                     selector = WorkspaceSelector(manager, data)
                     selector.show()
                     workspace_windows.append(selector) # Keep reference
+                    
+                elif status == "LOG":
+                    # Forward log to StatusWindow -> HubWindow
+                    window.log_activity(data)
 
                 else:
                     # Default to status window update
