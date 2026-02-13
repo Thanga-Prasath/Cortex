@@ -68,6 +68,13 @@ def restart_system():
         sys.stdout.flush()
         os.execv(python_exe, args)
 
+
+
+def ui_process_target(status_queue, reset_event, shutdown_event):
+    # This is a placeholder import to avoid circular dependency issues at top level if any
+    from core.ui.process import ui_process_target as original_target
+    original_target(status_queue, reset_event, shutdown_event)
+
 if __name__ == "__main__":
     multiprocessing.freeze_support()
     

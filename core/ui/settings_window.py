@@ -7,15 +7,18 @@ import os
 from .styles import get_stylesheet
 
 class SettingsWindow(QMainWindow):
-    def __init__(self, reset_event=None):
+    def __init__(self, reset_event=None, status_window=None):
         super().__init__()
         self.reset_event = reset_event
+        self.status_window = status_window
         self.setWindowTitle("Cortex Control - Settings")
         self.setGeometry(100, 100, 700, 500)
         
         # Data Setup
         self.config_path = os.path.join(os.getcwd(), 'data', 'user_config.json')
-        self.config_data = self.load_config()
+        self.widget_config_path = os.path.join(os.getcwd(), 'data', 'widget_config.json')
+        self.config_data = self.load_config(self.config_path)
+        self.widget_config = self.load_config(self.widget_config_path)
         
         # Apply Theme
         current_theme = self.config_data.get("theme", "Neon Green")
@@ -81,10 +84,10 @@ class SettingsWindow(QMainWindow):
         
         main_layout.addLayout(footer_layout)
 
-    def load_config(self):
-        if os.path.exists(self.config_path):
+    def load_config(self, path):
+        if os.path.exists(path):
             try:
-                with open(self.config_path, 'r') as f:
+                with open(path, 'r') as f:
                     return json.load(f)
             except:
                 return {}
@@ -120,6 +123,19 @@ class SettingsWindow(QMainWindow):
         
         lbl_theme = QLabel("Accent Theme:")
         layout.addRow(lbl_theme, self.combo_theme)
+
+        # Widget Lock Checkbox
+        from PyQt6.QtWidgets import QCheckBox
+        self.chk_lock_widget = QCheckBox("Lock Taskbar Widget Position")
+        self.chk_lock_widget.setChecked(self.widget_config.get("locked", False))
+        self.chk_lock_widget.setStyleSheet("color: white; margin-top: 10px;")
+        self.chk_lock_widget.toggled.connect(self.on_lock_toggled)
+        layout.addRow("", self.chk_lock_widget)
+
+    def on_lock_toggled(self, checked):
+        """Update StatusWindow live when checkbox is toggled."""
+        if self.status_window:
+            self.status_window.update_lock_state(checked)
         
         # Note: We can add immediate theme preview if desired, but restart is safer for now.
 
@@ -300,6 +316,17 @@ class SettingsWindow(QMainWindow):
         self.config_data["voice_rate"] = self.slider_rate.value()
         self.config_data["voice_volume"] = self.slider_vol.value() / 100.0
         
+        # Save Taskbar Widget Config
+        self.widget_config["locked"] = self.chk_lock_widget.isChecked()
+        try:
+             with open(self.widget_config_path, 'w') as f:
+                json.dump(self.widget_config, f, indent=4)
+             # Also ensure StatusWindow is updated on save (redundant but safe)
+             if self.status_window:
+                 self.status_window.update_lock_state(self.chk_lock_widget.isChecked())
+        except Exception as e:
+            print(f"[Settings] Error saving widget config: {e}")
+
         # Save to file
         try:
             with open(self.config_path, 'w') as f:

@@ -5,4 +5,4 @@ echo ====================
 ipconfig
 echo.
 pause
-del "C:\New folder\Sunday-final-year\temp_cmd.bat" & exit
+del "E:\Sunday-final-year\temp_cmd.bat" & exit

@@ -4,25 +4,36 @@ from PyQt6.QtGui import QColor, QPainter, QBrush, QPen, QRadialGradient, QAction
 import ctypes
 import platform
 import os
+import json
 
 class StatusWindow(QMainWindow):
+
     def __init__(self, reset_event=None, shutdown_event=None):
         super().__init__()
         
         # Window Flags: Frameless, Always on Top, Tool (no taskbar icon)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
         
-        # Config & Theme
+        # Config Paths
         self.config_path = os.path.join(os.getcwd(), 'data', 'user_config.json')
+        self.widget_config_path = os.path.join(os.getcwd(), 'data', 'widget_config.json')
+        
+        # Load Configs
         self.theme_accent = "#39FF14"
+        self.widget_config = self.load_widget_config()
+        self.load_theme_config()
         
         # Dimensions
         self.width_val = 140
         self.height_val = 50
         self.setGeometry(100, 100, self.width_val, self.height_val) 
-        self.center_on_screen()
+        
+        # Initial Position using Config
+        if self.widget_config.get("x", -1) != -1 and self.widget_config.get("y", -1) != -1:
+            self.move(self.widget_config["x"], self.widget_config["y"])
+        else:
+            self.position_default() # Smart default
         
         # State
         self.reset_event = reset_event
@@ -31,7 +42,11 @@ class StatusWindow(QMainWindow):
         self.wave_phase = 0
         self.wave_amplitude = 10
         self.pulse_direction = 1
-        self.bar_heights = [5, 10, 15, 10, 5] # Initial heights for beatbox bars
+        self.bar_heights = [5, 10, 15, 10, 5] 
+        self.drag_pos = None # For custom dragging
+        
+        # Cursor Update based on lock
+        self.update_cursor()
         
         # GUI Module Manager (Lazy Loading)
         self.windows = {
@@ -49,22 +64,18 @@ class StatusWindow(QMainWindow):
         # Enforce Always on Top (All Platforms)
         self.top_timer = QTimer()
         self.top_timer.timeout.connect(self.enforce_topmost)
-        self.top_timer.start(500) # Check every 500ms
+        self.top_timer.start(200) # Increased frequency (200ms) for Windows Taskbar dominance
 
         # Colors - Neon Palette
         self.colors = {
-            "IDLE": QColor(220, 220, 220, 255),       # Neon White/Grey
-            "LISTENING": QColor(57, 255, 20, 255),    # Neon Green
-            "THINKING": QColor(255, 255, 0, 255),     # Neon Yellow
-            "SPEAKING": QColor(138, 43, 226, 255),    # Neon Purple (BlueViolet)
-            "PROCESSING": QColor(0, 255, 255, 255)    # Neon Cyan
+            "IDLE": QColor(220, 220, 220, 255),       
+            "LISTENING": QColor(57, 255, 20, 255),    
+            "THINKING": QColor(255, 255, 0, 255),     
+            "SPEAKING": QColor(138, 43, 226, 255),    
+            "PROCESSING": QColor(0, 255, 255, 255)    
         }
-        
-        # Load Config for Theme Colors
-        self.load_theme_config()
-
+    
     def load_theme_config(self):
-        import json
         from .styles import THEME_COLORS
         
         try:
@@ -75,34 +86,109 @@ class StatusWindow(QMainWindow):
                     self.theme_accent = THEME_COLORS.get(theme_name, "#39FF14")
         except:
             self.theme_accent = "#39FF14"
-            
-        # Update Colors
-        # self.colors["LISTENING"] = QColor(self.theme_accent) # KEEP GREEN per user request
 
     def enforce_topmost(self):
         # Windows-specific low-level enforcement
         if platform.system() == "Windows":
-            # HWND_TOPMOST = -1
-            # SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE = 0x0002 | 0x0001 | 0x0010 = 0x0013
-            hwnd = int(self.winId())
-            ctypes.windll.user32.SetWindowPos(hwnd, -1, 0, 0, 0, 0, 0x0013)
+            try:
+                import win32gui
+                import win32con
+                
+                hwnd = int(self.winId())
+                
+                # Check if we are really the top window
+                # GetForegroundWindow() checks if we have focus, but GetWindow(GW_HWNDPREV) checks Z-order
+                # If we are not topmost, re-assert it forcefully
+                
+                # Reset first (sometimes needed to 'refresh' the state)
+                win32gui.SetWindowPos(hwnd, win32con.HWND_NOTOPMOST, 0, 0, 0, 0, 
+                                      win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_NOACTIVATE)
+                
+                # Set TopMost again
+                win32gui.SetWindowPos(hwnd, win32con.HWND_TOPMOST, 0, 0, 0, 0, 
+                                      win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_NOACTIVATE | win32con.SWP_SHOWWINDOW)
+                                      
+            except ImportError:
+                # Fallback to ctypes if pywin32 is missing (though we installed it)
+                hwnd = int(self.winId())
+                try:
+                    ctypes.windll.user32.SetWindowPos(hwnd, -1, 0, 0, 0, 0, 0x0053)
+                except:
+                    pass
+            except Exception as e:
+                # Silently ignore to avoid spamming console
+                pass
         else:
             # Linux/macOS: Standard Qt raise to keep it visible
-            # Note: activateWindow() would steal focus, so we just use raise_()
             self.raise_()
 
-    def center_on_screen(self):
-        # Position bottom-right by default
-        screen = self.screen().availableGeometry()
-        x = screen.width() - self.width() - 20
-        y = screen.height() - self.height() - 20
+    def update_lock_state(self, is_locked):
+        """Update lock state live without restarting."""
+        self.widget_config["locked"] = is_locked
+        self.update_cursor()
+        print(f"[UI] Widget lock state updated: {is_locked}")
+
+    def load_widget_config(self):
+        if os.path.exists(self.widget_config_path):
+            try:
+                with open(self.widget_config_path, 'r') as f:
+                    return json.load(f)
+            except:
+                pass
+        return {"x": -1, "y": -1, "locked": False}
+
+    def save_widget_config(self):
+        try:
+            with open(self.widget_config_path, 'w') as f:
+                json.dump(self.widget_config, f, indent=4)
+        except Exception as e:
+            print(f"Error saving widget config: {e}")
+
+    def position_default(self):
+        # Position bottom-right by default (Taskbar Overlay style)
+        # We use geometry() instead of availableGeometry() to reach the taskbar area
+        screen = self.screen().geometry()
+        # We want it at the bottom right corner over the taskbar
+        # Taskbar is usually ~40-50px. Widget is 50px.
+        x = screen.width() - self.width_val - 10
+        y = screen.height() - self.height_val - 5
         self.move(x, y)
 
+    def update_cursor(self):
+        if self.widget_config.get("locked", False):
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
+        else:
+            self.setCursor(Qt.CursorShape.SizeAllCursor)
+
     def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.windowHandle().startSystemMove()
-        elif event.button() == Qt.MouseButton.RightButton:
+        # Check lock state dynamically (in case changed via Settings)
+        # Reloading config on every click is expensive, typically we rely on Restart
+        # But for UX, let's respect the current loaded config state. 
+        # (Settings update requires restart anyway)
+        
+        if not self.widget_config.get("locked", False):
+            if event.button() == Qt.MouseButton.LeftButton:
+                from PyQt6.QtGui import QMouseEvent
+                self.drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+                event.accept()
+        
+        if event.button() == Qt.MouseButton.RightButton:
             self.show_context_menu(event.globalPosition().toPoint())
+
+    def mouseMoveEvent(self, event):
+        if not self.widget_config.get("locked", False):
+            if event.buttons() == Qt.MouseButton.LeftButton and self.drag_pos:
+                self.move(event.globalPosition().toPoint() - self.drag_pos)
+                event.accept()
+
+    def mouseReleaseEvent(self, event):
+        if not self.widget_config.get("locked", False) and self.drag_pos:
+            self.drag_pos = None
+            # Save Position
+            self.widget_config["x"] = self.x()
+            self.widget_config["y"] = self.y()
+            self.save_widget_config()
+            event.accept()
 
     def show_context_menu(self, position):
         """Show context menu with Reset option and New GUIs."""
@@ -193,7 +279,7 @@ class StatusWindow(QMainWindow):
                     
                 elif module_name == "settings":
                     from core.ui.settings_window import SettingsWindow
-                    self.windows["settings"] = SettingsWindow(self.reset_event)
+                    self.windows["settings"] = SettingsWindow(self.reset_event, status_window=self)
                     
                 elif module_name == "knowledge":
                     from core.ui.knowledge_window import KnowledgeWindow
