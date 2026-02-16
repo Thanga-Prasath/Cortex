@@ -1,4 +1,7 @@
-import pyautogui
+try:
+    import pyautogui
+except (ImportError, Exception):
+    pyautogui = None
 import os
 import datetime
 import platform
@@ -27,6 +30,10 @@ def take_screenshot(speaker):
         filepath = os.path.join(save_dir, filename)
         
         # Take screenshot
+        if not pyautogui:
+            speaker.speak("Screenshot functionality is unavailable because the required library could not be initialized.")
+            return
+
         screenshot = pyautogui.screenshot()
         screenshot.save(filepath)
         

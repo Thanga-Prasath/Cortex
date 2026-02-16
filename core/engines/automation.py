@@ -3,7 +3,7 @@ import time
 import subprocess
 try:
     import pyautogui
-except ImportError:
+except (ImportError, Exception):
     pyautogui = None
 
 try:

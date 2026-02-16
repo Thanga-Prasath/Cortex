@@ -6,7 +6,7 @@ import platform
 import subprocess
 try:
     import pyautogui
-except ImportError:
+except (ImportError, Exception):
     pyautogui = None
 
 class GeneralEngine:

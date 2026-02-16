@@ -4,6 +4,14 @@ from components.system.custom_utils import run_in_separate_terminal, get_cmd_wit
 
 import subprocess
 
+# Import dependency manager for auto-installing antivirus tools
+try:
+    from core.utils.dependency_manager import ensure_commands, get_dependency_manager
+    _HAS_DEPENDENCY_MANAGER = True
+except ImportError:
+    _HAS_DEPENDENCY_MANAGER = False
+    print("[Warning] Dependency manager not available for security scan")
+
 def run_security_scan(speaker=None):
     os_type = platform.system()
     
@@ -11,11 +19,76 @@ def run_security_scan(speaker=None):
         speaker.speak("Checking system security status...", blocking=True)
     
     if os_type == 'Linux':
-        # ... (Linux logic remains same)
+        # Check for rkhunter first (rootkit hunter)
         if os.system("which rkhunter > /dev/null 2>&1") == 0:
-             run_in_separate_terminal('sudo rkhunter --check --sk', "SECURITY SCAN", os_type, speaker)
+            run_in_separate_terminal('sudo rkhunter --check --sk', "SECURITY SCAN", os_type, speaker)
         else:
-             run_in_separate_terminal('clamscan -r ~', "SECURITY SCAN", os_type, speaker)
+            # Use ClamAV as fallback - ensure it's installed
+            if _HAS_DEPENDENCY_MANAGER:
+                # Check if clamscan is available
+                dm = get_dependency_manager()
+                if not dm.is_command_available('clamscan'):
+                    if speaker:
+                        speaker.speak("ClamAV antivirus is not installed. Installing it now...")
+                    
+                    print("[Security] clamscan not found. Opening terminal to install ClamAV...")
+                    print("[Security] A terminal window will open - please enter your password")
+                    
+                    # Install clamav package (terminal window will open automatically)
+                    # Note: package is 'clamav' but command is 'clamscan'
+                    if dm.install_linux_package('clamav', command_name='clamscan'):
+                        print("[Security] ✅ ClamAV installed successfully")
+                        
+                        # Update virus database (important for first-time use)
+                        # This may also need terminal access for first-time setup
+                        if speaker:
+                            speaker.speak("Updating virus database. This may take a moment...")
+                        
+                        print("[Security] Updating virus database...")
+                        try:
+                            # Run freshclam in terminal so user can see progress
+                            terminal_commands = [
+                                f"gnome-terminal -- bash -c 'sudo freshclam; echo; echo \"Database update complete. Press Enter to close...\"; read'",
+                                f"konsole -e bash -c 'sudo freshclam; echo; echo \"Database update complete. Press Enter to close...\"; read'",
+                                f"xterm -e 'bash -c \"sudo freshclam; echo; echo Database update complete. Press Enter to close...; read\"'",
+                            ]
+                            
+                            terminal_opened = False
+                            for terminal_cmd in terminal_commands:
+                                try:
+                                    subprocess.Popen(terminal_cmd, shell=True)
+                                    terminal_opened = True
+                                    print("[Security] Terminal opened for virus database update")
+                                    break
+                                except:
+                                    continue
+                            
+                            if not terminal_opened:
+                                # Fallback: try in background
+                                subprocess.run(['sudo', 'freshclam'], 
+                                             check=False, 
+                                             timeout=120,
+                                             stdout=subprocess.DEVNULL,
+                                             stderr=subprocess.DEVNULL)
+                            
+                            print("[Security] ✅ Virus database updated")
+                        except:
+                            print("[Security] ⚠️  Could not update virus database automatically")
+                        
+                        if speaker:
+                            speaker.speak("ClamAV installed successfully. Starting security scan.")
+                    else:
+                        if speaker:
+                            speaker.speak("Could not install ClamAV. Please check the terminal window or install manually.")
+                        print("[Security] ❌ Failed to install ClamAV")
+                        print("[Security] Install manually: sudo apt install clamav")
+                        return
+                
+                # Run the scan
+                run_in_separate_terminal('clamscan -r ~', "SECURITY SCAN", os_type, speaker)
+            else:
+                # No dependency manager - just try to run it
+                run_in_separate_terminal('clamscan -r ~', "SECURITY SCAN", os_type, speaker)
             
     elif os_type == 'Windows':
         # SMART CHECK: Check SecurityCenter2 for ANY active antivirus (including 3rd party)

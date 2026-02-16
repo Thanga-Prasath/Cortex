@@ -2,6 +2,14 @@ import subprocess
 import time
 from pathlib import Path
 
+# Import dependency manager for auto-installing system tools
+try:
+    from core.utils.dependency_manager import ensure_commands
+    _HAS_DEPENDENCY_MANAGER = True
+except ImportError:
+    _HAS_DEPENDENCY_MANAGER = False
+    print("[Warning] Dependency manager not available")
+
 def get_selected_files_from_file_manager():
     """
     detect files selected in the active file manager window.
@@ -122,6 +130,21 @@ def get_selected_files_from_file_manager():
         print(f"[FileManager] gdbus failed: {e}")
     
     print("[FileManager] Trying detection method 3: xclip (clipboard fallback)")
+    
+    # Auto-install dependencies if missing (Linux only)
+    if _HAS_DEPENDENCY_MANAGER:
+        import os
+        if os.name != 'nt':  # Not Windows
+            required_commands = ['xdotool', 'xclip']
+            print(f"[FileManager] Checking for required tools: {', '.join(required_commands)}")
+            
+            if not ensure_commands(required_commands, auto_install=True):
+                print("[FileManager] ⚠️  Some dependencies are missing and could not be auto-installed")
+                print("[FileManager] Install manually: sudo apt install xdotool xclip")
+                return []
+            else:
+                print(f"[FileManager] ✅ All required tools available")
+    
     # Method 3: Fallback to xclip (clipboard method)
     # This method finds the file manager window, focuses it, copies selection, then restores focus
     try:

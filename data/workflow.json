@@ -1,46 +1,55 @@
 {
     "nodes": [
         {
-            "id": "a0831a75-1589-4466-bdd0-ad3c470fb413",
+            "id": "75538cc5-92df-4314-af28-67120b530ff9",
             "type": "End",
-            "x": 2461.0,
-            "y": 2653.0,
+            "x": 2257.0,
+            "y": 2701.0,
             "data": {
                 "value": ""
             }
         },
         {
-            "id": "f723855f-c5c2-4eb1-a4bd-b34a2e90b33a",
-            "type": "Speak",
-            "x": 2470.0,
-            "y": 2547.0,
+            "id": "f6918572-eb98-45a3-aa64-307782245a0a",
+            "type": "Delay",
+            "x": 2487.0,
+            "y": 2413.0,
             "data": {
-                "value": "Golday!"
+                "value": "3"
             }
         },
         {
-            "id": "ce46f8a2-fe54-4f0c-a1cd-7e6d4b7599f0",
+            "id": "ea55b586-e77a-43b1-aa26-6e12cd90ea1c",
             "type": "Speak",
-            "x": 2435.0,
-            "y": 2342.0,
+            "x": 2551.0,
+            "y": 2578.0,
             "data": {
-                "value": "F, U, C, K"
+                "value": "the work is done sir"
             }
         },
         {
-            "id": "a360f22f-63de-4dba-982a-8bf4860bc595",
-            "type": "Speak",
-            "x": 2437.0,
-            "y": 2434.0,
+            "id": "ad7b4b7f-e9a8-4dd4-80a7-5476a36a8737",
+            "type": "System Command",
+            "x": 2267.0,
+            "y": 2505.0,
             "data": {
-                "value": "Y O U"
+                "value": "sudo ufw status verbose"
             }
         },
         {
-            "id": "6e522098-e249-4e5f-b05a-e553971eb48b",
+            "id": "1792da45-b291-4211-9ad4-0fb5a62b0574",
+            "type": "System Command",
+            "x": 2266.0,
+            "y": 2315.0,
+            "data": {
+                "value": "ipconfig"
+            }
+        },
+        {
+            "id": "07b20043-e189-4f7a-af5f-db9723f6b8a3",
             "type": "Start",
-            "x": 2312.0,
-            "y": 2226.0,
+            "x": 2164.0,
+            "y": 2209.0,
             "data": {
                 "value": ""
             }
@@ -48,20 +57,24 @@
     ],
     "connections": [
         {
-            "from": "f723855f-c5c2-4eb1-a4bd-b34a2e90b33a",
-            "to": "a0831a75-1589-4466-bdd0-ad3c470fb413"
+            "from": "ea55b586-e77a-43b1-aa26-6e12cd90ea1c",
+            "to": "75538cc5-92df-4314-af28-67120b530ff9"
         },
         {
-            "from": "a360f22f-63de-4dba-982a-8bf4860bc595",
-            "to": "f723855f-c5c2-4eb1-a4bd-b34a2e90b33a"
+            "from": "f6918572-eb98-45a3-aa64-307782245a0a",
+            "to": "ad7b4b7f-e9a8-4dd4-80a7-5476a36a8737"
         },
         {
-            "from": "ce46f8a2-fe54-4f0c-a1cd-7e6d4b7599f0",
-            "to": "a360f22f-63de-4dba-982a-8bf4860bc595"
+            "from": "1792da45-b291-4211-9ad4-0fb5a62b0574",
+            "to": "f6918572-eb98-45a3-aa64-307782245a0a"
         },
         {
-            "from": "6e522098-e249-4e5f-b05a-e553971eb48b",
-            "to": "ce46f8a2-fe54-4f0c-a1cd-7e6d4b7599f0"
+            "from": "ad7b4b7f-e9a8-4dd4-80a7-5476a36a8737",
+            "to": "ea55b586-e77a-43b1-aa26-6e12cd90ea1c"
+        },
+        {
+            "from": "07b20043-e189-4f7a-af5f-db9723f6b8a3",
+            "to": "1792da45-b291-4211-9ad4-0fb5a62b0574"
         }
     ]
 }
