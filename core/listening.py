@@ -97,19 +97,25 @@ class Listener:
             
             stream.start_stream()
             
+            # Discard initial "pop" chunks
+            for _ in range(5):
+                stream.read(self.CHUNK, exception_on_overflow=False)
+
             noise_levels = []
             for _ in range(30): # Listen for ~1.5 second
                 data = stream.read(self.CHUNK, exception_on_overflow=False)
                 # rms = audioop.rms(data, 2) - Replaced for Python 3.13 compatibility
                 samples = np.frombuffer(data, dtype=np.int16).astype(np.float32)
+                # Subtract mean to remove DC offset before calculating RMS
+                samples = samples - np.mean(samples)
                 rms = np.sqrt(np.mean(samples**2))
                 noise_levels.append(rms)
             
             stream.stop_stream()
             stream.close()
             
-            avg_noise = sum(noise_levels) / len(noise_levels)
-            self.THRESHOLD = avg_noise * 1.5 # Set threshold 50% above noise floor (increased from 30%)
+            avg_noise = np.mean(noise_levels)
+            self.THRESHOLD = avg_noise * 1.5 # Set threshold 50% above noise floor
             # Clamp minimum threshold to avoid super sensitivity
             if self.THRESHOLD < 400: self.THRESHOLD = 400 # Increased from 300
             
@@ -171,6 +177,8 @@ class Listener:
                 data = stream.read(self.CHUNK, exception_on_overflow=False)
                 # rms = audioop.rms(data, 2) - Replaced for Python 3.13 compatibility
                 samples = np.frombuffer(data, dtype=np.int16).astype(np.float32)
+                # Subtract mean to remove DC offset
+                samples = samples - np.mean(samples)
                 rms = np.sqrt(np.mean(samples**2))
                 
                 if not started:

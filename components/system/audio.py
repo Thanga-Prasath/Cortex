@@ -57,4 +57,7 @@ def restart_audio_service(speaker):
              speaker.speak("Could not restart PulseAudio or PipeWire.")
              
         except Exception as e:
-            speaker.speak(f"Error restarting audio: {e}")
+            if "permission denied" in str(e).lower() or "not allowed" in str(e).lower():
+                speaker.speak(f"Error restarting audio: Permission denied. Please run the permission repair script.")
+            else:
+                speaker.speak(f"Error restarting audio: {e}")

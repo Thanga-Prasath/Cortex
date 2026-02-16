@@ -9,8 +9,20 @@ def get_cmd_with_auto_install(command, package):
     """Returns a shell command that tries to install the package if the command is missing (Linux only)."""
     if get_os_type() == 'Linux':
         # Check if command exists, if not, try to install
-        return f"which {command} > /dev/null 2>&1 || (echo 'Tool {command} not found. Installing {package}...' && sudo apt install {package} -y); {command}"
+        # We use -n (non-interactive) for sudo to avoid hanging if password is required
+        return f"which {command} > /dev/null 2>&1 || (echo 'Tool {command} not found. Attempting to install {package}...' && sudo -n apt install {package} -y || echo 'Permission denied. Please run: sudo apt install {package}'); {command}"
     return command
+
+def check_sudo_access(command):
+    """Checks if a command can be run with sudo without a password prompt."""
+    if get_os_type() != 'Linux':
+        return True
+    try:
+        # sudo -n (non-interactive) returns 0 if it can run without password, 1 or other if not
+        subprocess.check_call(['sudo', '-n', 'true'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True
+    except subprocess.CalledProcessError:
+        return False
 
 def run_in_separate_terminal(command, title="System Info", os_type=None, speaker=None, admin=False):
     """Launches a command in a new terminal window."""
@@ -21,9 +33,13 @@ def run_in_separate_terminal(command, title="System Info", os_type=None, speaker
         if os_type == 'Linux':
             # Try gnome-terminal first, then x-terminal-emulator
             # We wrap the command in bash to keep the window open
-            full_cmd = f"echo '{title}'; echo '===================='; {command}; echo ''; read -p 'Press Enter to close...' var"
-            
             try:
+                # If command requires sudo, check if we have it
+                if 'sudo' in command and not check_sudo_access(command):
+                    full_cmd = f"echo '⚠️  AUTHENTICATION REQUIRED'; echo '===================='; echo 'The command \"{command}\" requires root privileges.'; echo 'If you have not run scripts/sunday-permissions.sh, you will be prompted for a password.'; echo ''; {command}; echo ''; read -p 'Press Enter to close...' var"
+                else:
+                    full_cmd = f"echo '{title}'; echo '===================='; {command}; echo ''; read -p 'Press Enter to close...' var"
+                
                 subprocess.Popen(['gnome-terminal', '--', 'bash', '-c', full_cmd])
             except FileNotFoundError:
                 # Fallback

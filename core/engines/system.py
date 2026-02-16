@@ -235,6 +235,12 @@ class SystemEngine:
                 
             return True
             
+        elif tag == 'repair_permissions':
+            self.speaker.speak("Starting permission repair script. This will open in a separate terminal.")
+            from components.system.custom_utils import run_in_separate_terminal
+            run_in_separate_terminal(f"sudo {os.path.join(os.getcwd(), 'scripts', 'sunday-permissions.sh')}", "PERMISSION REPAIR", self.os_type, self.speaker)
+            return True
+            
         return False
 
     def _print_header(self, title):

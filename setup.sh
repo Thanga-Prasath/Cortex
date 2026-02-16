@@ -42,6 +42,11 @@ else
 fi
 
 echo ""
+echo "Setting up system permissions..."
+chmod +x scripts/sunday-permissions.sh
+./scripts/sunday-permissions.sh
+
+echo ""
 echo "==================================="
 echo "✅ Setup complete!"
 echo "==================================="

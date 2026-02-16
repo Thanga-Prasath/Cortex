@@ -67,94 +67,48 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
                     length_scale = max(0.5, min(2.0, length_scale))
                     
                     try:
-                        if os_type == 'Linux':
-                            # piper --model ... --output_raw --length_scale ... | aplay ...
-                            piper_proc = subprocess.Popen(
-                                [piper_path, '--model', model_path, '--output_raw', '--length_scale', str(length_scale)], 
-                                stdin=subprocess.PIPE, 
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.DEVNULL
-                            )
+                        import pyaudio
+                        
+                        # Start Piper Process
+                        piper_proc = subprocess.Popen(
+                            [piper_path, '--model', model_path, '--output_raw', '--length_scale', str(length_scale)], 
+                            stdin=subprocess.PIPE, 
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.DEVNULL
+                        )
+
+                        # Initialize PyAudio
+                        p = pyaudio.PyAudio()
+                        # 22050Hz is standard for most Piper voices
+                        stream = p.open(format=pyaudio.paInt16, channels=1, rate=22050, output=True)
+
+                        # Write text to Piper's stdin
+                        piper_proc.stdin.write(text.encode('utf-8'))
+                        piper_proc.stdin.close()
+
+                        # Read and stream Piper's stdout to PyAudio
+                        chunk_size = 1024
+                        while True:
+                            data = piper_proc.stdout.read(chunk_size)
+                            if not data:
+                                break
                             
-                            # Note: aplay doesn't support software volume scaling easily without -v (which is deprecated/plugin based)
-                            # We could pipe through 'sox' if installed, but for now we skip volume on Linux aplay
-                            # UNLESS we do python-side processing and write to aplay stdin.
-                            # Let's try python-side processing for consistency if performance allows.
-                            
-                            aplay_proc = subprocess.Popen(
-                                ['aplay', '-r', '22050', '-f', 'S16_LE', '-t', 'raw', '-q'], 
-                                stdin=subprocess.PIPE 
-                            )
-                            
-                            # Create a thread or just write? 
-                            # If we process in python we must read piper stdout and write to aplay stdin
-                            # This is complex to do while streaming.
-                            # Fallback: Just ignore volume on Linux for now, only speed.
-                            # Actually, we can't easily do both read/write without threads.
-                            # Revert to pipe for Linux
-                            
-                            # WRITE TEXT
-                            piper_proc.stdin.write(text.encode('utf-8'))
-                            piper_proc.stdin.close()
-                            
-                            # READ PIPER -> WRITE APLAY
-                            chunk_size = 1024
-                            while True:
-                                data = piper_proc.stdout.read(chunk_size)
-                                if not data: break
-                                # Apply Volume
-                                if voice_volume != 1.0:
-                                    try:
-                                        data = audioop.mul(data, 2, voice_volume)
-                                    except: pass
-                                aplay_proc.stdin.write(data)
+                            # Apply Voice Volume
+                            if voice_volume != 1.0:
+                                try:
+                                    data = audioop.mul(data, 2, voice_volume)
+                                except: pass
                                 
-                            aplay_proc.stdin.close()
-                            aplay_proc.wait()
-                            piper_proc.wait()
-
-                        elif os_type == 'Windows':
-                             # Windows: Piper -> stdout -> PyAudio
-                            piper_proc = subprocess.Popen(
-                                [piper_path, '--model', model_path, '--output_raw', '--length_scale', str(length_scale)], 
-                                stdin=subprocess.PIPE, 
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.DEVNULL
-                            )
-
-                            p = pyaudio.PyAudio()
-                            # 22050Hz is standard for most Piper voices
-                            # Note: Piper sometimes output 16khz depending on voice. 
-                            # Assuming 22050 based on original code.
-                            stream = p.open(format=pyaudio.paInt16, channels=1, rate=22050, output=True)
-
-                            # Write text
-                            piper_proc.stdin.write(text.encode('utf-8'))
-                            piper_proc.stdin.close()
-
-                            # Read and play in chunks
-                            chunk_size = 1024
-                            while True:
-                                data = piper_proc.stdout.read(chunk_size)
-                                if not data:
-                                    break
-                                
-                                # Apply Volume
-                                if voice_volume != 1.0:
-                                    try:
-                                        data = audioop.mul(data, 2, voice_volume)
-                                    except: pass
-                                    
-                                stream.write(data)
-                            
-                            # Clean up
-                            stream.stop_stream()
-                            stream.close()
-                            p.terminate()
-                            piper_proc.wait()
+                            stream.write(data)
+                        
+                        # Cleanup resources
+                        stream.stop_stream()
+                        stream.close()
+                        p.terminate()
+                        piper_proc.wait()
 
                     except Exception as e:
-                        print(f"[!] Piper Error: {e}")
+                        print(f"[!] Piper Playback Error: {e}")
                 
                 else:
                     # Initialize pyttsx3 PER UTTERANCE to avoid event loop issues

@@ -71,6 +71,11 @@ def get_wifi_password(ssid=None):
              cmd = f"nmcli -s -g 802-11-wireless-security.psk connection show '{current_ssid}'"
              password = subprocess.check_output(cmd, shell=True, encoding='utf-8').strip()
 
+    except subprocess.CalledProcessError as e:
+        if "permission denied" in str(e).lower() or "root" in str(e).lower():
+            error = "Authentication failed. Please run 'sudo ./scripts/sunday-permissions.sh' to fix permissions."
+        else:
+            error = str(e)
     except Exception as e:
         error = str(e)
         
