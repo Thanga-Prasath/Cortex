@@ -60,10 +60,10 @@ class StaticCommandEngine:
                  
         return None, None, 0.0
 
-    def _get_confirmation(self):
+    def _get_confirmation(self, action_name="perform this action"):
         """Asks the user for confirmation and returns True/False."""
-        self.speaker.speak("This is a critical action. Are you sure?")
-        print("[Static] Waiting for confirmation (y/n)...")
+        self.speaker.speak(f"Are you sure you want to {action_name}?")
+        print(f"[Static] Waiting for confirmation for '{action_name}' (y/n)...")
         
         if self.listener:
             # Short timeout for confirmation
@@ -107,33 +107,54 @@ class StaticCommandEngine:
         """
         Handles the intent by looking up the command.
         """
+        # Mode 1: Intent-Based Execution (High Precision)
+        if tag:
+            # Check if the tag corresponds exactly to a command key
+            for category, items in self.commands.items():
+                if tag in items:
+                    # Found exact match for tag
+                    return self._execute_command(tag, category, items[tag])
+            
+            # If tag is provided but not found, we should NOT fall back to fuzzy matching
+            # logic, because another engine (like GeneralEngine) is likely the intended target.
+            return False
+
+        # Mode 2: Fallback / Text-Based Matching (Fuzzy)
         if not self.commands:
             return False
 
         key, category, confidence = self._find_best_match(user_input.lower())
         
-        if key and confidence > 0.5:
-            command_entry = self.commands[category][key]
-            
-            # Safety Check
-            if command_entry.get('confirm', False):
-                 if not self._get_confirmation():
-                     self.speaker.speak("Action cancelled.")
-                     return True
-            
-            # Get the command
-            cmd_info = command_entry['cmd']
-            sys_os = self.os_type
-            if sys_os == 'darwin': sys_os = 'macos'
-            
-            cmd = cmd_info.get(sys_os)
-            if not cmd:
-                cmd = cmd_info.get('linux') # Fallback
-                
-            if cmd:
-                print(f"[Static] Match: {key} ({confidence:.2f}) -> {cmd}")
-                self.speaker.speak(f"Executing {key.replace('_', ' ')}.")
-                self._run_in_terminal(cmd, f"Task: {key.replace('_', ' ').title()}", self.os_type)
-                return True
+        if key and confidence > 0.6: # Increased threshold for safety
+            return self._execute_command(key, category, self.commands[category][key], confidence)
         
+        return False
+
+    def _execute_command(self, key, category, command_entry, confidence=1.0):
+        """Helper to execute."""
+        # Safety Check
+        if command_entry.get('confirm', False):
+             action = key.replace('_', ' ')
+             if not self._get_confirmation(action):
+                 self.speaker.speak(f"{action.title()} cancelled.")
+                 return True
+        
+        # Get the command
+        cmd_info = command_entry['cmd']
+        sys_os = self.os_type
+        if sys_os == 'darwin': sys_os = 'macos'
+        
+        cmd = cmd_info.get(sys_os)
+        if not cmd:
+            cmd = cmd_info.get('linux') # Fallback
+            
+        if cmd:
+            if confidence < 1.0:
+                 print(f"[Static] Match: {key} ({confidence:.2f}) -> {cmd}")
+            else:
+                 print(f"[Static] Executing: {key}")
+                 
+            self.speaker.speak(f"Executing {key.replace('_', ' ')}.")
+            self._run_in_terminal(cmd, f"Task: {key.replace('_', ' ').title()}", self.os_type)
+            return True
         return False

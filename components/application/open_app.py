@@ -125,11 +125,57 @@ def open_application(app_name, speaker):
         "settings": "ms-settings:", 
     }
 
-    # 1. Check heuristics/hardcoded map first
-    target_app = bin_mapping.get(app_name.lower(), app_name)
+    # --- SPECIAL CASE: BROWSER ---
+    browser_resolved = False
+    if app_name.lower() == "browser":
+        from core.utils.browser_helper import get_default_browser, find_installed_browsers
+        from core.ui.browser_selector import select_browser_gui
+        
+        default_path = get_default_browser()
+        if default_path and os.path.exists(default_path):
+            print(f"[Application] Opening default browser: {default_path}")
+            target_app = default_path
+            app_name = "Default Browser"
+            browser_resolved = True
+        else:
+            # No clear default, show selection UI
+            browsers = find_installed_browsers()
+            if not browsers:
+                speaker.speak("I couldn't find any browsers installed on your system.")
+                return
+            
+            if len(browsers) == 1:
+                target_app = browsers[0]['path']
+                app_name = browsers[0]['name']
+                browser_resolved = True
+            else:
+                selected_path = select_browser_gui(browsers)
+                if selected_path:
+                    target_app = selected_path
+                    # Find name for speaking
+                    app_name = next((b['name'] for b in browsers if b['path'] == selected_path), "Browser")
+                    browser_resolved = True
+                else:
+                    return # Cancelled
+    else:
+        # 1. Check heuristics/hardcoded map first
+        target_app = bin_mapping.get(app_name.lower(), app_name)
     
-    # 2. If not found in simple map, or if simple map result isn't installed...
-    # Actually, we should check AppMapper if simple logic fails or if it's not a path/exe.
+    # 2. If not already resolved by specialized logic, try mapper
+    if not browser_resolved:
+        # Actually, we should check AppMapper if simple logic fails or if it's not a path/exe.
+        plat = get_platform()
+        
+        # Try to find in AppMapper if it's not a clear executable
+        mapper = get_mapper()
+        mapped_cmd = mapper.search_app(app_name)
+        
+        if mapped_cmd:
+            print(f"[Application] AppMapper found: {app_name} -> {mapped_cmd}")
+            # Use the mapped command
+            target_app = mapped_cmd
+    
+    # 3. Platform specific adjustments
     
     plat = get_platform()
     mapper_result = None
@@ -142,14 +188,6 @@ def open_application(app_name, speaker):
          # Likely a simple name like "whatsapp" that user said
          pass
 
-    # Try to find in AppMapper if it's not a clear executable
-    mapper = get_mapper()
-    mapped_cmd = mapper.search_app(app_name)
-    
-    if mapped_cmd:
-        print(f"[Application] AppMapper found: {app_name} -> {mapped_cmd}")
-        # Use the mapped command
-        target_app = mapped_cmd
     
     # Platform specific adjustments
     if plat == "linux":

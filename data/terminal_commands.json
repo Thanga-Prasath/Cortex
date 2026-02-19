@@ -53,7 +53,9 @@
         "hibernate": {
             "patterns": [
                 "hibernate",
-                "deep sleep"
+                "deep sleep",
+                "go to sleep",
+                "sleep mode"
             ],
             "cmd": {
                 "windows": "shutdown /h",

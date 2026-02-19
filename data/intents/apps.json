@@ -20,23 +20,36 @@
                 "play {app_name}",
                 "can you open {app_name}",
                 "please open {app_name}",
+                "{app_name} open",
+                "{app_name} start",
+                "{app_name} launch",
+                "{app_name} run",
                 "open powerpoint",
                 "open word",
                 "open excel",
                 "open spotify",
-                "open whatsapp"
+                "open whatsapp",
+                "open browser",
+                "browser open",
+                "launch browser",
+                "start browser"
             ],
             "responses": [],
             "keywords": [
                 "open application",
                 "launch application",
-                "start application"
+                "start application",
+                "open browser"
             ],
             "anchors": [
                 "app",
                 "application",
                 "program",
-                "software"
+                "software",
+                "browser",
+                "open",
+                "launch",
+                "start"
             ]
         },
         {

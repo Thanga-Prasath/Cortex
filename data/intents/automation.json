@@ -15,7 +15,14 @@
                 "Executing the defined workflow now.",
                 "Running Neural Sync sequence."
             ],
-            "context_set": ""
+            "context_set": "",
+            "anchors": [
+                "workflow",
+                "automation",
+                "flow",
+                "neural",
+                "sync"
+            ]
         }
     ]
 }

@@ -18,6 +18,16 @@
                 "play",
                 "pause",
                 "song"
+            ],
+            "anchors": [
+                "music",
+                "song",
+                "play",
+                "pause",
+                "stop",
+                "resume",
+                "next",
+                "previous"
             ]
         }
     ]

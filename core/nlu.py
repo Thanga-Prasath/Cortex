@@ -20,6 +20,15 @@ class NeuralIntentModel:
         self.intent_keywords = {} 
         self.training_data = {"intents": []}
         
+        # Custom Logic Configuration
+        self.SYNONYM_GROUPS = {
+             "open": ["open", "launch", "start", "run", "fire up", "execute", "open up"],
+             "close": ["close", "quit", "exit", "terminate", "kill", "stop", "shut down"],
+             "list": ["list", "show", "check", "display", "what are", "see"],
+             "app": ["app", "application", "program", "software", "tool"],
+             "system": ["system", "pc", "computer", "machine", "windows"]
+        }
+        
         # Load and Train immediately
         self.load_data()
         self.train()
@@ -58,6 +67,13 @@ class NeuralIntentModel:
             for pattern in intent['patterns']:
                 self.patterns.append(pattern)
                 self.tags.append(tag)
+                
+                # --- AUTOMATED PATTERN AUGMENTATION ---
+                # Add common polite prefixes automatically
+                prefixes = ["please ", "can you ", "could you ", "i want to ", "go ahead and ", "assistant "]
+                for pref in prefixes:
+                    self.patterns.append(pref + pattern)
+                    self.tags.append(tag)
             
             if tag not in self.intents:
                 self.intents.append(tag)
@@ -103,8 +119,18 @@ class NeuralIntentModel:
         if hasattr(self, 'intent_anchors'):
             for tag, anchors in self.intent_anchors.items():
                 if tag in valid_intents:
-                    # Check if any anchor is in text
-                    has_anchor = any(anchor in text for anchor in anchors)
+                    # Check if any anchor (or its synonym) is in text
+                    has_anchor = False
+                    for anchor in anchors:
+                        if anchor in text:
+                            has_anchor = True
+                            break
+                        # Check synonym groups
+                        syn_group = self.SYNONYM_GROUPS.get(anchor)
+                        if syn_group and any(syn in text for syn in syn_group):
+                            has_anchor = True
+                            break
+                    
                     if not has_anchor:
                         valid_intents.discard(tag)
         
@@ -162,6 +188,17 @@ class NeuralIntentModel:
         try:
             X_input = self.vectorizer.transform([text])
             probs = self.classifier.predict_proba(X_input)[0]
+            
+            # Enforce Semantic Guard (Anchors) on ML results
+            # Set probability of invalid intents to 0
+            for i, tag in enumerate(self.classifier.classes_):
+                if tag not in valid_intents:
+                    probs[i] = 0.0
+            
+            # Re-normalize or just take max? Just max is fine.
+            if np.sum(probs) == 0:
+                return None, 0.0
+                
             max_index = np.argmax(probs)
             confidence = probs[max_index]
             predicted_tag = self.classifier.classes_[max_index]

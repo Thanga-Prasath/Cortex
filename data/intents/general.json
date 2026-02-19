@@ -29,6 +29,17 @@
                 "hi",
                 "hey",
                 "greetings"
+            ],
+            "anchors": [
+                "hello",
+                "hi",
+                "hey",
+                "greetings",
+                "cortex",
+                "morning",
+                "afternoon",
+                "evening",
+                "yo"
             ]
         },
         {
@@ -44,6 +55,10 @@
             "responses": [],
             "keywords": [
                 "call me",
+                "name"
+            ],
+            "anchors": [
+                "call",
                 "name"
             ]
         },
@@ -66,6 +81,13 @@
             "keywords": [
                 "time",
                 "clock"
+            ],
+            "anchors": [
+                "time",
+                "clock",
+                "hour",
+                "current",
+                "tell"
             ]
         },
         {
@@ -83,6 +105,13 @@
             "keywords": [
                 "date",
                 "today"
+            ],
+            "anchors": [
+                "date",
+                "today",
+                "day",
+                "year",
+                "month"
             ]
         },
         {
@@ -114,6 +143,17 @@
                 "bye",
                 "quit",
                 "shutdown"
+            ],
+            "anchors": [
+                "exit",
+                "bye",
+                "stop",
+                "quit",
+                "shutdown",
+                "goodbye",
+                "later",
+                "turn",
+                "close"
             ]
         },
         {
@@ -138,6 +178,14 @@
             "keywords": [
                 "monitor off",
                 "screen off"
+            ],
+            "anchors": [
+                "sleep",
+                "lock",
+                "screen",
+                "monitor",
+                "hibernate",
+                "off"
             ]
         },
         {
@@ -155,6 +203,11 @@
                 "I am listening. Start speaking to type."
             ],
             "keywords": [
+                "dictation",
+                "typing",
+                "type"
+            ],
+            "anchors": [
                 "dictation",
                 "typing",
                 "type"

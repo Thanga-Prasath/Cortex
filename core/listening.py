@@ -271,7 +271,13 @@ class Listener:
                 "yes", "no", "yeah", "sure", "cancel", "confirm", "deny",
                 "open", "close", "launch", "start", "monitor", "sleep", "lock",
                 "minimize", "maximize", "restore", "snap", "show", "switch",
-                "clipboard", "note", "timer", "create", "delete", "remove", "edit"
+                "clipboard", "note", "timer", "create", "delete", "remove", "edit",
+                "restart", "reboot", "shutdown", "hibernate",
+                "calculator", "clock", "cls", "cut", "day", "dir", "dxdiag", "goodbye", 
+                "gpedit", "greetings", "hour", "icy", "kill", "ls", "month", "move", 
+                "mspaint", "notepad", "paint", "paste", "perfmon", "play", "powershell", 
+                "preferences", "resmon", "run", "screenshot", "snapshot", "speedtest", 
+                "terminate", "today", "top", "tree", "unmaximize", "uptime", "winver", "year"
             ]
             
             # Relaxed filter: Allow if > 1 word OR is a keyword

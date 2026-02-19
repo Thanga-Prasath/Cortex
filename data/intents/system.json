@@ -291,6 +291,13 @@
                 "login",
                 "history",
                 "users"
+            ],
+            "anchors": [
+                "login",
+                "history",
+                "user",
+                "sign",
+                "who"
             ]
         },
         {
@@ -306,6 +313,13 @@
                 "network",
                 "traffic",
                 "data usage"
+            ],
+            "anchors": [
+                "network",
+                "traffic",
+                "data",
+                "internet",
+                "monitor"
             ]
         },
         {
@@ -324,6 +338,13 @@
                 "internet",
                 "speed",
                 "speedtest"
+            ],
+            "anchors": [
+                "speed",
+                "internet",
+                "net",
+                "test",
+                "connection"
             ]
         },
         {
@@ -342,6 +363,16 @@
                 "clean system",
                 "delete temp files",
                 "disk cleanup"
+            ],
+            "anchors": [
+                "clean",
+                "delete",
+                "remove",
+                "disk",
+                "junk",
+                "temp",
+                "cache",
+                "clear"
             ]
         },
         {
@@ -358,6 +389,16 @@
                 "kill process",
                 "terminate program",
                 "end task"
+            ],
+            "anchors": [
+                "kill",
+                "terminate",
+                "end",
+                "stop",
+                "process",
+                "task",
+                "program",
+                "application"
             ]
         },
         {
@@ -375,6 +416,13 @@
                 "scan wifi",
                 "list wifi",
                 "available networks"
+            ],
+            "anchors": [
+                "wifi",
+                "network",
+                "scan",
+                "list",
+                "available"
             ]
         },
         {
@@ -391,6 +439,12 @@
             "keywords": [
                 "system update",
                 "check for updates"
+            ],
+            "anchors": [
+                "update",
+                "system",
+                "check",
+                "software"
             ]
         },
         {
@@ -406,6 +460,13 @@
             "keywords": [
                 "cpu",
                 "processor"
+            ],
+            "anchors": [
+                "cpu",
+                "processor",
+                "info",
+                "details",
+                "check"
             ]
         },
         {
@@ -422,6 +483,13 @@
             "keywords": [
                 "temperature",
                 "temp"
+            ],
+            "anchors": [
+                "temperature",
+                "temp",
+                "thermal",
+                "hot",
+                "heat"
             ]
         },
         {
@@ -437,6 +505,12 @@
             "keywords": [
                 "user",
                 "who am i"
+            ],
+            "anchors": [
+                "user",
+                "who",
+                "current",
+                "info"
             ]
         },
         {
@@ -451,6 +525,15 @@
             "responses": [],
             "keywords": [
                 "services"
+            ],
+            "anchors": [
+                "services",
+                "list",
+                "show",
+                "running",
+                "check",
+                "manage",
+                "open"
             ]
         },
         {
@@ -465,6 +548,14 @@
             "responses": [],
             "keywords": [
                 "dns"
+            ],
+            "anchors": [
+                "dns",
+                "flush",
+                "clear",
+                "reset",
+                "clean",
+                "cache"
             ]
         },
         {
@@ -478,6 +569,13 @@
             "responses": [],
             "keywords": [
                 "uptime"
+            ],
+            "anchors": [
+                "uptime",
+                "long",
+                "computer",
+                "system",
+                "on"
             ]
         },
         {
@@ -493,6 +591,13 @@
             "keywords": [
                 "battery",
                 "power"
+            ],
+            "anchors": [
+                "battery",
+                "power",
+                "percentage",
+                "level",
+                "check"
             ]
         },
         {
@@ -508,6 +613,16 @@
             "keywords": [
                 "recycle bin",
                 "trash"
+            ],
+            "anchors": [
+                "recycle",
+                "bin",
+                "trash",
+                "garbage",
+                "empty",
+                "clean",
+                "clear",
+                "rubbish"
             ]
         },
         {
@@ -523,6 +638,13 @@
             "keywords": [
                 "screenshot",
                 "capture"
+            ],
+            "anchors": [
+                "screenshot",
+                "capture",
+                "screen",
+                "snapshot",
+                "print"
             ]
         },
         {
@@ -539,6 +661,14 @@
                 "wifi password",
                 "wifi key",
                 "reveal wifi password"
+            ],
+            "anchors": [
+                "wifi",
+                "password",
+                "key",
+                "reveal",
+                "show",
+                "get"
             ]
         },
         {
@@ -552,9 +682,16 @@
             ],
             "responses": [],
             "keywords": [
-                "hidden files",
+                "hidden files"
+            ],
+            "anchors": [
+                "hidden",
+                "files",
                 "show",
-                "hide"
+                "reveal",
+                "toggle",
+                "hide",
+                "visible"
             ]
         },
         {
@@ -572,6 +709,13 @@
                 "prevent sleep",
                 "stay awake",
                 "awake"
+            ],
+            "anchors": [
+                "awake",
+                "sleep",
+                "prevent",
+                "stay",
+                "keep"
             ]
         },
         {
@@ -588,6 +732,14 @@
                 "disable awake mode",
                 "stop",
                 "awake"
+            ],
+            "anchors": [
+                "awake",
+                "sleep",
+                "stop",
+                "disable",
+                "allow",
+                "mode"
             ]
         },
         {
@@ -605,6 +757,15 @@
                 "dark mode",
                 "light mode",
                 "theme"
+            ],
+            "anchors": [
+                "dark",
+                "light",
+                "mode",
+                "theme",
+                "toggle",
+                "switch",
+                "enable"
             ]
         },
         {
@@ -620,6 +781,15 @@
             "keywords": [
                 "task manager",
                 "activity monitor"
+            ],
+            "anchors": [
+                "task",
+                "manager",
+                "activity",
+                "monitor",
+                "process",
+                "kill",
+                "show"
             ]
         },
         {
@@ -636,6 +806,15 @@
                 "control panel",
                 "settings",
                 "preferences"
+            ],
+            "anchors": [
+                "control",
+                "panel",
+                "settings",
+                "preferences",
+                "configure",
+                "system",
+                "open"
             ]
         },
         {
@@ -653,6 +832,16 @@
                 "terminal",
                 "command prompt",
                 "powershell"
+            ],
+            "anchors": [
+                "terminal",
+                "command",
+                "prompt",
+                "powershell",
+                "shell",
+                "cmd",
+                "launch",
+                "open"
             ]
         },
         {
@@ -667,6 +856,13 @@
             "keywords": [
                 "msconfig",
                 "system configuration"
+            ],
+            "anchors": [
+                "msconfig",
+                "configuration",
+                "config",
+                "tool",
+                "system"
             ]
         },
         {
@@ -681,6 +877,13 @@
             "keywords": [
                 "device manager",
                 "hardware"
+            ],
+            "anchors": [
+                "device",
+                "manager",
+                "hardware",
+                "management",
+                "check"
             ]
         },
         {
@@ -695,6 +898,13 @@
             "keywords": [
                 "registry",
                 "regedit"
+            ],
+            "anchors": [
+                "registry",
+                "regedit",
+                "editor",
+                "edit",
+                "open"
             ]
         },
         {
@@ -708,46 +918,12 @@
             "keywords": [
                 "lock",
                 "lock screen"
-            ]
-        },
-        {
-            "tag": "system_sleep",
-            "patterns": [
-                "go to sleep",
-                "sleep mode",
-                "hibernate"
             ],
-            "responses": [],
-            "keywords": [
-                "sleep",
-                "hibernate"
-            ]
-        },
-        {
-            "tag": "system_restart",
-            "patterns": [
-                "restart computer",
-                "reboot system",
-                "restart pc"
-            ],
-            "responses": [],
-            "keywords": [
-                "restart",
-                "reboot"
-            ]
-        },
-        {
-            "tag": "system_shutdown",
-            "patterns": [
-                "shutdown computer",
-                "power off",
-                "turn off pc",
-                "shutdown system"
-            ],
-            "responses": [],
-            "keywords": [
-                "shutdown",
-                "power off"
+            "anchors": [
+                "lock",
+                "screen",
+                "computer",
+                "pc"
             ]
         },
         {
@@ -761,6 +937,13 @@
             "keywords": [
                 "mute",
                 "silence"
+            ],
+            "anchors": [
+                "mute",
+                "silence",
+                "volume",
+                "sound",
+                "audio"
             ]
         },
         {
@@ -774,6 +957,13 @@
             "keywords": [
                 "unmute",
                 "sound on"
+            ],
+            "anchors": [
+                "unmute",
+                "sound",
+                "enable",
+                "audio",
+                "volume"
             ]
         },
         {
@@ -788,31 +978,12 @@
                 "volume",
                 "level",
                 "set volume"
-            ]
-        },
-        {
-            "tag": "clear_dns",
-            "patterns": [
-                "flush dns",
-                "clear dns cache",
-                "reset dns"
             ],
-            "responses": [],
-            "keywords": [
-                "dns",
-                "flush"
-            ]
-        },
-        {
-            "tag": "system_services",
-            "patterns": [
-                "manage services",
-                "open services",
-                "list services"
-            ],
-            "responses": [],
-            "keywords": [
-                "services"
+            "anchors": [
+                "volume",
+                "level",
+                "set",
+                "change"
             ]
         }
     ]

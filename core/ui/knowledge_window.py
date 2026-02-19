@@ -273,38 +273,65 @@ class KnowledgeWindow(QMainWindow):
 
     def load_data(self):
         intents_dir = os.path.join(os.getcwd(), 'data', 'intents')
-        if not os.path.exists(intents_dir): return
+        terminal_file = os.path.join(os.getcwd(), 'data', 'terminal_commands.json')
         
-        files = sorted([f for f in os.listdir(intents_dir) if f.endswith('.json')])
-        
+        # 1. Load Intent Files
+        if os.path.exists(intents_dir):
+            files = sorted([f for f in os.listdir(intents_dir) if f.endswith('.json')])
+            for filename in files:
+                cat_key = filename.replace('.json', '')
+                try:
+                    with open(os.path.join(intents_dir, filename), 'r') as f:
+                        data = json.load(f)
+                    self.all_intents[cat_key] = data.get('intents', [])
+                except Exception as e: print(f"[Error] Intent load {filename}: {e}")
+
+        # 2. Load Terminal Commands & Merge
+        if os.path.exists(terminal_file):
+            try:
+                with open(terminal_file, 'r') as f:
+                    term_data = json.load(f)
+                
+                for cat_key, commands in term_data.items():
+                    # Transform to intent format
+                    intent_style_list = []
+                    for cmd_key, cmd_data in commands.items():
+                        intent_style_list.append({
+                            "tag": cmd_key.replace('_', ' ').title(),
+                            "patterns": cmd_data.get('patterns', []),
+                            "responses": ["[Terminal Command] Executes system shell operation."]
+                        })
+                    
+                    if cat_key in self.all_intents:
+                        self.all_intents[cat_key].extend(intent_style_list)
+                    else:
+                        self.all_intents[cat_key] = intent_style_list
+            except Exception as e: print(f"[Error] Terminal load: {e}")
+
+        # 3. Create Hub Tiles
         icon_map = {
             "automation": "⚡", "system": "🖥️", "media": "🎵", "general": "💬",
-            "files": "📁", "apps": "🚀", "browser": "🌐", "window": "🪟", "workspace": "🏢"
+            "files": "📁", "apps": "🚀", "browser": "🌐", "window": "🪟", "workspace": "🏢",
+            "developer": "👨‍💻", "network_advanced": "📡", "power_user": "🛠️", "file_ops": "🗄️"
         }
         
         row, col = 0, 0
-        for filename in files:
-            cat_key = filename.replace('.json', '')
-            cat_name = cat_key.capitalize()
+        categories = sorted(self.all_intents.keys())
+        for cat_key in categories:
+            intents = self.all_intents[cat_key]
+            if not intents: continue
             
-            try:
-                with open(os.path.join(intents_dir, filename), 'r') as f:
-                    data = json.load(f)
-                intents = data.get('intents', [])
-                self.all_intents[cat_key] = intents
-                
-                # Create Tile
-                icon = icon_map.get(cat_key, "📦")
-                tile = ClickableCard(cat_name, f"{len(intents)} Functions", icon, self.accent_color, 
-                                     lambda c=cat_key: self.show_category(c))
-                self.hub_grid.addWidget(tile, row, col)
-                
-                col += 1
-                if col > 3: # 4 Columns
-                    col = 0
-                    row += 1
-                    
-            except Exception as e: print(f"[Error] Hub load {filename}: {e}")
+            cat_name = cat_key.replace('_', ' ').capitalize()
+            icon = icon_map.get(cat_key, "📦")
+            
+            tile = ClickableCard(cat_name, f"{len(intents)} Functions", icon, self.accent_color, 
+                                 lambda c=cat_key: self.show_category(c))
+            self.hub_grid.addWidget(tile, row, col)
+            
+            col += 1
+            if col > 3: # 4 Columns
+                col = 0
+                row += 1
 
     def show_category(self, cat_key):
         """Transition to detailed list for a category."""

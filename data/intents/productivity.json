@@ -12,6 +12,12 @@
             "keywords": [
                 "read clipboard",
                 "show clipboard"
+            ],
+            "anchors": [
+                "clipboard",
+                "read",
+                "show",
+                "check"
             ]
         },
         {
@@ -26,6 +32,12 @@
             ],
             "keywords": [
                 "clear clipboard"
+            ],
+            "anchors": [
+                "clipboard",
+                "clear",
+                "empty",
+                "delete"
             ]
         },
         {
@@ -45,6 +57,12 @@
             "keywords": [
                 "take note",
                 "write note"
+            ],
+            "anchors": [
+                "note",
+                "write",
+                "take",
+                "create"
             ]
         },
         {
@@ -61,6 +79,13 @@
             ],
             "keywords": [
                 "set timer"
+            ],
+            "anchors": [
+                "timer",
+                "set",
+                "start",
+                "count",
+                "down"
             ]
         }
     ]
