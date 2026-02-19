@@ -1,0 +1,41 @@
+Initializing NLU Model...
+NLU: Loaded 83 intents from 9 files.
+Training NLU Model...
+Model Trained Successfully.
+
+--- Testing Anchor Logic ---
+Loaded anchors for 14 intents.
+
+Query: 'list drivers'
+  Intent: list_apps, Anchors: ['app', 'apps', 'application', 'applications', 'software', 'programs'], Has Anchor: False
+  [SUCCESS] 'list_apps' correctly disqualified for 'list drivers'.
+DEBUG: Disqualified 'app_open' (No anchor ['app', 'application', 'program', 'software'] found in 'list drivers')
+DEBUG: Disqualified 'app_close' (No anchor ['app', 'application', 'program'] found in 'list drivers')
+DEBUG: Disqualified 'list_apps' (No anchor ['app', 'apps', 'application', 'applications', 'software', 'programs'] found in 'list drivers')
+DEBUG: Disqualified 'system_ip' (No anchor ['ip', 'address', 'network', 'icy'] found in 'list drivers')
+DEBUG: Disqualified 'system_memory' (No anchor ['memory', 'ram'] found in 'list drivers')
+DEBUG: Disqualified 'system_info' (No anchor ['system', 'info', 'specs', 'os'] found in 'list drivers')
+DEBUG: Disqualified 'system_scan' (No anchor ['scan', 'security', 'virus', 'threat', 'check'] found in 'list drivers')
+DEBUG: Disqualified 'check_ports' (No anchor ['port', 'ports'] found in 'list drivers')
+DEBUG: Disqualified 'check_firewall' (No anchor ['firewall'] found in 'list drivers')
+DEBUG: Disqualified 'console_clear' (No anchor ['clear', 'clean', 'cls'] found in 'list drivers')
+DEBUG: Disqualified 'check_connections' (No anchor ['connection', 'connections'] found in 'list drivers')
+DEBUG: Disqualified 'system_processes' (No anchor ['process', 'processes', 'task', 'manager', 'running'] found in 'list drivers')
+  Prediction: scan_drivers (0.90)
+  [SUCCESS] Predicted 'scan_drivers'.
+
+Query: 'list apps'
+DEBUG: Disqualified 'system_ip' (No anchor ['ip', 'address', 'network', 'icy'] found in 'list apps')
+DEBUG: Disqualified 'system_memory' (No anchor ['memory', 'ram'] found in 'list apps')
+DEBUG: Disqualified 'system_disk' (No anchor ['disk', 'drive', 'storage', 'space'] found in 'list apps')
+DEBUG: Disqualified 'system_info' (No anchor ['system', 'info', 'specs', 'os'] found in 'list apps')
+DEBUG: Disqualified 'system_scan' (No anchor ['scan', 'security', 'virus', 'threat', 'check'] found in 'list apps')
+DEBUG: Disqualified 'scan_drivers' (No anchor ['driver', 'drivers'] found in 'list apps')
+DEBUG: Disqualified 'check_ports' (No anchor ['port', 'ports'] found in 'list apps')
+DEBUG: Disqualified 'check_firewall' (No anchor ['firewall'] found in 'list apps')
+DEBUG: Disqualified 'console_clear' (No anchor ['clear', 'clean', 'cls'] found in 'list apps')
+DEBUG: Disqualified 'check_connections' (No anchor ['connection', 'connections'] found in 'list apps')
+DEBUG: Disqualified 'system_processes' (No anchor ['process', 'processes', 'task', 'manager', 'running'] found in 'list apps')
+NLU: Keyword Boost 'list_apps' (Length: 4)
+  Prediction: list_apps (1.00)
+  [SUCCESS] Correctly predicted 'list_apps'.

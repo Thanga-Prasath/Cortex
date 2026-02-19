@@ -62,6 +62,12 @@ class NeuralIntentModel:
             if tag not in self.intents:
                 self.intents.append(tag)
                 
+            # Store anchors if present
+            if 'anchors' in intent:
+                if not hasattr(self, 'intent_anchors'):
+                    self.intent_anchors = {}
+                self.intent_anchors[tag] = [a.lower() for a in intent['anchors']]
+                
         print(f"NLU: Loaded {len(self.intents)} intents from {len(json_files)} files.")
 
     def train(self):
@@ -90,6 +96,18 @@ class NeuralIntentModel:
         # --- 1. Keyword Boosting (Dynamic Logic) ---
         # Checks if ALL keywords for a specific intent are present in the text.
         # If so, boost confidence to 1.0 immediately.
+        # --- 0. Anchor Filtering (Domain Guard) ---
+        # If an intent has 'anchors' defined, the text MUST contain at least one anchor.
+        # Otherwise, the intent is disqualified from both Keyword Boost and Fuzzy Match.
+        valid_intents = set(self.intents)
+        if hasattr(self, 'intent_anchors'):
+            for tag, anchors in self.intent_anchors.items():
+                if tag in valid_intents:
+                    # Check if any anchor is in text
+                    has_anchor = any(anchor in text for anchor in anchors)
+                    if not has_anchor:
+                        valid_intents.discard(tag)
+        
         # --- 1. Keyword Boosting (Dynamic Logic) ---
         # Strategy: Find the intent with the LONGEST matching keyword phrase.
         # This prevents generic keywords (e.g., "wifi") from shadowing specific ones (e.g., "wifi password").
@@ -98,6 +116,7 @@ class NeuralIntentModel:
         max_keyword_len = 0
         
         for tag, keywords in self.intent_keywords.items():
+            if tag not in valid_intents: continue # Skip disqualified intents
             if not keywords: continue
             
             for keyword in keywords:
@@ -134,8 +153,10 @@ class NeuralIntentModel:
                     best_match_pattern = pattern
 
             if best_match_score > 0.85:
-                print(f"NLU: Fuzzy Match '{text}' -> '{best_match_pattern}' ({best_match_tag}) Score: {best_match_score:.2f}")
-                return best_match_tag, 1.0
+                # Check validity
+                if best_match_tag in valid_intents:
+                    print(f"NLU: Fuzzy Match '{text}' -> '{best_match_pattern}' ({best_match_tag}) Score: {best_match_score:.2f}")
+                    return best_match_tag, 1.0
 
         # --- 3. ML Classifier Fallback ---
         try:

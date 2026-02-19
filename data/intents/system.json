@@ -15,6 +15,22 @@
             "keywords": [
                 "ip address",
                 "check network"
+            ],
+            "terminal_mapping": {
+                "action_type": "terminal_visible",
+                "title": "IP ADDRESS",
+                "commands": {
+                    "windows": "ipconfig",
+                    "linux": "hostname -I",
+                    "macos": "ifconfig"
+                },
+                "speak_before": "Checking your IP address."
+            },
+            "anchors": [
+                "ip",
+                "address",
+                "network",
+                "icy"
             ]
         },
         {
@@ -33,6 +49,10 @@
             "keywords": [
                 "system memory",
                 "check ram"
+            ],
+            "anchors": [
+                "memory",
+                "ram"
             ]
         },
         {
@@ -49,6 +69,12 @@
                 "disk space",
                 "storage status",
                 "check disk"
+            ],
+            "anchors": [
+                "disk",
+                "drive",
+                "storage",
+                "space"
             ]
         },
         {
@@ -64,6 +90,12 @@
                 "system info",
                 "computer specs",
                 "operating system"
+            ],
+            "anchors": [
+                "system",
+                "info",
+                "specs",
+                "os"
             ]
         },
         {
@@ -87,6 +119,13 @@
                 "scan system",
                 "security scan",
                 "run virus scan"
+            ],
+            "anchors": [
+                "scan",
+                "security",
+                "virus",
+                "threat",
+                "check"
             ]
         },
         {
@@ -103,6 +142,10 @@
             "keywords": [
                 "scan drivers",
                 "update drivers"
+            ],
+            "anchors": [
+                "driver",
+                "drivers"
             ]
         },
         {
@@ -124,6 +167,20 @@
             "keywords": [
                 "port",
                 "ports"
+            ],
+            "terminal_mapping": {
+                "action_type": "terminal_visible",
+                "title": "OPEN PORTS",
+                "commands": {
+                    "windows": "netstat -an | findstr LISTENING",
+                    "linux": "netstat -tuln",
+                    "macos": "lsof -i -P | grep LISTEN"
+                },
+                "speak_before": "Listing open ports."
+            },
+            "anchors": [
+                "port",
+                "ports"
             ]
         },
         {
@@ -142,6 +199,9 @@
             "responses": [],
             "keywords": [
                 "firewall"
+            ],
+            "anchors": [
+                "firewall"
             ]
         },
         {
@@ -156,6 +216,11 @@
             "keywords": [
                 "clear screen",
                 "clear console"
+            ],
+            "anchors": [
+                "clear",
+                "clean",
+                "cls"
             ]
         },
         {
@@ -170,6 +235,10 @@
             ],
             "responses": [],
             "keywords": [
+                "connections"
+            ],
+            "anchors": [
+                "connection",
                 "connections"
             ]
         },
@@ -189,6 +258,23 @@
                 "process",
                 "processes",
                 "task manager"
+            ],
+            "terminal_mapping": {
+                "action_type": "terminal_visible",
+                "title": "ACTIVE PROCESSES",
+                "commands": {
+                    "windows": "tasklist",
+                    "linux": "top -b -n 1",
+                    "macos": "top -l 1"
+                },
+                "speak_before": "Showing running processes."
+            },
+            "anchors": [
+                "process",
+                "processes",
+                "task",
+                "manager",
+                "running"
             ]
         },
         {

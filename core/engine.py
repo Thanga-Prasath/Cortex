@@ -35,7 +35,12 @@ class CortexEngine:
         self.file_manager = FileManagerEngine(self.speaker)
         self.application_engine = ApplicationEngine(self.speaker)
         self.workspace_engine = WorkspaceEngine(self.speaker, self.status_queue)
+        self.workspace_engine = WorkspaceEngine(self.speaker, self.status_queue)
         self.automation_engine = AutomationEngine(self.speaker)
+        
+        # Static Engine (Database-Driven)
+        from .engines.static import StaticCommandEngine
+        self.static_engine = StaticCommandEngine(self.speaker, self.listener)
         
         # Internal State
         self.dictation_active = False
@@ -227,7 +232,11 @@ class CortexEngine:
         if res:
              return True
 
-        # 6. General Engine
+        # 6. Static Engine (Database-Driven)
+        if self.static_engine.handle_intent(tag, command):
+            return True
+
+        # 7. General Engine
         if self.general_engine.handle_intent(tag, command):
             return True
             
@@ -358,8 +367,10 @@ class CortexEngine:
                             self.speaker.speak("Dictation mode enabled.")
                     else:
                         self.speaker.speak("Cancelled.")
+                        res = "CANCELLED"
                 else:
                     self.speaker.speak("Timeout.")
+                    res = "TIMEOUT"
             
             # Reset status to IDLE
             if self.status_queue:
@@ -368,16 +379,14 @@ class CortexEngine:
                     continue
 
             # Fallback if low confidence or unknown tag
-            if not res and confidence < 0.85:
-                 print(f"Low confidence intent: {tag} ({confidence:.2f})")
-            if confidence >= 0.85:
-                res = self.execute_intent(tag, command)
-                if res == "EXIT":
-                    break
-                if res:
+            if not res and res != "CANCELLED":
+                self._log(f"Fallback: Checking Static Command Database for: {command}")
+                # Try to handle as a static command without a specific tag
+                if self.static_engine.handle_intent(None, command):
                     continue
-
-            self.speaker.speak("I heard you, but I am not sure I understand.")
+            
+            if not res:
+                self.speaker.speak("I heard you, but I am not sure I understand.")
 
 
 

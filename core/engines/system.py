@@ -25,13 +25,13 @@ class SystemEngine:
         elif tag == 'console_clear':
             console.clear_console(self.speaker)
             return True
-        elif tag == 'system_ip':
-            ip.get_ip_address(self.speaker)
-            return True
+
         elif tag == 'system_memory':
             memory.check_memory(self.speaker)
             return True
         elif tag == 'system_disk':
+            if any(k in command.lower() for k in ['format', 'repair', 'scan', 'list']):
+                return False
             disk.check_disk(self.speaker)
             return True
         elif tag == 'list_curr_dir':
@@ -49,22 +49,20 @@ class SystemEngine:
                 self.speaker.speak(f"Failed to open driver manager: {e}")
                 print(f"Error launching driver window: {e}")
             return True
-        elif tag == 'check_ports':
-            ports.check_ports(self.speaker)
-            return True
+
         elif tag == 'check_firewall':
             firewall.check_firewall(self.speaker)
             return True
         elif tag == 'check_connections':
             connections.check_connections(self.speaker)
             return True
-        elif tag == 'system_processes':
-            processes.check_processes(self.speaker)
-            return True
+
         elif tag == 'login_history':
             login.check_login_history(self.speaker)
             return True
         elif tag == 'network_traffic':
+            if any(k in command.lower() for k in ['ping', 'speed', 'test', 'latency']):
+                return False
             traffic.check_network_traffic(self.speaker)
             return True
         # elif tag == 'internet_speed':
@@ -117,6 +115,8 @@ class SystemEngine:
             uptime.get_system_uptime(self.speaker)
             return True
         elif tag == 'check_battery':
+            if any(k in command.lower() for k in ['cycle', 'health', 'report']):
+                return False # Let Dynamic/Brain handle it
             battery.check_battery_status(self.speaker)
             return True
         elif tag == 'empty_bin':

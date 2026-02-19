@@ -1,0 +1,487 @@
+{
+    "system": {
+        "shutdown": {
+            "patterns": [
+                "shutdown pc",
+                "turn off computer",
+                "power off system",
+                "shutdown"
+            ],
+            "cmd": {
+                "windows": "shutdown /s /t 0",
+                "linux": "shutdown -h now",
+                "macos": "sudo shutdown -h now"
+            },
+            "confirm": true
+        },
+        "restart": {
+            "patterns": [
+                "restart pc",
+                "reboot computer",
+                "restart system"
+            ],
+            "cmd": {
+                "windows": "shutdown /r /t 0",
+                "linux": "reboot",
+                "macos": "sudo shutdown -r now"
+            },
+            "confirm": true
+        },
+        "lock_screen": {
+            "patterns": [
+                "lock screen",
+                "lock workstation"
+            ],
+            "cmd": {
+                "windows": "rundll32.exe user32.dll,LockWorkStation",
+                "linux": "gnome-screensaver-command -l",
+                "macos": "pmset displaysleepnow"
+            }
+        },
+        "log_off": {
+            "patterns": [
+                "log off",
+                "sign out"
+            ],
+            "cmd": {
+                "windows": "shutdown /l",
+                "linux": "gnome-session-quit --no-prompt",
+                "macos": "osascript -e 'tell application \"System Events\" to log out'"
+            },
+            "confirm": true
+        },
+        "hibernate": {
+            "patterns": [
+                "hibernate",
+                "deep sleep"
+            ],
+            "cmd": {
+                "windows": "shutdown /h",
+                "linux": "systemctl hibernate",
+                "macos": "pmset sleepnow"
+            },
+            "confirm": true
+        }
+    },
+    "network_advanced": {
+        "ping": {
+            "patterns": [
+                "ping google",
+                "check connection to google",
+                "ping test"
+            ],
+            "cmd": {
+                "windows": "ping google.com",
+                "linux": "ping -c 4 google.com"
+            }
+        },
+        "tracert": {
+            "patterns": [
+                "trace route",
+                "tracert google",
+                "trace path to google"
+            ],
+            "cmd": {
+                "windows": "tracert google.com",
+                "linux": "traceroute google.com"
+            }
+        },
+        "nslookup": {
+            "patterns": [
+                "check dns",
+                "nslookup google",
+                "lookup domain"
+            ],
+            "cmd": {
+                "windows": "nslookup google.com",
+                "linux": "nslookup google.com"
+            }
+        },
+        "flush_dns": {
+            "patterns": [
+                "flush dns",
+                "clear dns cache"
+            ],
+            "cmd": {
+                "windows": "ipconfig /flushdns",
+                "linux": "sudo systemd-resolve --flush-caches",
+                "macos": "sudo killall -HUP mDNSResponder"
+            }
+        },
+        "renew_ip": {
+            "patterns": [
+                "renew ip",
+                "refresh ip address"
+            ],
+            "cmd": {
+                "windows": "ipconfig /renew",
+                "linux": "sudo dhclient -r && sudo dhclient",
+                "macos": "sudo ipconfig set en0 DHCP"
+            }
+        },
+        "show_mac": {
+            "patterns": [
+                "show mac address",
+                "get physical address"
+            ],
+            "cmd": {
+                "windows": "getmac",
+                "linux": "ip link show",
+                "macos": "ifconfig | grep ether"
+            }
+        },
+        "netstat_listen": {
+            "patterns": [
+                "show listening ports",
+                "check open ports",
+                "list listeners"
+            ],
+            "cmd": {
+                "windows": "netstat -an | findstr LISTENING",
+                "linux": "netstat -tuln",
+                "macos": "lsof -i -P | grep LISTEN"
+            }
+        },
+        "show_route": {
+            "patterns": [
+                "show routing table",
+                "print routes",
+                "route print"
+            ],
+            "cmd": {
+                "windows": "route print",
+                "linux": "ip route show",
+                "macos": "netstat -rn"
+            }
+        }
+    },
+    "developer": {
+        "npm_version": {
+            "patterns": [
+                "check npm version",
+                "node package manager version"
+            ],
+            "cmd": {
+                "windows": "npm -v",
+                "linux": "npm -v"
+            }
+        },
+        "node_version": {
+            "patterns": [
+                "check node version",
+                "nodejs version"
+            ],
+            "cmd": {
+                "windows": "node -v",
+                "linux": "node -v"
+            }
+        },
+        "python_version": {
+            "patterns": [
+                "check python version",
+                "python version"
+            ],
+            "cmd": {
+                "windows": "python --version",
+                "linux": "python3 --version"
+            }
+        },
+        "pip_list": {
+            "patterns": [
+                "list python packages",
+                "show pip packages",
+                "pip list"
+            ],
+            "cmd": {
+                "windows": "pip list",
+                "linux": "pip3 list"
+            }
+        },
+        "git_status": {
+            "patterns": [
+                "git status",
+                "check git repo",
+                "repository status"
+            ],
+            "cmd": {
+                "windows": "git status",
+                "linux": "git status"
+            }
+        },
+        "git_log": {
+            "patterns": [
+                "git log",
+                "show git history",
+                "commit history"
+            ],
+            "cmd": {
+                "windows": "git log --oneline -n 10",
+                "linux": "git log --oneline -n 10"
+            }
+        },
+        "git_branch": {
+            "patterns": [
+                "git branch",
+                "show branches"
+            ],
+            "cmd": {
+                "windows": "git branch",
+                "linux": "git branch"
+            }
+        },
+        "docker_ps": {
+            "patterns": [
+                "docker processes",
+                "list containers",
+                "docker ps"
+            ],
+            "cmd": {
+                "windows": "docker ps",
+                "linux": "docker ps"
+            }
+        },
+        "docker_images": {
+            "patterns": [
+                "list docker images",
+                "show images",
+                "docker images"
+            ],
+            "cmd": {
+                "windows": "docker images",
+                "linux": "docker images"
+            }
+        },
+        "wsl_list": {
+            "patterns": [
+                "list wsl distros",
+                "show linux subsystems"
+            ],
+            "cmd": {
+                "windows": "wsl --list --verbose",
+                "linux": "echo Not Applicable"
+            }
+        },
+        "java_version": {
+            "patterns": [
+                "check java version",
+                "java version"
+            ],
+            "cmd": {
+                "windows": "java -version",
+                "linux": "java -version"
+            }
+        },
+        "docker_version": {
+            "patterns": [
+                "check docker version",
+                "docker version"
+            ],
+            "cmd": {
+                "windows": "docker --version",
+                "linux": "docker --version"
+            }
+        }
+    },
+    "file_ops": {
+        "list_files": {
+            "patterns": [
+                "list files",
+                "ls",
+                "dir",
+                "show directory"
+            ],
+            "cmd": {
+                "windows": "dir",
+                "linux": "ls -la"
+            }
+        },
+        "tree_view": {
+            "patterns": [
+                "show tree structure",
+                "folder tree",
+                "tree"
+            ],
+            "cmd": {
+                "windows": "tree /f",
+                "linux": "tree"
+            }
+        },
+        "check_disk": {
+            "patterns": [
+                "check disk health",
+                "scan disk"
+            ],
+            "cmd": {
+                "windows": "chkdsk",
+                "linux": "fsck -N"
+            },
+            "confirm": true
+        },
+        "system_drivers": {
+            "patterns": [
+                "list drivers",
+                "driver query"
+            ],
+            "cmd": {
+                "windows": "driverquery",
+                "linux": "lsmod"
+            }
+        },
+        "disk_part": {
+            "patterns": [
+                "open disk partitioner",
+                "disk management tool"
+            ],
+            "cmd": {
+                "windows": "diskpart",
+                "linux": "fdisk -l"
+            },
+            "confirm": true
+        }
+    },
+    "power_user": {
+        "dxdiag": {
+            "patterns": [
+                "directx diagnostics",
+                "dxdiag",
+                "graphics info"
+            ],
+            "cmd": {
+                "windows": "dxdiag",
+                "linux": "glxinfo"
+            }
+        },
+        "system_info_detailed": {
+            "patterns": [
+                "detailed system info",
+                "full specs"
+            ],
+            "cmd": {
+                "windows": "systeminfo",
+                "linux": "lshw"
+            }
+        },
+        "win_version": {
+            "patterns": [
+                "windows version",
+                "winver",
+                "os build"
+            ],
+            "cmd": {
+                "windows": "winver",
+                "linux": "uname -a"
+            }
+        },
+        "control_userpasswords": {
+            "patterns": [
+                "user accounts",
+                "manage passwords"
+            ],
+            "cmd": {
+                "windows": "control userpasswords2",
+                "linux": "cat /etc/passwd"
+            }
+        },
+        "services_msc": {
+            "patterns": [
+                "open services",
+                "services manager"
+            ],
+            "cmd": {
+                "windows": "services.msc",
+                "linux": "systemctl list-units --type=service"
+            }
+        },
+        "regedit": {
+            "patterns": [
+                "registry editor",
+                "open regedit"
+            ],
+            "cmd": {
+                "windows": "regedit",
+                "linux": "echo Not Applicable"
+            },
+            "confirm": true
+        },
+        "gpedit": {
+            "patterns": [
+                "group policy editor",
+                "gpedit"
+            ],
+            "cmd": {
+                "windows": "gpedit.msc",
+                "linux": "echo Not Applicable"
+            }
+        },
+        "task_scheduler": {
+            "patterns": [
+                "task scheduler",
+                "scheduled tasks"
+            ],
+            "cmd": {
+                "windows": "taskschd.msc",
+                "linux": "crontab -l"
+            }
+        },
+        "event_viewer": {
+            "patterns": [
+                "event viewer",
+                "system logs"
+            ],
+            "cmd": {
+                "windows": "eventvwr",
+                "linux": "tail /var/log/syslog"
+            }
+        },
+        "perf_mon": {
+            "patterns": [
+                "performance monitor",
+                "perfmon"
+            ],
+            "cmd": {
+                "windows": "perfmon",
+                "linux": "htop"
+            }
+        },
+        "res_mon": {
+            "patterns": [
+                "resource monitor",
+                "resmon"
+            ],
+            "cmd": {
+                "windows": "resmon",
+                "linux": "echo Use htop"
+            }
+        },
+        "calc": {
+            "patterns": [
+                "calculator",
+                "open calc"
+            ],
+            "cmd": {
+                "windows": "calc",
+                "linux": "gnome-calculator"
+            }
+        },
+        "notepad": {
+            "patterns": [
+                "notepad",
+                "text editor"
+            ],
+            "cmd": {
+                "windows": "notepad",
+                "linux": "nano"
+            }
+        },
+        "paint": {
+            "patterns": [
+                "paint",
+                "mspaint"
+            ],
+            "cmd": {
+                "windows": "mspaint",
+                "linux": "gimp"
+            }
+        }
+    }
+}
