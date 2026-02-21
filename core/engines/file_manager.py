@@ -16,8 +16,9 @@ from components.file_manager.move_files import move_files, move_here, extract_na
 from components.file_manager.create_item import create_item
 
 class FileManagerEngine:
-    def __init__(self, speaker):
+    def __init__(self, speaker, status_queue=None):
         self.speaker = speaker
+        self.status_queue = status_queue
         self.desktop_path = Path.home() / "Desktop"
         self.selected_items = []
 
@@ -75,4 +76,10 @@ class FileManagerEngine:
         move_here(command, self)
 
     def _background_search(self, query):
-        background_search(query, self.speaker)
+        if self.status_queue:
+            self.status_queue.put(("SEARCHING", True))
+        try:
+            background_search(query, self.speaker, self.status_queue)
+        finally:
+            if self.status_queue:
+                self.status_queue.put(("SEARCHING", False))

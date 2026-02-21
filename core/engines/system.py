@@ -57,6 +57,10 @@ class SystemEngine:
             connections.check_connections(self.speaker)
             return True
 
+        elif tag == 'system_ip':
+            ip.get_ip_address(self.speaker)
+            return True
+
         elif tag == 'login_history':
             login.check_login_history(self.speaker)
             return True

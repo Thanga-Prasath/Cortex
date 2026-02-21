@@ -76,7 +76,7 @@ class Listener:
         self.FORMAT = pyaudio.paInt16
         self.CHANNELS = 1
         self.RATE = 16000
-        self.SILENCE_LIMIT = 1.5 # Seconds of silence to stop recording
+        self.SILENCE_LIMIT = 1.2 # Seconds of silence to stop recording
 
         self.calibrate_noise()
         
@@ -132,9 +132,17 @@ class Listener:
         """
         try:
             # Check for system speech to prevent self-listening
+            # Check for system speech to prevent self-listening
             if self.is_speaking_flag:
+                wait_start = time.time()
                 while self.is_speaking_flag.value:
                     time.sleep(0.1)
+                    # Safety: If we've been "speaking" for > 30s, force-reset it 
+                    # This prevents hangs if the TTS process dies unexpectedly.
+                    if time.time() - wait_start > 30:
+                        print("\r[System Warning] Speaking flag stuck. Force resetting listener...")
+                        self.is_speaking_flag.value = False
+                        break
             
             with no_alsa_error():
                 stream = self.p.open(format=self.FORMAT, channels=self.CHANNELS, rate=self.RATE, input=True, frames_per_buffer=self.CHUNK)

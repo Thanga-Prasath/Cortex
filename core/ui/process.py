@@ -19,7 +19,11 @@ def ui_process_target(status_queue, reset_event=None, shutdown_event=None):
     window.show()
     
     # Track workspace windows to prevent garbage collection
-    workspace_windows = []
+    workspace_windows = set()
+    
+    def track_window(win):
+        workspace_windows.add(win)
+        win.destroyed.connect(lambda: workspace_windows.discard(win))
     
     # Manager for UI process
     manager = WorkspaceManager()
@@ -46,17 +50,46 @@ def ui_process_target(status_queue, reset_event=None, shutdown_event=None):
                     # data = "WorkspaceName" or None
                     editor = WorkspaceEditor(manager, data)
                     editor.show()
-                    workspace_windows.append(editor) # Keep reference
+                    track_window(editor)
                     
                 elif status == "WORKSPACE_SELECTOR":
                     # data = "LAUNCH", "EDIT", or "REMOVE"
                     selector = WorkspaceSelector(manager, data)
                     selector.show()
-                    workspace_windows.append(selector) # Keep reference
+                    track_window(selector)
                     
                 elif status == "LOG":
                     # Forward log to StatusWindow -> HubWindow
                     window.log_activity(data)
+
+                elif status == "SEARCHING":
+                    # data = Boolean (True for searching, False for stopped)
+                    window.set_searching_state(data)
+
+                elif status == "SEARCH_COUNT":
+                    # data = Total matches found so far
+                    window.update_search_count(data)
+
+                elif status == "FILE_SEARCH_GUI":
+                    # data = initial_query
+                    from .file_search_gui import FileSearchDialog
+                    dlg = FileSearchDialog(initial_query=data, status_window=window)
+                    dlg.show()
+                    dlg.raise_()
+                    dlg.activateWindow()
+                    dlg.search_input.setFocus()
+                    track_window(dlg)
+
+                elif status == "FILE_SEARCH_RESULTS":
+                    # data = (query, unique_results_list)
+                    query, results = data
+                    from .file_search_gui import FileSearchDialog
+                    dlg = FileSearchDialog(initial_query=query, status_window=window)
+                    dlg.show_results(results) # Switch to results mode
+                    dlg.show()
+                    dlg.raise_()
+                    dlg.activateWindow()
+                    track_window(dlg)
 
                 else:
                     # Default to status window update

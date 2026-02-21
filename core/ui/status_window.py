@@ -5,6 +5,9 @@ import ctypes
 import platform
 import os
 import json
+import math
+import random
+import re
 
 class StatusWindow(QMainWindow):
 
@@ -27,6 +30,9 @@ class StatusWindow(QMainWindow):
         # Dimensions
         self.width_val = 140
         self.height_val = 50
+        self.setFixedSize(self.width_val, self.height_val)
+        self.setMinimumSize(self.width_val, self.height_val)
+        self.setMaximumSize(self.width_val, self.height_val)
         self.setGeometry(100, 100, self.width_val, self.height_val) 
         
         # Initial Position using Config
@@ -45,6 +51,11 @@ class StatusWindow(QMainWindow):
         self.bar_heights = [5, 10, 15, 10, 5] 
         self.drag_pos = None # For custom dragging
         
+        # Search Progress Animation State
+        self.is_searching = False
+        self.search_progress = 0.0 # 0.0 to 1.0 for smooth motion
+        self.search_count = 0 
+        
         # Cursor Update based on lock
         self.update_cursor()
         
@@ -59,7 +70,7 @@ class StatusWindow(QMainWindow):
         # Timer for animation
         self.anim_timer = QTimer()
         self.anim_timer.timeout.connect(self.animate)
-        self.anim_timer.start(50)
+        self.anim_timer.start(25) # 40 FPS for smoother motion
         
         # Enforce Always on Top (All Platforms)
         self.top_timer = QTimer()
@@ -86,7 +97,7 @@ class StatusWindow(QMainWindow):
                     self.theme_accent = THEME_COLORS.get(theme_name, "#39FF14")
         except:
             self.theme_accent = "#39FF14"
-
+                
     def enforce_topmost(self):
         # Windows-specific low-level enforcement
         if platform.system() == "Windows":
@@ -100,13 +111,17 @@ class StatusWindow(QMainWindow):
                 # GetForegroundWindow() checks if we have focus, but GetWindow(GW_HWNDPREV) checks Z-order
                 # If we are not topmost, re-assert it forcefully
                 
-                # Reset first (sometimes needed to 'refresh' the state)
-                win32gui.SetWindowPos(hwnd, win32con.HWND_NOTOPMOST, 0, 0, 0, 0, 
-                                      win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_NOACTIVATE)
+                hwnd = int(self.winId())
+                # DIRECT TOPMOST ENFORCEMENT
+                # We use HWND_TOPMOST (-1) directly. 
+                # We add SWP_NOSENDCHANGING to prevent focus race conditions
+                # And we ensure the window is shown/raised.
+                flags = win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_SHOWWINDOW | win32con.SWP_NOACTIVATE
+                win32gui.SetWindowPos(hwnd, win32con.HWND_TOPMOST, 0, 0, 0, 0, flags)
                 
-                # Set TopMost again
-                win32gui.SetWindowPos(hwnd, win32con.HWND_TOPMOST, 0, 0, 0, 0, 
-                                      win32con.SWP_NOMOVE | win32con.SWP_NOSIZE | win32con.SWP_NOACTIVATE | win32con.SWP_SHOWWINDOW)
+                # If we are not the foreground window and we should be "always on top"
+                # we don't necessarily want to STEAL focus, but we must be ABOVE the others.
+                # In some cases, Windows needs a second nudge.
                                       
             except ImportError:
                 # Fallback to ctypes if pywin32 is missing (though we installed it)
@@ -304,8 +319,24 @@ class StatusWindow(QMainWindow):
             print("[!] Reset event not available.")
 
     def update_status(self, status, data=None):
-        self.current_state = status
-        self.update() # Trigger repaint
+        # Validate status to prevent resizing from unexpected data
+        valid_states = ["IDLE", "LISTENING", "THINKING", "SPEAKING", "PROCESSING"]
+        if status in valid_states:
+            self.current_state = status
+            self.update() # Trigger repaint
+
+    def set_searching_state(self, is_searching):
+        """Enable/Disable the cycling search animation."""
+        self.is_searching = is_searching
+        if not is_searching:
+            self.search_progress = 0.0
+            self.search_count = 0
+        self.update()
+    
+    def update_search_count(self, count):
+        """Update the file counter displayed in the loader."""
+        self.search_count = count
+        self.update()
     
     def closeEvent(self, event):
         """Stop timers before closing to prevent Qt event loop crashes."""
@@ -315,9 +346,6 @@ class StatusWindow(QMainWindow):
 
     def animate(self):
         try:
-            import random
-            import math
-            
             if self.current_state == "SPEAKING":
                 # Beatbox Animation: Randomize bar heights
                 self.bar_heights = [random.randint(5, 20) for _ in range(5)]
@@ -379,12 +407,16 @@ class StatusWindow(QMainWindow):
                 # Static low bars
                 self.bar_heights = [5, 5, 5, 5, 5]
                 self.update()
+
+            # Handle search rotation independent of AI state
+            if self.is_searching:
+                self.search_progress = (self.search_progress + 0.02) % 1.0
+                self.update()
         except Exception as e:
             # Silently ignore animation errors to prevent crashes
             pass
 
     def paintEvent(self, event):
-        self.setFixedSize(self.width_val, self.height_val)
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
@@ -398,34 +430,82 @@ class StatusWindow(QMainWindow):
         
         # Content based on state
         state_color = self.colors.get(self.current_state, self.colors["IDLE"])
-        painter.setPen(QPen(state_color, 2))
-        painter.setBrush(Qt.BrushStyle.NoBrush)
+        
+        # ─── LAYOUT ADJUSTMENT FOR SEARCH ───
+        # If searching, we shift main content to the right
+        # Width: 140. Loader: 40px. Remaining: 100px.
+        content_rect = rect
+        if self.is_searching:
+            content_rect = QRect(40, 0, self.width() - 40, self.height())
 
         if self.current_state in ["IDLE", "LISTENING"]:
             # Draw Text
             text = "Idle" if self.current_state == "IDLE" else "Listening"
             painter.setPen(QPen(state_color))
             font = painter.font()
-            font.setPointSize(12)
+            font.setPointSize(10 if self.is_searching else 12) # Smaller font if shifted
             font.setBold(True)
             painter.setFont(font)
-            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, text)
+            painter.drawText(content_rect, Qt.AlignmentFlag.AlignCenter, text)
 
         elif self.current_state in ["SPEAKING", "PROCESSING", "THINKING"]:
-            # Draw Vertical Bar Visualizer (Unified Design)
-            # 5 Bars centered
+            # Draw Vertical Bar Visualizer
             bar_width = 8
             gap = 4
             total_width = (5 * bar_width) + (4 * gap)
-            start_x = (self.width() - total_width) / 2
-            mid_y = self.height() / 2
+            
+            # Center bars in the available content area
+            start_x = content_rect.x() + (content_rect.width() - total_width) / 2
+            mid_y = content_rect.height() / 2
             
             painter.setBrush(QBrush(state_color))
             painter.setPen(Qt.PenStyle.NoPen)
             
             for i, height in enumerate(self.bar_heights):
                 x = start_x + (i * (bar_width + gap))
-                # Draw rounded rect centered vertically
-                h = height * 1.5 # Scale height
+                h = height * 1.5 
                 y = mid_y - (h / 2)
                 painter.drawRoundedRect(int(x), int(y), int(bar_width), int(h), 4, 4)
+
+        # ── [NEW] Search Progress Animation (Left-Aligned Small Circle) ──
+        if self.is_searching:
+            from PyQt6.QtGui import QPainterPath
+            from PyQt6.QtCore import QRectF
+            
+            # 1. Background Circle for counter
+            circle_margin = 8.0
+            circle_size = self.height() - (circle_margin * 2)
+            circle_rect = QRectF(circle_margin, circle_margin, circle_size, circle_size)
+            
+            # Subtle background for the circle
+            painter.setBrush(QColor(40, 40, 40, 180))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawEllipse(circle_rect)
+            
+            # 2. Spinning Arc
+            path = QPainterPath()
+            path.addEllipse(circle_rect)
+            
+            search_pen = QPen(QColor(self.theme_accent), 3)
+            search_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            
+            # Calculate dash offset based on progress
+            # Circumference = PI * D
+            circum = 3.14159 * circle_size
+            search_pen.setDashPattern([circum * 0.25, circum * 0.75]) # Quarter circle dash
+            search_pen.setDashOffset(self.search_progress * circum)
+            
+            painter.setPen(search_pen)
+            painter.drawPath(path)
+            
+            # 3. File Counter Text
+            count_text = str(self.search_count)
+            if self.search_count > 999: count_text = "99+" # Cap for readability
+            
+            # Centered inside circle
+            painter.setPen(QColor("#FFFFFF"))
+            font = painter.font()
+            font.setPointSize(8 if len(count_text) > 2 else 9)
+            font.setBold(True)
+            painter.setFont(font)
+            painter.drawText(circle_rect, Qt.AlignmentFlag.AlignCenter, count_text)

@@ -32,7 +32,7 @@ class CortexEngine:
         # Sub-Engines
         self.general_engine = GeneralEngine(self.speaker, self.user_config)
         self.system_engine = SystemEngine(self.speaker, self.listener)
-        self.file_manager = FileManagerEngine(self.speaker)
+        self.file_manager = FileManagerEngine(self.speaker, self.status_queue)
         self.application_engine = ApplicationEngine(self.speaker)
         self.workspace_engine = WorkspaceEngine(self.speaker, self.status_queue)
         self.workspace_engine = WorkspaceEngine(self.speaker, self.status_queue)
@@ -322,43 +322,20 @@ class CortexEngine:
             
             # --- CONFIDENCE LOGIC ---
             res = None
-            
-            # Execute if high confidence or confirmed
-            if confidence >= 0.85:
-                 res = self.execute_intent(tag, command)
-                 if res == "EXIT":
-                     break
-                 if res == "TOGGLE_DICTATION":
-                     self.dictation_active = True
-                     self.speaker.speak("Dictation mode enabled.")
-                 
-            elif 0.40 < confidence < 0.85:
-                # Ask for confirmation ONLY if we didn't already ask via context check
-                if context_confirmed:
-                    print("Skipping confidence confirmation (context already confirmed).")
-                    res = self.execute_intent(tag, command)
-                    if res == "EXIT":
-                        break
-                    if res == "TOGGLE_DICTATION":
-                        self.dictation_active = True
-                        self.speaker.speak("Dictation mode enabled.")
-                else:
-                    # Ask for confirmation
-                    display_name = self.get_confirmation_message(tag, command)
-                    self.speaker.speak(f"Did you say {display_name}?")
-                
-                # Listen for response with timeout preference
-                # We need to make sure listen() doesn't block forever here
-                response = self.listener.listen() 
-                
-                if response:
-                    response = response.lower()
-                    print(f"Confirmation response: {response}")
-                    
-                    positives = ["yes", "yeah", "yup", "sure", "correct", "do it", "yep", "affirmative", "confirm"]
-                    negatives = ["no", "nope", "not really", "wrong", "stop", "never mind", "incorrect", "cancel"]
-                    
-                    if any(word in response for word in positives):
+            try:
+                # Execute if high confidence or confirmed
+                if confidence >= 0.85:
+                     res = self.execute_intent(tag, command)
+                     if res == "EXIT":
+                         break
+                     if res == "TOGGLE_DICTATION":
+                         self.dictation_active = True
+                         self.speaker.speak("Dictation mode enabled.")
+                     
+                elif 0.40 < confidence < 0.85:
+                    # Ask for confirmation ONLY if we didn't already ask via context check
+                    if context_confirmed:
+                        print("Skipping confidence confirmation (context already confirmed).")
                         res = self.execute_intent(tag, command)
                         if res == "EXIT":
                             break
@@ -366,17 +343,46 @@ class CortexEngine:
                             self.dictation_active = True
                             self.speaker.speak("Dictation mode enabled.")
                     else:
-                        self.speaker.speak("Cancelled.")
-                        res = "CANCELLED"
-                else:
-                    self.speaker.speak("Timeout.")
-                    res = "TIMEOUT"
+                        # Ask for confirmation
+                        display_name = self.get_confirmation_message(tag, command)
+                        self.speaker.speak(f"Did you say {display_name}?")
+                    
+                    # Listen for response with timeout preference
+                    # We need to make sure listen() doesn't block forever here
+                    response = self.listener.listen() 
+                    
+                    if response:
+                        response = response.lower()
+                        print(f"Confirmation response: {response}")
+                        
+                        positives = ["yes", "yeah", "yup", "sure", "correct", "do it", "yep", "affirmative", "confirm"]
+                        negatives = ["no", "nope", "not really", "wrong", "stop", "never mind", "incorrect", "cancel"]
+                        
+                        if any(word in response for word in positives):
+                            res = self.execute_intent(tag, command)
+                            if res == "EXIT":
+                                break
+                            if res == "TOGGLE_DICTATION":
+                                self.dictation_active = True
+                                self.speaker.speak("Dictation mode enabled.")
+                        else:
+                            self.speaker.speak("Cancelled.")
+                            res = "CANCELLED"
+                    else:
+                        self.speaker.speak("Timeout.")
+                        res = "TIMEOUT"
             
-            # Reset status to IDLE
-            if self.status_queue:
-                self.status_queue.put(("IDLE", None))
-                if res:
-                    continue
+            finally:
+                # Reset status to IDLE regardless of what happened
+                if self.status_queue:
+                    self.status_queue.put(("IDLE", None))
+                
+                # If we broke out (EXIT), don't continue loop
+                if res == "EXIT":
+                    break
+
+            if res:
+                continue
 
             # Fallback if low confidence or unknown tag
             if not res and res != "CANCELLED":
