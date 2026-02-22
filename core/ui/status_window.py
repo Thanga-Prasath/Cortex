@@ -15,7 +15,11 @@ class StatusWindow(QMainWindow):
         super().__init__()
         
         # Window Flags: Frameless, Always on Top, Tool (no taskbar icon)
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
+        base_flags = Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool
+        if platform.system() == "Linux":
+            # BypassWindowManagerHint fully hides from dock/taskbar on GNOME/KDE (X11 & Wayland)
+            base_flags |= Qt.WindowType.BypassWindowManagerHint
+        self.setWindowFlags(base_flags)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         
         # Config Paths

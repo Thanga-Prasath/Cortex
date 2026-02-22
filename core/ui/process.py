@@ -1,4 +1,5 @@
 import sys
+import platform
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QTimer
 from .status_window import StatusWindow
@@ -13,6 +14,10 @@ def ui_process_target(status_queue, action_queue, reset_event=None, shutdown_eve
     """
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
+    
+    # Linux/macOS: Prevent dock/taskbar icon from appearing
+    if platform.system() != "Windows":
+        app.setDesktopFileName("")
     
     # Persistent windows - pass reset and shutdown events to StatusWindow
     window = StatusWindow(reset_event=reset_event, shutdown_event=shutdown_event, action_queue=action_queue)

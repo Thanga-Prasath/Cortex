@@ -1,6 +1,7 @@
 import platform
 import time
 import subprocess
+import shutil
 try:
     import pyautogui
 except (ImportError, Exception):
@@ -137,11 +138,75 @@ class AutomationEngine:
 
     def _handle_note_taking(self):
         """
-        Quick Note Taking: appends to a local notes.txt file.
+        Quick Note Taking: opens the platform-appropriate text editor.
+        Works on Windows, Linux, and macOS.
         """
         self.speaker.speak("What would you like to note down?")
-        subprocess.Popen(["notepad.exe"])
-        self.speaker.speak("Opening Notepad for your note.")
+        
+        current_os = platform.system()
+        
+        try:
+            if current_os == "Windows":
+                # Windows: use notepad.exe (original behavior)
+                subprocess.Popen(["notepad.exe"])
+                self.speaker.speak("Opening Notepad for your note.")
+                
+            elif current_os == "Linux":
+                # Linux: try common GUI text editors in priority order
+                linux_editors = [
+                    "gedit",                # GNOME
+                    "gnome-text-editor",    # GNOME 42+
+                    "kate",                 # KDE
+                    "xed",                  # Linux Mint / Cinnamon
+                    "mousepad",             # XFCE
+                    "pluma",                # MATE
+                    "featherpad",           # LXQt
+                ]
+                
+                editor_found = None
+                for editor in linux_editors:
+                    if shutil.which(editor):
+                        editor_found = editor
+                        break
+                
+                if editor_found:
+                    subprocess.Popen([editor_found])
+                    self.speaker.speak(f"Opening {editor_found} for your note.")
+                else:
+                    # Fallback: try xdg-open with a temporary text file
+                    import tempfile
+                    note_file = tempfile.mktemp(suffix=".txt", prefix="sunday_note_")
+                    with open(note_file, 'w') as f:
+                        f.write("")  # Create empty file
+                    
+                    if shutil.which("xdg-open"):
+                        subprocess.Popen(["xdg-open", note_file])
+                        self.speaker.speak("Opening a text editor for your note.")
+                    elif shutil.which("nano"):
+                        # Last resort: open nano in a terminal
+                        terminal = shutil.which("x-terminal-emulator") or \
+                                   shutil.which("gnome-terminal") or \
+                                   shutil.which("konsole") or \
+                                   shutil.which("xterm")
+                        if terminal:
+                            subprocess.Popen([terminal, "-e", "nano", note_file])
+                            self.speaker.speak("Opening nano in a terminal for your note.")
+                        else:
+                            self.speaker.speak("I couldn't find a text editor on your system.")
+                    else:
+                        self.speaker.speak("I couldn't find a text editor on your system.")
+                        
+            elif current_os == "Darwin":
+                # macOS: use TextEdit
+                subprocess.Popen(["open", "-a", "TextEdit"])
+                self.speaker.speak("Opening TextEdit for your note.")
+                
+            else:
+                self.speaker.speak("Note taking is not supported on this operating system.")
+                
+        except Exception as e:
+            print(f"[Note Taking Error] {e}")
+            self.speaker.speak("I encountered an error opening the text editor.")
 
     def execute_workflow(self, workflow_path=None):
         """

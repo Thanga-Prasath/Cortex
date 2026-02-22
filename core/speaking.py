@@ -68,6 +68,7 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
                     
                     try:
                         import pyaudio
+                        from core.alsa_error import no_alsa_error
                         
                         # Start Piper Process
                         piper_proc = subprocess.Popen(
@@ -77,10 +78,11 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
                             stderr=subprocess.DEVNULL
                         )
 
-                        # Initialize PyAudio
-                        p = pyaudio.PyAudio()
-                        # 22050Hz is standard for most Piper voices
-                        stream = p.open(format=pyaudio.paInt16, channels=1, rate=22050, output=True)
+                        # Initialize PyAudio (suppress ALSA errors)
+                        with no_alsa_error():
+                            p = pyaudio.PyAudio()
+                            # 22050Hz is standard for most Piper voices
+                            stream = p.open(format=pyaudio.paInt16, channels=1, rate=22050, output=True)
 
                         # Write text to Piper's stdin
                         piper_proc.stdin.write(text.encode('utf-8'))

@@ -2,6 +2,7 @@ import os
 import subprocess
 import threading
 import platform
+import shutil
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
@@ -30,6 +31,12 @@ IGNORED_DIRS_LINUX = {
     'proc', 'sys', 'dev', 'run', 'tmp', 'snap',
     'lost+found', 'boot',
 }
+
+# Additional heavy directories to prune on Linux for speed
+_LINUX_EXTRA_PRUNE = [
+    '*/node_modules', '*/__pycache__', '*/.git',
+    '*/.cache', '*/.local/share/Trash',
+]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -121,42 +128,110 @@ def _search_partition_windows(root_path, label, query, results_lock, all_results
 
 
 def _search_partition_linux(root_path, label, query, results_lock, all_results, status_queue=None, exclude_paths=None):
+    """
+    Optimized Linux search:
+    1. Try 'locate' (plocate/mlocate) for instant indexed results
+    2. Fall back to a SINGLE 'find' traversal with all patterns combined via -o
+       (original code ran 11 separate find commands, each traversing the full tree)
+    """
     seen_locally = set()
-    def _run(pattern, iname=False):
-        if CANCEL_FLAGS.get(query, False): return
-        
-        cmd = ['find', root_path]
-        if exclude_paths:
-            excl_args = ['(']
-            for i, ex in enumerate(exclude_paths):
-                excl_args += ['-path', ex, '-prune']
-                if i < len(exclude_paths)-1: excl_args.append('-o')
-            excl_args += [')', '-o']
-            cmd += excl_args
-        cmd += ['-iname' if iname else '-name', pattern, '-print']
+    query_lower = query.lower()
+
+    def _add_result(path, exact=False):
+        """Thread-safe result addition with deduplication."""
+        if not path or path in seen_locally:
+            return
+        seen_locally.add(path)
+        with results_lock:
+            all_results.append({
+                'path': path,
+                'type': 'dir' if os.path.isdir(path) else 'file',
+                'exact': exact,
+                'label': label
+            })
+            count = len(all_results)
+        if status_queue:
+            status_queue.put(("SEARCH_COUNT", (query, count)))
+
+    # ── Build prune arguments once (reused by find) ──
+    all_excludes = list(exclude_paths or [])
+    # Add standard Linux system dirs to prune
+    for d in IGNORED_DIRS_LINUX:
+        all_excludes.append(os.path.join(root_path, d))
+    # Add heavy dev/cache directories
+    all_excludes.extend(_LINUX_EXTRA_PRUNE)
+
+    prune_args = []
+    if all_excludes:
+        prune_args = ['(']
+        for i, ex in enumerate(all_excludes):
+            prune_args += ['-path', ex, '-prune']
+            if i < len(all_excludes) - 1:
+                prune_args.append('-o')
+        prune_args += [')', '-o']
+
+    # ── Fast Path: Try 'locate' (plocate/mlocate) for instant indexed results ──
+    locate_cmd = shutil.which('plocate') or shutil.which('locate')
+    if locate_cmd:
         try:
-            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+            proc = subprocess.Popen(
+                [locate_cmd, '-i', '-l', '500', query],
+                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True
+            )
             for line in proc.stdout:
                 if CANCEL_FLAGS.get(query, False):
                     proc.terminate()
                     return
-
                 path = line.strip()
-                if path and path not in seen_locally:
-                    seen_locally.add(path)
-                    with results_lock:
-                        all_results.append({'path': path, 'type': 'dir' if os.path.isdir(path) else 'file', 'exact': not iname, 'label': label})
-                        count = len(all_results)
-                    if status_queue:
-                        status_queue.put(("SEARCH_COUNT", (query, count)))
+                if path and path.startswith(root_path):
+                    name_lower = os.path.basename(path).lower()
+                    stem = os.path.splitext(name_lower)[0]
+                    exact = (stem == query_lower or name_lower == query_lower)
+                    _add_result(path, exact=exact)
             proc.wait()
-        except Exception: pass
-    _run(query, iname=False)
-    for sep in ('-', '_', ' '):
-        _run(f'*{sep}{query}{sep}*', iname=True)
-        _run(f'{query}{sep}*', iname=True)
-        _run(f'*{sep}{query}', iname=True)
-    _run(f'{query}.*', iname=True)
+            if seen_locally:
+                return  # locate found results, skip the slower find
+        except Exception:
+            pass
+
+    # ── Fallback: Single-pass find with ALL patterns combined ──
+    # Original code ran 11 separate find commands (each traversing the full tree).
+    # This combines everything into ONE traversal using -o (OR).
+    separators = ['-', '_', ' ']
+
+    cmd = ['find', root_path]
+    cmd += prune_args
+    cmd.append('(')
+
+    # Pattern 1: exact name (case-sensitive)
+    cmd += ['-name', query]
+
+    # Pattern 2: extension match (e.g. query.txt, query.pdf)
+    cmd += ['-o', '-iname', f'{query}.*']
+
+    # Patterns 3-11: separator variations
+    for sep in separators:
+        cmd += ['-o', '-iname', f'*{sep}{query}{sep}*']
+        cmd += ['-o', '-iname', f'{query}{sep}*']
+        cmd += ['-o', '-iname', f'*{sep}{query}']
+
+    cmd += [')', '-print']
+
+    try:
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        for line in proc.stdout:
+            if CANCEL_FLAGS.get(query, False):
+                proc.terminate()
+                return
+            path = line.strip()
+            if path:
+                name_lower = os.path.basename(path).lower()
+                stem = os.path.splitext(name_lower)[0]
+                exact = (stem == query_lower or name_lower == query_lower)
+                _add_result(path, exact=exact)
+        proc.wait()
+    except Exception:
+        pass
 
 
 # Main entry point
