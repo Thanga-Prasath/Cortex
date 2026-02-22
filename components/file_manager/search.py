@@ -71,6 +71,10 @@ def _get_partitions():
     return partitions
 
 
+# Global tracking for concurrent searches and cancellation
+CANCEL_FLAGS = {}
+ACTIVE_SEARCHES = set()
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Per-partition search workers
 # ──────────────────────────────────────────────────────────────────────────────
@@ -86,6 +90,8 @@ def _search_partition_windows(root_path, label, query, results_lock, all_results
     query_lower = query.lower()
     try:
         for root, dirs, files in os.walk(root_path):
+            if CANCEL_FLAGS.get(query, False): return # Early exit check
+
             pruned = []
             for d in dirs:
                 if d in IGNORED_DIRS_WIN or d.startswith('.'): continue
@@ -94,27 +100,31 @@ def _search_partition_windows(root_path, label, query, results_lock, all_results
             dirs[:] = pruned
 
             for d in dirs:
+                if CANCEL_FLAGS.get(query, False): return # Early exit check
                 if _is_word_match(query_lower, d.lower()):
                     full_path = os.path.join(root, d)
                     with results_lock:
                         all_results.append({'path': full_path, 'type': 'dir', 'exact': d.lower() == query_lower, 'label': label})
                         count = len(all_results)
                     if status_queue:
-                        status_queue.put(("SEARCH_COUNT", count))
+                        status_queue.put(("SEARCH_COUNT", (query, count)))
             for f in files:
+                if CANCEL_FLAGS.get(query, False): return # Early exit check
                 if _is_word_match(query_lower, f.lower()):
                     full_path = os.path.join(root, f)
                     with results_lock:
                         all_results.append({'path': full_path, 'type': 'file', 'exact': os.path.splitext(f)[0].lower() == query_lower, 'label': label})
                         count = len(all_results)
                     if status_queue:
-                        status_queue.put(("SEARCH_COUNT", count))
+                        status_queue.put(("SEARCH_COUNT", (query, count)))
     except Exception: pass
 
 
 def _search_partition_linux(root_path, label, query, results_lock, all_results, status_queue=None, exclude_paths=None):
     seen_locally = set()
     def _run(pattern, iname=False):
+        if CANCEL_FLAGS.get(query, False): return
+        
         cmd = ['find', root_path]
         if exclude_paths:
             excl_args = ['(']
@@ -127,6 +137,10 @@ def _search_partition_linux(root_path, label, query, results_lock, all_results, 
         try:
             proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
             for line in proc.stdout:
+                if CANCEL_FLAGS.get(query, False):
+                    proc.terminate()
+                    return
+
                 path = line.strip()
                 if path and path not in seen_locally:
                     seen_locally.add(path)
@@ -134,7 +148,7 @@ def _search_partition_linux(root_path, label, query, results_lock, all_results, 
                         all_results.append({'path': path, 'type': 'dir' if os.path.isdir(path) else 'file', 'exact': not iname, 'label': label})
                         count = len(all_results)
                     if status_queue:
-                        status_queue.put(("SEARCH_COUNT", count))
+                        status_queue.put(("SEARCH_COUNT", (query, count)))
             proc.wait()
         except Exception: pass
     _run(query, iname=False)
@@ -159,12 +173,17 @@ def background_search(query, speaker, status_queue=None):
     - It signals the UI process to open a fallback search box.
     """
     if speaker:
-        speaker.speak(f"Searching for {query}...")
+        threading.Thread(target=speaker.speak, args=(f"Searching for {query}...",), daemon=True).start()
 
     partitions = _get_partitions()
     if not partitions:
-        if speaker: speaker.speak("No drives found to search.")
+        if speaker: 
+            threading.Thread(target=speaker.speak, args=("No drives found to search.",), daemon=True).start()
         return
+
+    # Register active search
+    ACTIVE_SEARCHES.add(query)
+    CANCEL_FLAGS[query] = False
 
     results_lock = threading.Lock()
     all_results = []
@@ -180,13 +199,24 @@ def background_search(query, speaker, status_queue=None):
                 futures.append(executor.submit(_search_partition_linux, mp, label, query, results_lock, all_results, status_queue, linux_priority_paths if mp == '/' else None))
         for f in as_completed(futures): pass
 
+    # Cleanup flags
+    was_canceled = CANCEL_FLAGS.get(query, False)
+    ACTIVE_SEARCHES.discard(query)
+    if query in CANCEL_FLAGS:
+        del CANCEL_FLAGS[query]
+
     if not all_results:
-        if speaker:
-            speaker.speak(f"I couldn't find {query}. Opening a search box so you can type it.")
-        
-        # Cross-process signal: Tell UI process to show the search dialog
-        if status_queue:
-            status_queue.put(("FILE_SEARCH_GUI", query))
+        if not was_canceled:
+            if speaker:
+                msg = f"I couldn't find {query}. Opening a search box so you can type it."
+                threading.Thread(target=speaker.speak, args=(msg,), daemon=True).start()
+            
+            # Cross-process signal: Tell UI process to show the search dialog
+            if status_queue:
+                status_queue.put(("FILE_SEARCH_GUI", query))
+        else:
+            if speaker:
+                threading.Thread(target=speaker.speak, args=(f"Search for {query} canceled.",), daemon=True).start()
         return
 
     # Process results: Sort and Deduplicate
@@ -205,8 +235,13 @@ def background_search(query, speaker, status_queue=None):
     if speaker:
         exact_count = sum(1 for r in unique_results if r['exact'])
         total = len(unique_results)
-        if exact_count > 0:
+        
+        if was_canceled:
+            msg = f"Search canceled. Showing {total} results found so far for {query}."
+        elif exact_count > 0:
             msg = f"Found {exact_count} exact match{'es' if exact_count > 1 else ''} for {query}. Displaying them now."
         else:
             msg = f"No exact match for {query}. Found {total} related result{'s' if total > 1 else ''}. Displaying them now."
-        speaker.speak(msg)
+            
+        # Do not block the search thread waiting for TTS to finish speaking
+        threading.Thread(target=speaker.speak, args=(msg,), daemon=True).start()

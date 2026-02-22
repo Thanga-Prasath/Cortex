@@ -6,7 +6,7 @@ from .status_window import StatusWindow
 from components.workspace.ui import WorkspaceEditor, WorkspaceSelector
 from components.workspace.manager import WorkspaceManager
 
-def ui_process_target(status_queue, reset_event=None, shutdown_event=None):
+def ui_process_target(status_queue, action_queue, reset_event=None, shutdown_event=None):
     """
     Target function for the UI process.
     Initializes QApplication and the StatusWindow.
@@ -15,7 +15,7 @@ def ui_process_target(status_queue, reset_event=None, shutdown_event=None):
     app.setQuitOnLastWindowClosed(False)
     
     # Persistent windows - pass reset and shutdown events to StatusWindow
-    window = StatusWindow(reset_event=reset_event, shutdown_event=shutdown_event)
+    window = StatusWindow(reset_event=reset_event, shutdown_event=shutdown_event, action_queue=action_queue)
     window.show()
     
     # Track workspace windows to prevent garbage collection
@@ -65,6 +65,14 @@ def ui_process_target(status_queue, reset_event=None, shutdown_event=None):
                 elif status == "SEARCHING":
                     # data = Boolean (True for searching, False for stopped)
                     window.set_searching_state(data)
+                    
+                    # Also notify any open Cancel Dialog to remove finished searches
+                    if isinstance(data, tuple) and not data[1]:
+                        query = data[0]
+                        from .file_search_gui import CancelSearchDialog
+                        for win in list(workspace_windows):
+                            if isinstance(win, CancelSearchDialog):
+                                win.remove_search(query)
 
                 elif status == "SEARCH_COUNT":
                     # data = Total matches found so far
@@ -86,6 +94,16 @@ def ui_process_target(status_queue, reset_event=None, shutdown_event=None):
                     from .file_search_gui import FileSearchDialog
                     dlg = FileSearchDialog(initial_query=query, status_window=window)
                     dlg.show_results(results) # Switch to results mode
+                    dlg.show()
+                    dlg.raise_()
+                    dlg.activateWindow()
+                    track_window(dlg)
+
+                elif status == "SHOW_CANCEL_DIALOG":
+                    # data = list of active search queries
+                    active_queries = data
+                    from .file_search_gui import CancelSearchDialog
+                    dlg = CancelSearchDialog(active_searches=active_queries, action_queue=action_queue, status_window=window)
                     dlg.show()
                     dlg.raise_()
                     dlg.activateWindow()

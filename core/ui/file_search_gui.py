@@ -11,7 +11,7 @@ import subprocess
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QFrame, QScrollArea,
-    QSizePolicy
+    QSizePolicy, QListWidget, QListWidgetItem
 )
 from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QSize
 from PyQt6.QtGui import QFont, QIcon, QColor
@@ -43,9 +43,31 @@ class ResultCard(QFrame):
             }}
         """)
         
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        
         layout = QHBoxLayout(self)
         layout.setContentsMargins(12, 10, 12, 10)
         layout.setSpacing(15)
+
+        # Location Button (on the left)
+        self.loc_btn = QPushButton("📂")
+        self.loc_btn.setToolTip("Open Folder Location")
+        self.loc_btn.setFixedSize(40, 40)
+        self.loc_btn.setFont(QFont("Segoe UI Emoji", 16))
+        self.loc_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.loc_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                border: 1px solid #00FFFF;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #00FFFF;
+                color: #000;
+            }
+        """)
+        self.loc_btn.clicked.connect(self._on_open_location)
+        layout.addWidget(self.loc_btn)
 
         # Icon/Type indicator
         icon_lbl = QLabel("📁" if self.result['type'] == 'dir' else "📄")
@@ -70,40 +92,11 @@ class ResultCard(QFrame):
         info_col.addWidget(path_lbl)
         layout.addLayout(info_col, 1)
 
-        # Action Buttons
-        btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(10)
-
-        self.open_btn = QPushButton("Open")
-        self.open_btn.setToolTip("Open File/Folder")
-        self._style_action_btn(self.open_btn, accent)
-        self.open_btn.clicked.connect(self._on_open)
-
-        self.loc_btn = QPushButton("Location")
-        self.loc_btn.setToolTip("Open Folder Location")
-        self._style_action_btn(self.loc_btn, "#00FFFF") # Cyber Blue
-        self.loc_btn.clicked.connect(self._on_open_location)
-
-        btn_layout.addWidget(self.open_btn)
-        btn_layout.addWidget(self.loc_btn)
-        layout.addLayout(btn_layout)
-
-    def _style_action_btn(self, btn, color):
-        btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn.setFixedSize(90, 30) # Slightly larger
-        btn.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
-        btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: transparent;
-                color: {color};
-                border: 2px solid {color};
-                border-radius: 5px;
-            }}
-            QPushButton:hover {{
-                background-color: {color};
-                color: #000;
-            }}
-        """)
+    def mousePressEvent(self, event):
+        """Make the entire card clickable to open the file/folder."""
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._on_open()
+        super().mousePressEvent(event)
 
     def _on_open(self):
         path = self.result['path']
@@ -121,15 +114,24 @@ class ResultCard(QFrame):
         path = self.result['path']
         try:
             if os.name == 'nt':
-                # Opens explorer and selects the file
                 subprocess.Popen(f'explorer /select,"{os.path.abspath(path)}"')
             elif platform.system() == 'Darwin':
-                # Similar for Mac
                 subprocess.Popen(['open', '-R', path])
             else:
-                # Linux (standard way to open parent)
-                parent = os.path.dirname(path)
-                subprocess.Popen(['xdg-open', parent])
+                # Try DBus for advanced Linux file managers (Nautilus, Dolphin, Nemo)
+                try:
+                    import urllib.parse
+                    file_uri = "file://" + urllib.parse.quote(os.path.abspath(path))
+                    subprocess.run(
+                        ['dbus-send', '--session', '--print-reply', '--dest=org.freedesktop.FileManager1', 
+                         '/org/freedesktop/FileManager1', 'org.freedesktop.FileManager1.ShowItems',
+                         f'array:string:"{file_uri}"', 'string:""'],
+                        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                    )
+                except Exception:
+                    # Fallback if DBus approach fails
+                    parent = os.path.dirname(path)
+                    subprocess.Popen(['xdg-open', parent])
         except Exception as e:
             print(f"Error opening location: {e}")
 
@@ -147,6 +149,7 @@ class FileSearchDialog(QWidget):
 
     def __init__(self, initial_query="", status_window=None):
         super().__init__()
+        self.initial_query = initial_query
         self.status_window = status_window
         self._setup_ui(initial_query)
 
@@ -251,9 +254,11 @@ class FileSearchDialog(QWidget):
         self._center()
 
     def closeEvent(self, event):
-        """Ensure search animation stops when GUI is closed."""
+        """Ensure specific search animation stops when GUI is closed."""
         if self.status_window:
-            self.status_window.set_searching_state(False)
+            query = self.search_input.text().strip() or self.initial_query
+            if query:
+                self.status_window.set_searching_state((query, False))
         event.accept()
 
     def _center(self):
@@ -267,8 +272,10 @@ class FileSearchDialog(QWidget):
     def _on_manual_search(self):
         query = self.search_input.text().strip()
         if not query: return
+        self.initial_query = query # Update tracking
+        
         if self.status_window:
-            self.status_window.set_searching_state(True)
+            self.status_window.set_searching_state((query, True))
             
         self.status_lbl.setText("Searching across all partitions...")
         self.search_btn.setEnabled(False)
@@ -285,7 +292,9 @@ class FileSearchDialog(QWidget):
 
     def show_results(self, results):
         if self.status_window:
-            self.status_window.set_searching_state(False)
+            query = self.search_input.text().strip() or self.initial_query
+            if query:
+                self.status_window.set_searching_state((query, False))
             
         self.search_btn.setEnabled(True)
         
@@ -316,6 +325,152 @@ class FileSearchDialog(QWidget):
         if self.height() > max_h:
             self.setFixedHeight(max_h)
         self._center()
+
+# ── Cancel Search Dialog ─────────────────────────────────────────────────────
+
+class CancelSearchDialog(QFrame):
+    """A floating dialog showing all active searches with cancel buttons."""
+    
+    def __init__(self, active_searches, action_queue, status_window=None, parent=None):
+        super().__init__(parent)
+        self.active_searches = active_searches
+        self.action_queue = action_queue
+        self.status_window = status_window
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self._setup_ui()
+
+    def _setup_ui(self):
+        self.setFixedSize(400, 300)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Background Container
+        container = QFrame()
+        container.setStyleSheet("""
+            QFrame {
+                background-color: rgba(30, 30, 30, 240);
+                border: 2px solid #39FF14;
+                border-radius: 12px;
+            }
+        """)
+        container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(20, 20, 20, 20)
+
+        # Header
+        header = QLabel("Active Searches")
+        header.setStyleSheet("color: #FFFFFF; font-size: 16px; font-weight: bold; border: none;")
+        header_layout = QHBoxLayout()
+        header_layout.addWidget(header)
+        header_layout.addStretch()
+
+        close_btn = QPushButton("✕")
+        close_btn.setFixedSize(24, 24)
+        close_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                color: #888888;
+                font-weight: bold;
+                border: none;
+            }
+            QPushButton:hover {
+                color: #FF4444;
+            }
+        """)
+        close_btn.clicked.connect(self.close)
+        header_layout.addWidget(close_btn)
+        container_layout.addLayout(header_layout)
+
+        # List Area
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        
+        list_container = QWidget()
+        list_container.setStyleSheet("background: transparent;")
+        self.list_layout = QVBoxLayout(list_container)
+        self.list_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        
+        for search_query in self.active_searches:
+            self._add_search_item(search_query)
+
+        scroll.setWidget(list_container)
+        container_layout.addWidget(scroll)
+        main_layout.addWidget(container)
+
+        self._center_on_screen()
+
+    def _add_search_item(self, query):
+        item_frame = QFrame()
+        item_frame.setStyleSheet("""
+            QFrame {
+                background-color: rgba(50, 50, 50, 100);
+                border: 1px solid #555555;
+                border-radius: 6px;
+                padding: 5px;
+            }
+            QFrame:hover {
+                border: 1px solid #39FF14;
+            }
+        """)
+        h_layout = QHBoxLayout(item_frame)
+        h_layout.setContentsMargins(5, 5, 5, 5)
+
+        lbl = QLabel(query)
+        lbl.setStyleSheet("color: white; font-size: 14px; border: none;")
+        h_layout.addWidget(lbl)
+
+        btn = QPushButton("Cancel")
+        btn.setStyleSheet("""
+            QPushButton {
+                background-color: #FF4444;
+                color: white;
+                border-radius: 4px;
+                padding: 4px 10px;
+                font-weight: bold;
+                border: none;
+            }
+            QPushButton:hover {
+                background-color: #FF0000;
+            }
+        """)
+        btn.clicked.connect(lambda _, q=query, f=item_frame: self._cancel_search(q, f))
+        h_layout.addWidget(btn)
+        
+        self.list_layout.addWidget(item_frame)
+
+    def _cancel_search(self, query, frame):
+        if self.action_queue:
+            self.action_queue.put(("CANCEL_SEARCH", query))
+        self.remove_search(query)
+
+    def remove_search(self, query):
+        """Called externally (or internally) when a search finishes to update the dialog."""
+        if query in self.active_searches:
+            self.active_searches.remove(query)
+            
+        # Find and hide the specific frame
+        for i in range(self.list_layout.count()):
+            item = self.list_layout.itemAt(i)
+            if item and item.widget():
+                frame = item.widget()
+                # Find the label in this frame
+                lbl = frame.findChild(QLabel)
+                if lbl and lbl.text() == query:
+                    frame.hide()
+                    break
+                    
+        # Check if list is practically empty
+        visible_count = sum(1 for i in range(self.list_layout.count()) if not self.list_layout.itemAt(i).widget().isHidden())
+        if visible_count == 0:
+            self.close()
+
+    def _center_on_screen(self):
+        screen = QApplication.primaryScreen().geometry()
+        x = (screen.width() - self.width()) // 2
+        y = (screen.height() - self.height()) // 2
+        self.move(x, y)
+
 
 # ── Threaded Search Worker (Reused) ──────────────────────────────────────────
 

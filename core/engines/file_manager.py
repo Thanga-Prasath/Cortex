@@ -54,7 +54,33 @@ class FileManagerEngine:
                 
             threading.Thread(target=self._background_search, args=(query,)).start()
             return True
-        
+        elif intent == 'file_search_cancel':
+            # Extract query if they said "cancel search for X"
+            keywords = ["cancel", "stop", "abort"]
+            query = extract_name(command, keywords)
+            prefixes = ["search for ", "search ", "the search for "]
+            for p in prefixes:
+                if query.lower().startswith(p):
+                    query = query[len(p):].strip()
+            
+            import components.file_manager.search as search_mod
+            active = list(search_mod.ACTIVE_SEARCHES)
+            
+            if not active:
+                self.speaker.speak("There are no active searches to cancel.")
+            elif query and query in active:
+                self.cancel_search(query)
+            elif len(active) == 1:
+                # Only one search running, just cancel it
+                self.cancel_search(active[0])
+            else:
+                # Multiple searches running and no specific name given.
+                # Tell UI to open the cancel dialog.
+                if self.status_queue:
+                    self.speaker.speak("Multiple searches are running. Please select which one to cancel.")
+                    self.status_queue.put(("SHOW_CANCEL_DIALOG", active))
+            return True
+            
         return False
 
     def _get_active_location(self):
@@ -77,9 +103,16 @@ class FileManagerEngine:
 
     def _background_search(self, query):
         if self.status_queue:
-            self.status_queue.put(("SEARCHING", True))
+            self.status_queue.put(("SEARCHING", (query, True)))
         try:
             background_search(query, self.speaker, self.status_queue)
         finally:
             if self.status_queue:
-                self.status_queue.put(("SEARCHING", False))
+                self.status_queue.put(("SEARCHING", (query, False)))
+
+    def cancel_search(self, query):
+        """Signals the background search worker to abort early."""
+        import components.file_manager.search as search_mod
+        if query in search_mod.ACTIVE_SEARCHES:
+            search_mod.CANCEL_FLAGS[query] = True
+            self.speaker.speak(f"Canceling search for {query}.")

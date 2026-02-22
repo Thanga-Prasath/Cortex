@@ -70,30 +70,31 @@ def restart_system():
 
 
 
-def ui_process_target(status_queue, reset_event, shutdown_event):
+def ui_process_target(status_queue, action_queue, reset_event, shutdown_event):
     # This is a placeholder import to avoid circular dependency issues at top level if any
     from core.ui.process import ui_process_target as original_target
-    original_target(status_queue, reset_event, shutdown_event)
+    original_target(status_queue, action_queue, reset_event, shutdown_event)
 
 if __name__ == "__main__":
     multiprocessing.freeze_support()
     
-    # Create communication queue
+    # Create communication queues
     status_queue = multiprocessing.Queue()
+    action_queue = multiprocessing.Queue()
     
     # Create reset and shutdown events
     reset_event = multiprocessing.Event()
     shutdown_event = multiprocessing.Event()
     
     # Start UI Process
-    ui_process = multiprocessing.Process(target=ui_process_target, args=(status_queue, reset_event, shutdown_event))
+    ui_process = multiprocessing.Process(target=ui_process_target, args=(status_queue, action_queue, reset_event, shutdown_event))
     ui_process.start()
     
     app = None
     result = None
     
     try:
-        app = CortexEngine(status_queue, reset_event=reset_event, shutdown_event=shutdown_event)
+        app = CortexEngine(status_queue, action_queue=action_queue, reset_event=reset_event, shutdown_event=shutdown_event)
         result = app.run()
     except KeyboardInterrupt:
         result = "EXIT"

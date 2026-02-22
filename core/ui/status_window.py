@@ -11,7 +11,7 @@ import re
 
 class StatusWindow(QMainWindow):
 
-    def __init__(self, reset_event=None, shutdown_event=None):
+    def __init__(self, reset_event=None, shutdown_event=None, action_queue=None):
         super().__init__()
         
         # Window Flags: Frameless, Always on Top, Tool (no taskbar icon)
@@ -28,12 +28,12 @@ class StatusWindow(QMainWindow):
         self.load_theme_config()
         
         # Dimensions
-        self.width_val = 140
+        self.base_width = 140
         self.height_val = 50
-        self.setFixedSize(self.width_val, self.height_val)
-        self.setMinimumSize(self.width_val, self.height_val)
-        self.setMaximumSize(self.width_val, self.height_val)
-        self.setGeometry(100, 100, self.width_val, self.height_val) 
+        self.setFixedSize(self.base_width, self.height_val)
+        self.setMinimumSize(self.base_width, self.height_val)
+        self.setMaximumSize(900, self.height_val) # Allow expansion
+        self.setGeometry(100, 100, self.base_width, self.height_val) 
         
         # Initial Position using Config
         if self.widget_config.get("x", -1) != -1 and self.widget_config.get("y", -1) != -1:
@@ -51,10 +51,11 @@ class StatusWindow(QMainWindow):
         self.bar_heights = [5, 10, 15, 10, 5] 
         self.drag_pos = None # For custom dragging
         
-        # Search Progress Animation State
-        self.is_searching = False
-        self.search_progress = 0.0 # 0.0 to 1.0 for smooth motion
-        self.search_count = 0 
+        # Concurrent Search Progress State
+        self.action_queue = action_queue
+        self.active_searches = {} # { query: { 'count': 0, 'progress': 0.0 } }
+        self.hovered_search = None # Currently hovered query name
+        self.setMouseTracking(True)
         
         # Cursor Update based on lock
         self.update_cursor()
@@ -176,11 +177,21 @@ class StatusWindow(QMainWindow):
             self.setCursor(Qt.CursorShape.SizeAllCursor)
 
     def mousePressEvent(self, event):
-        # Check lock state dynamically (in case changed via Settings)
-        # Reloading config on every click is expensive, typically we rely on Restart
-        # But for UX, let's respect the current loaded config state. 
-        # (Settings update requires restart anyway)
-        
+        # 1. Check for cancel clicks on search loaders
+        if event.button() == Qt.MouseButton.LeftButton and self.hovered_search:
+            if self.action_queue:
+                q = self.hovered_search
+                self.action_queue.put(("CANCEL_SEARCH", q))
+                # Instantly remove from UI to prevent spam and ensure snappy response
+                if q in self.active_searches:
+                    del self.active_searches[q]
+                self.hovered_search = None
+                self._update_window_width()
+                self.update()
+            event.accept()
+            return
+            
+        # 2. Check lock state dynamically for dragging
         if not self.widget_config.get("locked", False):
             if event.button() == Qt.MouseButton.LeftButton:
                 from PyQt6.QtGui import QMouseEvent
@@ -191,12 +202,44 @@ class StatusWindow(QMainWindow):
             self.show_context_menu(event.globalPosition().toPoint())
 
     def mouseMoveEvent(self, event):
+        # 1. Handle hover logic for search cancel buttons
+        if self.active_searches:
+            circle_margin = 8.0
+            circle_size = self.height_val - (circle_margin * 2)
+            spacing = 5.0
+            total_search_width = len(self.active_searches) * (circle_size + spacing)
+            
+            # Loaders are anchored to the left
+            mx, my = event.pos().x(), event.pos().y()
+            found_hover = None
+            
+            if mx < total_search_width and circle_margin <= my <= self.height_val - circle_margin:
+                # Find which circle we are hovering
+                for i, query in enumerate(list(self.active_searches.keys())):
+                    start_x = circle_margin + (i * (circle_size + spacing))
+                    if start_x <= mx <= start_x + circle_size:
+                        found_hover = query
+                        break
+            
+            if found_hover != self.hovered_search:
+                self.hovered_search = found_hover
+                if self.hovered_search:
+                    self.setCursor(Qt.CursorShape.PointingHandCursor)
+                else:
+                    self.update_cursor()
+                self.update()
+
+        # 2. Handle dragging
         if not self.widget_config.get("locked", False):
             if event.buttons() == Qt.MouseButton.LeftButton and self.drag_pos:
                 self.move(event.globalPosition().toPoint() - self.drag_pos)
                 event.accept()
 
     def mouseReleaseEvent(self, event):
+        # Prevent dragging if we just clicked a cancel button
+        if self.hovered_search:
+            return
+            
         if not self.widget_config.get("locked", False) and self.drag_pos:
             self.drag_pos = None
             # Save Position
@@ -325,18 +368,44 @@ class StatusWindow(QMainWindow):
             self.current_state = status
             self.update() # Trigger repaint
 
-    def set_searching_state(self, is_searching):
-        """Enable/Disable the cycling search animation."""
-        self.is_searching = is_searching
-        if not is_searching:
-            self.search_progress = 0.0
-            self.search_count = 0
+    def set_searching_state(self, msg_data):
+        """msg_data is either a tuple (query, True/False) or just backward-compatible boolean."""
+        if isinstance(msg_data, tuple):
+            query, is_searching = msg_data
+            if is_searching:
+                if query not in self.active_searches:
+                    self.active_searches[query] = {"count": 0, "progress": 0.0}
+            else:
+                if query in self.active_searches:
+                    del self.active_searches[query]
+        else:
+            # Backward compatibility clear-all
+            if not msg_data:
+                self.active_searches.clear()
+        
+        self._update_window_width()
         self.update()
     
-    def update_search_count(self, count):
-        """Update the file counter displayed in the loader."""
-        self.search_count = count
-        self.update()
+    def update_search_count(self, msg_data):
+        """Update the file counter for a specific search."""
+        if isinstance(msg_data, tuple):
+            query, count = msg_data
+            if query in self.active_searches:
+                self.active_searches[query]["count"] = count
+                self.update()
+                
+    def _update_window_width(self):
+        """Dynamically expand to the left based on active searches."""
+        n = len(self.active_searches)
+        # Loader width = 34 + 5 padding = ~40px per search
+        extra_width = max(0, n * 40)
+        new_width = self.base_width + extra_width
+        
+        if new_width != self.width():
+            # Calculate difference to shift x position leftwards
+            diff = new_width - self.width()
+            self.setFixedSize(new_width, self.height_val)
+            self.move(self.x() - diff, self.y())
     
     def closeEvent(self, event):
         """Stop timers before closing to prevent Qt event loop crashes."""
@@ -408,9 +477,10 @@ class StatusWindow(QMainWindow):
                 self.bar_heights = [5, 5, 5, 5, 5]
                 self.update()
 
-            # Handle search rotation independent of AI state
-            if self.is_searching:
-                self.search_progress = (self.search_progress + 0.02) % 1.0
+            # Handle concurrent search rotations independent of AI state
+            if self.active_searches:
+                for query, data in self.active_searches.items():
+                    data["progress"] = (data["progress"] + 0.02) % 1.0
                 self.update()
         except Exception as e:
             # Silently ignore animation errors to prevent crashes
@@ -431,19 +501,16 @@ class StatusWindow(QMainWindow):
         # Content based on state
         state_color = self.colors.get(self.current_state, self.colors["IDLE"])
         
-        # ─── LAYOUT ADJUSTMENT FOR SEARCH ───
-        # If searching, we shift main content to the right
-        # Width: 140. Loader: 40px. Remaining: 100px.
-        content_rect = rect
-        if self.is_searching:
-            content_rect = QRect(40, 0, self.width() - 40, self.height())
+        # ─── DYNAMIC LAYOUT FOR SEARCH ───
+        padding_for_searches = max(0, len(self.active_searches) * 40) 
+        content_rect = QRect(padding_for_searches, 0, self.base_width, self.height())
 
         if self.current_state in ["IDLE", "LISTENING"]:
             # Draw Text
             text = "Idle" if self.current_state == "IDLE" else "Listening"
             painter.setPen(QPen(state_color))
             font = painter.font()
-            font.setPointSize(10 if self.is_searching else 12) # Smaller font if shifted
+            font.setPointSize(10 if self.active_searches else 12) 
             font.setBold(True)
             painter.setFont(font)
             painter.drawText(content_rect, Qt.AlignmentFlag.AlignCenter, text)
@@ -454,7 +521,7 @@ class StatusWindow(QMainWindow):
             gap = 4
             total_width = (5 * bar_width) + (4 * gap)
             
-            # Center bars in the available content area
+            # Center bars in the available content area (right side)
             start_x = content_rect.x() + (content_rect.width() - total_width) / 2
             mid_y = content_rect.height() / 2
             
@@ -467,45 +534,80 @@ class StatusWindow(QMainWindow):
                 y = mid_y - (h / 2)
                 painter.drawRoundedRect(int(x), int(y), int(bar_width), int(h), 4, 4)
 
-        # ── [NEW] Search Progress Animation (Left-Aligned Small Circle) ──
-        if self.is_searching:
-            from PyQt6.QtGui import QPainterPath
+        # ── [NEW] Concurrent Search Loaders ──
+        if self.active_searches:
+            from PyQt6.QtGui import QPainterPath, QFontMetrics
             from PyQt6.QtCore import QRectF
             
-            # 1. Background Circle for counter
             circle_margin = 8.0
             circle_size = self.height() - (circle_margin * 2)
-            circle_rect = QRectF(circle_margin, circle_margin, circle_size, circle_size)
+            spacing = 5.0
             
-            # Subtle background for the circle
-            painter.setBrush(QColor(40, 40, 40, 180))
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawEllipse(circle_rect)
-            
-            # 2. Spinning Arc
-            path = QPainterPath()
-            path.addEllipse(circle_rect)
-            
-            search_pen = QPen(QColor(self.theme_accent), 3)
-            search_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-            
-            # Calculate dash offset based on progress
-            # Circumference = PI * D
-            circum = 3.14159 * circle_size
-            search_pen.setDashPattern([circum * 0.25, circum * 0.75]) # Quarter circle dash
-            search_pen.setDashOffset(self.search_progress * circum)
-            
-            painter.setPen(search_pen)
-            painter.drawPath(path)
-            
-            # 3. File Counter Text
-            count_text = str(self.search_count)
-            if self.search_count > 999: count_text = "99+" # Cap for readability
-            
-            # Centered inside circle
-            painter.setPen(QColor("#FFFFFF"))
             font = painter.font()
-            font.setPointSize(8 if len(count_text) > 2 else 9)
             font.setBold(True)
-            painter.setFont(font)
-            painter.drawText(circle_rect, Qt.AlignmentFlag.AlignCenter, count_text)
+            
+            for i, (query, data) in enumerate(self.active_searches.items()):
+                # Box for this specific loader
+                start_x = circle_margin + (i * (circle_size + spacing))
+                circle_rect = QRectF(start_x, circle_margin, circle_size, circle_size)
+                
+                if query == self.hovered_search:
+                    # HOVER STATE: Red solid circle with X
+                    painter.setBrush(QColor(255, 50, 50, 200))
+                    painter.setPen(Qt.PenStyle.NoPen)
+                    painter.drawEllipse(circle_rect)
+                    
+                    painter.setPen(QPen(QColor("#FFFFFF"), 2))
+                    painter.drawLine(int(circle_rect.x()+10), int(circle_rect.y()+10), int(circle_rect.right()-10), int(circle_rect.bottom()-10))
+                    painter.drawLine(int(circle_rect.x()+10), int(circle_rect.bottom()-10), int(circle_rect.right()-10), int(circle_rect.y()+10))
+                    
+                    # Tooltip Background & Text (Drawn slightly above the pill)
+                    fm = QFontMetrics(font)
+                    tt_text = query  # Removed repetitive "Cancel:"
+                    tt_width = fm.horizontalAdvance(tt_text) + 16
+                    tt_height = 24
+                    
+                    # Center the tooltip precisely over this specific circle
+                    tt_x = circle_rect.center().x() - (tt_width / 2)
+                    tt_y = 5  # Above the circle within the pill
+                    
+                    # Prevent tooltip from bleeding off the left edge
+                    tt_x = max(5.0, tt_x)
+                    
+                    tt_rect = QRectF(tt_x, tt_y, tt_width, tt_height)
+                    painter.setBrush(QColor(30, 30, 30, 240))
+                    painter.setPen(QPen(QColor(self.theme_accent), 1))
+                    painter.drawRoundedRect(tt_rect, 4, 4)
+                    
+                    painter.setPen(QColor("#FFFFFF"))
+                    font.setPointSize(9)
+                    painter.setFont(font)
+                    painter.drawText(tt_rect, Qt.AlignmentFlag.AlignCenter, tt_text)
+
+                else:
+                    # NORMAL STATE: Loader animation
+                    painter.setBrush(QColor(40, 40, 40, 180))
+                    painter.setPen(Qt.PenStyle.NoPen)
+                    painter.drawEllipse(circle_rect)
+                    
+                    path = QPainterPath()
+                    path.addEllipse(circle_rect)
+                    
+                    search_pen = QPen(QColor(self.theme_accent), 3)
+                    search_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+                    
+                    circum = 3.14159 * circle_size
+                    search_pen.setDashPattern([circum * 0.25, circum * 0.75])
+                    search_pen.setDashOffset(data["progress"] * circum)
+                    
+                    painter.setPen(search_pen)
+                    painter.drawPath(path)
+                    
+                    count_text = str(data["count"])
+                    if data["count"] > 999: count_text = "99+"
+                    
+                    painter.setPen(QColor("#FFFFFF"))
+                    font.setPointSize(8 if len(count_text) > 2 else 9)
+                    painter.setFont(font)
+                    painter.drawText(circle_rect, Qt.AlignmentFlag.AlignCenter, count_text)
+

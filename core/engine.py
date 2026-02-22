@@ -19,8 +19,9 @@ except (ImportError, Exception):
     pyautogui = None
 
 class CortexEngine:
-    def __init__(self, status_queue=None, reset_event=None, shutdown_event=None):
+    def __init__(self, status_queue=None, action_queue=None, reset_event=None, shutdown_event=None):
         self.status_queue = status_queue
+        self.action_queue = action_queue
         self.reset_event = reset_event
         self.shutdown_event = shutdown_event
         self.speaker = Speaker(status_queue)
@@ -51,6 +52,12 @@ class CortexEngine:
         # [NEW] Inject NLU Vocabulary into Hearing (Context Injection)
         vocab_str = self.nlu.get_vocabulary_phrase()
         self.listener.update_keywords(vocab_str)
+
+        # ── [NEW] Start Action Queue Listener ──
+        self.running = True
+        if self.action_queue:
+            import threading
+            threading.Thread(target=self._action_queue_listener, daemon=True).start()
         
         # Tag to Human Readable Name Mapping for Confirmations
         self.intent_names = {
@@ -181,6 +188,22 @@ class CortexEngine:
         ]
         
         self.speaker.speak(f"{greeting} {random.choice(suffixes)}")
+
+    def _action_queue_listener(self):
+        """Listens for actions from the UI process and delegates them."""
+        while self.running:
+            try:
+                import queue
+                action = self.action_queue.get(timeout=1.0)
+                if isinstance(action, tuple):
+                    cmd, data = action
+                    if cmd == "CANCEL_SEARCH":
+                        if hasattr(self, 'file_manager'):
+                            self.file_manager.cancel_search(data)
+            except queue.Empty:
+                continue
+            except Exception as e:
+                print(f"[Error] Action listener: {e}")
 
     def execute_intent(self, tag, command):
         """Helper to route intent to the correct engine."""
