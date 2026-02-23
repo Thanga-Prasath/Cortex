@@ -1,6 +1,8 @@
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QLabel, QLineEdit, QPushButton, QTabWidget, 
-                             QMessageBox, QFrame, QFormLayout)
+                             QMessageBox, QFrame, QFormLayout, QCheckBox,
+                             QSlider, QColorDialog, QFileDialog, QComboBox)
+from PyQt6.QtGui import QColor
 from PyQt6.QtCore import Qt
 import json
 import os
@@ -71,7 +73,7 @@ class SettingsWindow(QMainWindow):
         
         footer_layout.addStretch()
         
-        self.btn_save = QPushButton("Save && Restart")
+        self.btn_save = QPushButton("Save Settings")
         self.btn_save.setMinimumWidth(150)
         self.btn_save.clicked.connect(self.save_settings)
         
@@ -107,6 +109,7 @@ class SettingsWindow(QMainWindow):
         self.input_name.setStyleSheet("padding: 8px; background: #252526; border: 1px solid #555; color: #fff;")
         
         lbl_name = QLabel("Your Name:")
+        self.input_name.textChanged.connect(self.on_name_changed)
         layout.addRow(lbl_name, self.input_name)
         
         # Theme Selector
@@ -122,15 +125,113 @@ class SettingsWindow(QMainWindow):
         self.combo_theme.setStyleSheet("padding: 8px; background: #252526; border: 1px solid #555; color: #fff;")
         
         lbl_theme = QLabel("Accent Theme:")
+        self.combo_theme.currentTextChanged.connect(self.on_theme_changed)
         layout.addRow(lbl_theme, self.combo_theme)
 
+        # Status GUI Enable
+        self.chk_gui_enable = QCheckBox("Enable Status GUI (Pill Widget)")
+        self.chk_gui_enable.setChecked(self.config_data.get("status_gui_enabled", True))
+        self.chk_gui_enable.setStyleSheet("color: white;")
+        self.chk_gui_enable.toggled.connect(self.on_gui_enable_toggled)
+        layout.addRow("", self.chk_gui_enable)
+        
+        # Window Opacity
+        self.slider_gui_opacity = self._create_slider(10, 100, self.config_data.get("status_gui_opacity", 1.0)*100)
+        self.slider_gui_opacity.valueChanged.connect(self.on_gui_opacity_changed)
+        layout.addRow(QLabel("Window Opacity:"), self.slider_gui_opacity)
+        
+        # Background Opacity (Alpha)
+        self.slider_bg_opacity = self._create_slider(0, 255, self.config_data.get("status_gui_bg_opacity", 180))
+        self.slider_bg_opacity.valueChanged.connect(self.on_bg_opacity_changed)
+        layout.addRow(QLabel("Background Opacity:"), self.slider_bg_opacity)
+        
+        # Background Color & Transparency
+        color_layout = QHBoxLayout()
+        self.btn_bg_color = QPushButton("Choose Color")
+        self.curr_bg_color = self.config_data.get("status_gui_color", "#000000")
+        self.btn_bg_color.setStyleSheet(f"background: {self.curr_bg_color}; color: {'#fff' if self.curr_bg_color == '#000000' else '#000'}; border: 1px solid #555;")
+        self.btn_bg_color.clicked.connect(self.pick_bg_color)
+        
+        self.chk_transparency = QCheckBox("Enable Transparency")
+        self.chk_transparency.setChecked(self.config_data.get("status_gui_transparency", True))
+        self.chk_transparency.setStyleSheet("color: white;")
+        self.chk_transparency.toggled.connect(self.on_style_changed)
+        
+        self.chk_invisible = QCheckBox("Invisible Background")
+        self.chk_invisible.setChecked(self.config_data.get("status_gui_invisible", False))
+        self.chk_invisible.setStyleSheet("color: white;")
+        self.chk_invisible.toggled.connect(self.on_invisible_toggled)
+        
+        color_layout.addWidget(self.btn_bg_color)
+        color_layout.addWidget(self.chk_transparency)
+        color_layout.addWidget(self.chk_invisible)
+        layout.addRow("Widget Style:", color_layout)
+
         # Widget Lock Checkbox
-        from PyQt6.QtWidgets import QCheckBox
         self.chk_lock_widget = QCheckBox("Lock Taskbar Widget Position")
         self.chk_lock_widget.setChecked(self.widget_config.get("locked", False))
-        self.chk_lock_widget.setStyleSheet("color: white; margin-top: 10px;")
+        self.chk_lock_widget.setStyleSheet("color: white;")
         self.chk_lock_widget.toggled.connect(self.on_lock_toggled)
         layout.addRow("", self.chk_lock_widget)
+        
+        # Screenshot Location
+        screenshot_layout = QHBoxLayout()
+        self.input_screenshot = QLineEdit()
+        self.input_screenshot.setReadOnly(True)
+        self.input_screenshot.setText(self.config_data.get("screenshot_path", ""))
+        self.input_screenshot.setPlaceholderText("Default: Pictures/Screenshots")
+        self.input_screenshot.setStyleSheet("padding: 8px; background: #252526; border: 1px solid #555; color: #fff;")
+        
+        btn_browse = QPushButton("Browse")
+        btn_browse.clicked.connect(self.browse_screenshot_path)
+        
+        screenshot_layout.addWidget(self.input_screenshot)
+        screenshot_layout.addWidget(btn_browse)
+        layout.addRow("Screenshot Path:", screenshot_layout)
+
+    def on_gui_enable_toggled(self, checked):
+        if self.status_window:
+            self.status_window.set_gui_visible(checked)
+
+    def on_gui_opacity_changed(self, value):
+        if self.status_window:
+            self.status_window.set_gui_opacity(value / 100.0)
+
+    def on_name_changed(self, text):
+        self.config_data["name"] = text
+        self.save_settings(silent=True)
+        if self.status_window and hasattr(self.status_window, 'action_queue') and self.status_window.action_queue:
+            self.status_window.action_queue.put(("UPDATE_NAME", text))
+        
+    def on_theme_changed(self, theme_name):
+        self.config_data["theme"] = theme_name
+        self.save_settings(silent=True)
+        if self.status_window:
+            self.status_window.set_theme(theme_name)
+
+    def on_bg_opacity_changed(self, value):
+        if self.status_window:
+            self.status_window.set_bg_opacity(value)
+
+    def on_invisible_toggled(self, checked):
+        if self.status_window:
+            self.status_window.set_invisible(checked)
+
+    def pick_bg_color(self):
+        color = QColorDialog.getColor(QColor(self.curr_bg_color), self, "Select Status GUI Background")
+        if color.isValid():
+            self.curr_bg_color = color.name()
+            self.btn_bg_color.setStyleSheet(f"background: {self.curr_bg_color}; color: {'#fff' if self.curr_bg_color == '#000000' else '#000'}; border: 1px solid #555;")
+            self.on_style_changed()
+
+    def on_style_changed(self):
+        if self.status_window:
+            self.status_window.set_gui_style(self.curr_bg_color, self.chk_transparency.isChecked())
+
+    def browse_screenshot_path(self):
+        path = QFileDialog.getExistingDirectory(self, "Select Screenshot Storage Location")
+        if path:
+            self.input_screenshot.setText(path)
 
     def on_lock_toggled(self, checked):
         """Update StatusWindow live when checkbox is toggled."""
@@ -166,7 +267,6 @@ class SettingsWindow(QMainWindow):
         layout.addStretch()
 
     def _create_slider(self, min_val, max_val, current_val):
-        from PyQt6.QtWidgets import QSlider
         slider = QSlider(Qt.Orientation.Horizontal)
         slider.setMinimum(min_val)
         slider.setMaximum(max_val)
@@ -307,14 +407,34 @@ class SettingsWindow(QMainWindow):
             if index >= 0: self.combo_theme.setCurrentIndex(index)
             self.slider_rate.setValue(175)
             self.slider_vol.setValue(100)
-            self.save_settings()
+            
+            # Reset new GUI settings
+            self.chk_gui_enable.setChecked(True)
+            self.slider_gui_opacity.setValue(100)
+            self.slider_bg_opacity.setValue(180)
+            self.curr_bg_color = "#000000"
+            self.btn_bg_color.setStyleSheet(f"background: {self.curr_bg_color}; color: #fff; border: 1px solid #555;")
+            self.chk_transparency.setChecked(True)
+            self.chk_lock_widget.setChecked(False)
+            self.input_screenshot.setText("")
 
-    def save_settings(self):
+            self.save_settings(silent=True)
+
+    def save_settings(self, silent=False):
         # Update config data
         self.config_data["name"] = self.input_name.text().strip()
         self.config_data["theme"] = self.combo_theme.currentText()
         self.config_data["voice_rate"] = self.slider_rate.value()
         self.config_data["voice_volume"] = self.slider_vol.value() / 100.0
+        
+        # New General Settings
+        self.config_data["status_gui_enabled"] = self.chk_gui_enable.isChecked()
+        self.config_data["status_gui_opacity"] = self.slider_gui_opacity.value() / 100.0
+        self.config_data["status_gui_bg_opacity"] = self.slider_bg_opacity.value()
+        self.config_data["status_gui_color"] = self.curr_bg_color
+        self.config_data["status_gui_transparency"] = self.chk_transparency.isChecked()
+        self.config_data["status_gui_invisible"] = self.chk_invisible.isChecked()
+        self.config_data["screenshot_path"] = self.input_screenshot.text()
         
         # Save Taskbar Widget Config
         self.widget_config["locked"] = self.chk_lock_widget.isChecked()
@@ -332,27 +452,19 @@ class SettingsWindow(QMainWindow):
             with open(self.config_path, 'w') as f:
                 json.dump(self.config_data, f, indent=4)
             
-            # Trigger Restart
-            reply = QMessageBox.question(
-                self, 'Settings Saved', 
-                'Changes saved. Restart Cortex now to apply?', 
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
-                QMessageBox.StandardButton.Yes
-            )
-            
-            if reply == QMessageBox.StandardButton.Yes:
-                self.trigger_restart()
-            else:
+            if not silent:
+                QMessageBox.information(self, "Success", "Settings saved successfully.")
                 self.close()
                 
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to save settings: {e}")
+            if not silent:
+                QMessageBox.critical(self, "Error", f"Failed to save settings: {e}")
+            else:
+                print(f"[UI] Silent save error: {e}")
 
     def trigger_restart(self):
         if self.reset_event:
             print("[UI] Signaling restart from Settings...")
             self.reset_event.set()
         else:
-            print("[UI] Reset event not linked!")
-            QMessageBox.warning(self, "Warning", "Cannot restart automatically. Please restart manually.")
             self.close()

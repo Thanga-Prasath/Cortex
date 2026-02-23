@@ -114,6 +114,22 @@ def ui_process_target(status_queue, action_queue, reset_event=None, shutdown_eve
                     dlg.activateWindow()
                     track_window(dlg)
 
+                elif status == "COPY_TO_CLIPBOARD":
+                    # data = filepath
+                    from PyQt6.QtGui import QPixmap
+                    pixmap = QPixmap(data)
+                    if not pixmap.isNull():
+                        QApplication.clipboard().setPixmap(pixmap)
+                        print(f"[UI] Screenshot copied to clipboard: {data}")
+                    else:
+                        print(f"[UI] Error: Failed to load pixel map for clipboard: {data}")
+
+                elif status == "UPDATE_THEME":
+                    window.set_theme(data)
+
+                elif status == "SET_GUI_VISIBLE":
+                    window.set_gui_visible(data)
+
                 else:
                     # Default to status window update
                     window.update_status(status, data)

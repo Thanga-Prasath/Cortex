@@ -18,6 +18,8 @@ class NeuralIntentModel:
         self.patterns = []
         # Store keywords for boosting: {tag: [keywords]}
         self.intent_keywords = {} 
+        # Store carrier phrases for strict prefix matching: {tag: [phrases]}
+        self.intent_carrier_phrases = {}
         self.training_data = {"intents": []}
         
         # Custom Logic Configuration
@@ -63,6 +65,10 @@ class NeuralIntentModel:
             # Store keywords if present
             if 'keywords' in intent:
                 self.intent_keywords[tag] = [k.lower() for k in intent['keywords']]
+                
+            # Store carrier phrases if present
+            if 'carrier_phrases' in intent:
+                self.intent_carrier_phrases[tag] = [cp.lower() for cp in intent['carrier_phrases']]
 
             for pattern in intent['patterns']:
                 self.patterns.append(pattern)
@@ -108,8 +114,33 @@ class NeuralIntentModel:
             return None, 0.0
         
         text = text.lower()
+        
+        # --- -1. Strict Carrier Phrase Matching (Highest Priority) ---
+        # If the input strictly starts with a defined carrier phrase for an intent,
+        # we immediately execute it. This protects open-ended intents (like file search)
+        # from being overshadowed by generic nouns (like "traffic", "port") that might
+        # match system intents.
+        best_carrier_tag = None
+        max_carrier_len = 0
+        
+        # Ensure we pad text to match whole words exactly at the start
+        padded_text_start = text + " "
+        
+        for tag, phrases in self.intent_carrier_phrases.items():
+            for phrase in phrases:
+                # Carrier phrases must appear at the VERY START of the utterance
+                test_phrase = phrase + " "
+                if padded_text_start.startswith(test_phrase):
+                    # In case of overlapping carrier phrases (e.g. "search" vs "search for"), pick the longest
+                    if len(phrase) > max_carrier_len:
+                        max_carrier_len = len(phrase)
+                        best_carrier_tag = tag
+                        
+        if best_carrier_tag:
+             print(f"NLU: Carrier Phrase Match '{best_carrier_tag}' (Length: {max_carrier_len})")
+             return best_carrier_tag, 1.0
 
-        # --- 1. Keyword Boosting (Dynamic Logic) ---
+        # --- 0. Anchor Filtering (Domain Guard) ---
         # Checks if ALL keywords for a specific intent are present in the text.
         # If so, boost confidence to 1.0 immediately.
         # --- 0. Anchor Filtering (Domain Guard) ---

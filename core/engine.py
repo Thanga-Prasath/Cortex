@@ -32,7 +32,7 @@ class CortexEngine:
         
         # Sub-Engines
         self.general_engine = GeneralEngine(self.speaker, self.user_config)
-        self.system_engine = SystemEngine(self.speaker, self.listener)
+        self.system_engine = SystemEngine(self.speaker, self.listener, self.status_queue)
         self.file_manager = FileManagerEngine(self.speaker, self.status_queue)
         self.application_engine = ApplicationEngine(self.speaker)
         self.workspace_engine = WorkspaceEngine(self.speaker, self.status_queue)
@@ -200,6 +200,9 @@ class CortexEngine:
                     if cmd == "CANCEL_SEARCH":
                         if hasattr(self, 'file_manager'):
                             self.file_manager.cancel_search(data)
+                    elif cmd == "UPDATE_NAME":
+                        self.user_config['name'] = data
+                        print(f"[Engine] User Name synced live: {data}")
             except queue.Empty:
                 continue
             except Exception as e:

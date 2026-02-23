@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import QMainWindow, QWidget, QLabel, QMenu, QApplication
-from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QRect, QEasingCurve, QPoint
+from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QRect, QRectF, QEasingCurve, QPoint
 from PyQt6.QtGui import QColor, QPainter, QBrush, QPen, QRadialGradient, QAction
 import ctypes
 import platform
@@ -40,8 +40,22 @@ class StatusWindow(QMainWindow):
         self.setGeometry(100, 100, self.base_width, self.height_val) 
         
         # Initial Position using Config
-        if self.widget_config.get("x", -1) != -1 and self.widget_config.get("y", -1) != -1:
-            self.move(self.widget_config["x"], self.widget_config["y"])
+        target_x = self.widget_config.get("x", -1)
+        target_y = self.widget_config.get("y", -1)
+        
+        if target_x != -1 and target_y != -1:
+            # Validate coordinates against all screens to prevent out-of-bounds on smaller displays
+            is_valid_pos = False
+            target_rect = QRect(target_x, target_y, self.base_width, self.height_val)
+            for screen in QApplication.screens():
+                if screen.geometry().intersects(target_rect):
+                    is_valid_pos = True
+                    break
+                    
+            if is_valid_pos:
+                self.move(target_x, target_y)
+            else:
+                self.position_default() # Reset to default if off-screen
         else:
             self.position_default() # Smart default
         
@@ -90,6 +104,31 @@ class StatusWindow(QMainWindow):
             "SPEAKING": QColor(138, 43, 226, 255),    
             "PROCESSING": QColor(0, 255, 255, 255)    
         }
+        
+        # Live Settings State (Overrides for config)
+        self.live_bg_color = None
+        self.live_bg_opacity = None
+        self.live_transparency = None
+        self.live_invisible = False
+        
+        # Load final values for live state
+        self.load_live_settings()
+
+    def load_live_settings(self):
+        try:
+            if os.path.exists(self.config_path):
+                with open(self.config_path, 'r') as f:
+                    data = json.load(f)
+                    self.live_bg_color = QColor(data.get("status_gui_color", "#000000"))
+                    self.live_bg_opacity = data.get("status_gui_bg_opacity", 180)
+                    self.live_transparency = data.get("status_gui_transparency", True)
+                    self.live_invisible = data.get("status_gui_invisible", False)
+                    self.setWindowOpacity(data.get("status_gui_opacity", 1.0))
+                    
+                    if not data.get("status_gui_enabled", True):
+                        self.hide()
+        except:
+            pass
     
     def load_theme_config(self):
         from .styles import THEME_COLORS
@@ -102,8 +141,16 @@ class StatusWindow(QMainWindow):
                     self.theme_accent = THEME_COLORS.get(theme_name, "#39FF14")
         except:
             self.theme_accent = "#39FF14"
+            
+    def set_theme(self, theme_name):
+        from .styles import THEME_COLORS
+        self.theme_accent = THEME_COLORS.get(theme_name, "#39FF14")
+        self.update() # Force repaint
                 
     def enforce_topmost(self):
+        if self.isHidden():
+            return
+            
         # Windows-specific low-level enforcement
         if platform.system() == "Windows":
             try:
@@ -148,6 +195,56 @@ class StatusWindow(QMainWindow):
         self.update_cursor()
         print(f"[UI] Widget lock state updated: {is_locked}")
 
+    def set_gui_visible(self, visible):
+        if visible:
+            self.show()
+        else:
+            self.hide()
+            
+        # [NEW] Persist visibility state
+        try:
+            if os.path.exists(self.config_path):
+                with open(self.config_path, 'r') as f:
+                    config = json.load(f)
+                config["status_gui_enabled"] = visible
+                with open(self.config_path, 'w') as f:
+                    json.dump(config, f, indent=4)
+        except Exception as e:
+            print(f"[UI] Error saving visibility state: {e}")
+
+    def set_gui_opacity(self, opacity):
+        self.setWindowOpacity(opacity)
+        self.update() # Force repaint for opacity changes
+
+    def set_bg_opacity(self, alpha):
+        self.live_bg_opacity = alpha
+        self.update()
+
+    def set_invisible(self, invisible):
+        self.live_invisible = invisible
+        if invisible:
+            self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        else:
+            self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, self.live_transparency)
+        # Force a heavy update
+        self.hide()
+        self.show()
+        self.update()
+
+    def set_gui_style(self, color_str, transparency):
+        self.live_bg_color = QColor(color_str)
+        self.live_transparency = transparency
+        
+        if transparency or self.live_invisible:
+            self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        else:
+            self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
+            
+        # Forces a window attribute refresh
+        self.hide()
+        self.show()
+        self.update()
+        
     def load_widget_config(self):
         if os.path.exists(self.widget_config_path):
             try:
@@ -170,8 +267,8 @@ class StatusWindow(QMainWindow):
         screen = self.screen().geometry()
         # We want it at the bottom right corner over the taskbar
         # Taskbar is usually ~40-50px. Widget is 50px.
-        x = screen.width() - self.width_val - 10
-        y = screen.height() - self.height_val - 5
+        x = screen.x() + screen.width() - self.base_width - 10
+        y = screen.y() + screen.height() - self.height_val - 5
         self.move(x, y)
 
     def update_cursor(self):
@@ -495,56 +592,76 @@ class StatusWindow(QMainWindow):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
         # Background Capsule
-        # User requested transparent background
-        rect = QRect(0, 0, self.width(), self.height())
-        bg_color = QColor(0, 0, 0, 0) # Fully transparent
-        painter.setBrush(QBrush(bg_color))
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawRoundedRect(rect, self.height()/2, self.height()/2)
+        margin_x = 20.0
+        margin_y = 8.0
+        capsule_width = float(self.width()) - (2.0 * margin_x)
+        capsule_height = float(self.height()) - (2.0 * margin_y)
+        capsule_rect = QRectF(margin_x, margin_y, capsule_width, capsule_height)
         
+        if not self.live_invisible:
+            if self.live_transparency:
+                # Transparent mode: use background color with specific alpha
+                bg_color = QColor(self.live_bg_color)
+                bg_color.setAlpha(self.live_bg_opacity)
+            else:
+                # Solid mode: use background color as is
+                bg_color = QColor(self.live_bg_color)
+                bg_color.setAlpha(255)
+
+            painter.setBrush(QBrush(bg_color))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawRoundedRect(capsule_rect, capsule_height/2.0, capsule_height/2.0)
+            
         # Content based on state
         state_color = self.colors.get(self.current_state, self.colors["IDLE"])
         
         # ─── DYNAMIC LAYOUT FOR SEARCH ───
-        padding_for_searches = max(0, len(self.active_searches) * 40) 
-        content_rect = QRect(padding_for_searches, 0, self.base_width, self.height())
+        padding_for_searches = max(0.0, len(self.active_searches) * 40.0) 
+        content_rect = QRectF(
+            capsule_rect.x() + padding_for_searches,
+            capsule_rect.y(),
+            capsule_rect.width() - padding_for_searches,
+            capsule_rect.height()
+        )
 
         if self.current_state in ["IDLE", "LISTENING"]:
             # Draw Text
+            from PyQt6.QtCore import QRect
+            # QPainter.drawText with alignment often handles QRectF better when cast to QRect
             text = "Idle" if self.current_state == "IDLE" else "Listening"
             painter.setPen(QPen(state_color))
             font = painter.font()
-            font.setPointSize(10 if self.active_searches else 12) 
+            font.setPointSize(10 if self.active_searches else 11) 
             font.setBold(True)
             painter.setFont(font)
+            # Use exact center positioning
             painter.drawText(content_rect, Qt.AlignmentFlag.AlignCenter, text)
 
         elif self.current_state in ["SPEAKING", "PROCESSING", "THINKING"]:
             # Draw Vertical Bar Visualizer
-            bar_width = 8
-            gap = 4
-            total_width = (5 * bar_width) + (4 * gap)
+            bar_width = 8.0
+            gap = 4.0
+            total_width = (5.0 * bar_width) + (4.0 * gap)
             
-            # Center bars in the available content area (right side)
-            start_x = content_rect.x() + (content_rect.width() - total_width) / 2
-            mid_y = content_rect.height() / 2
+            # Center bars perfectly inside the content rect
+            start_x = content_rect.x() + (content_rect.width() - total_width) / 2.0
+            mid_y = content_rect.center().y()
             
             painter.setBrush(QBrush(state_color))
             painter.setPen(Qt.PenStyle.NoPen)
             
             for i, height in enumerate(self.bar_heights):
-                x = start_x + (i * (bar_width + gap))
-                h = height * 1.5 
-                y = mid_y - (h / 2)
-                painter.drawRoundedRect(int(x), int(y), int(bar_width), int(h), 4, 4)
+                x = start_x + (float(i) * (bar_width + gap))
+                h = float(height) * 1.5 
+                y = mid_y - (h / 2.0)
+                painter.drawRoundedRect(QRectF(x, y, bar_width, h), 4.0, 4.0)
 
         # ── [NEW] Concurrent Search Loaders ──
         if self.active_searches:
             from PyQt6.QtGui import QPainterPath, QFontMetrics
-            from PyQt6.QtCore import QRectF
             
-            circle_margin = 8.0
-            circle_size = self.height() - (circle_margin * 2)
+            internal_padding = 4.0
+            circle_size = capsule_rect.height() - (internal_padding * 2.0)
             spacing = 5.0
             
             font = painter.font()
@@ -552,8 +669,9 @@ class StatusWindow(QMainWindow):
             
             for i, (query, data) in enumerate(self.active_searches.items()):
                 # Box for this specific loader
-                start_x = circle_margin + (i * (circle_size + spacing))
-                circle_rect = QRectF(start_x, circle_margin, circle_size, circle_size)
+                start_x = capsule_rect.x() + internal_padding + (i * (circle_size + spacing))
+                start_y = capsule_rect.y() + internal_padding
+                circle_rect = QRectF(start_x, start_y, circle_size, circle_size)
                 
                 if query == self.hovered_search:
                     # HOVER STATE: Red solid circle with X

@@ -1,6 +1,13 @@
 {
-    "name": "Sir",
-    "theme": "Cyber Blue",
+    "name": "sir",
+    "theme": "Neon Green",
     "voice_rate": 190,
-    "voice_volume": 1.0
+    "voice_volume": 1.0,
+    "status_gui_enabled": true,
+    "status_gui_opacity": 1.0,
+    "status_gui_color": "#000000",
+    "status_gui_transparency": true,
+    "status_gui_invisible": false,
+    "status_gui_bg_opacity": 255,
+    "screenshot_path": "C:/Users/ELCOT/Pictures/Screenshots"
 }

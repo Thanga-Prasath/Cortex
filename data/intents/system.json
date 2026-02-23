@@ -13,8 +13,7 @@
             ],
             "responses": [],
             "keywords": [
-                "ip address",
-                "check network"
+                "ip address"
             ],
             "terminal_mapping": {
                 "action_type": "terminal_visible",
@@ -984,6 +983,55 @@
                 "level",
                 "set",
                 "change"
+            ]
+        },
+        {
+            "tag": "show_status_gui",
+            "patterns": [
+                "show status",
+                "show status gui",
+                "enable status gui",
+                "show pill widget",
+                "show status window",
+                "display status"
+            ],
+            "responses": [],
+            "keywords": [
+                "show status",
+                "enable gui"
+            ],
+            "anchors": [
+                "show",
+                "enable",
+                "status",
+                "gui",
+                "pill",
+                "widget"
+            ]
+        },
+        {
+            "tag": "hide_status_gui",
+            "patterns": [
+                "hide status",
+                "hide status gui",
+                "disable status gui",
+                "hide pill widget",
+                "hide status window",
+                "remove status window"
+            ],
+            "responses": [],
+            "keywords": [
+                "hide status",
+                "disable gui"
+            ],
+            "anchors": [
+                "hide",
+                "disable",
+                "status",
+                "gui",
+                "pill",
+                "widget",
+                "remove"
             ]
         }
     ]

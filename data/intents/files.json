@@ -144,6 +144,14 @@
                         "responses":  [
 
                                       ],
+                        "carrier_phrases": [
+                                         "find",
+                                         "search for",
+                                         "locate",
+                                         "look for",
+                                         "search",
+                                         "searching for"
+                                     ],
                         "keywords":  [
                                          "search file",
                                          "find file",

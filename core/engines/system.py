@@ -13,9 +13,10 @@ from components.system import (
 )
 
 class SystemEngine:
-    def __init__(self, speaker, listener=None):
+    def __init__(self, speaker, listener=None, status_queue=None):
         self.speaker = speaker
         self.listener = listener
+        self.status_queue = status_queue
         self.os_type = platform.system()
 
     def handle_intent(self, tag, command=""):
@@ -202,6 +203,17 @@ class SystemEngine:
             return True
         elif tag == 'system_shutdown':
             power.shutdown_system(self.speaker, self.listener)
+            return True
+        
+        elif tag == 'show_status_gui':
+            if self.status_queue:
+                self.status_queue.put(("SET_GUI_VISIBLE", True))
+                self.speaker.speak("Enabling Status GUI.")
+            return True
+        elif tag == 'hide_status_gui':
+            if self.status_queue:
+                self.status_queue.put(("SET_GUI_VISIBLE", False))
+                self.speaker.speak("Hiding Status GUI.")
             return True
             
         elif tag == 'volume_mute':
