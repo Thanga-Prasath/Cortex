@@ -2,14 +2,33 @@ import platform
 import time
 import subprocess
 import shutil
+import os
+
+# --- Linux X11 Display Fix ---
+# pyautogui and pywinctl depend on python-xlib which needs DISPLAY and XAUTHORITY.
+# When running from certain terminals or as a service, XAUTHORITY may not be set.
+if platform.system() == "Linux":
+    if "DISPLAY" not in os.environ:
+        os.environ["DISPLAY"] = ":0"
+    if "XAUTHORITY" not in os.environ:
+        xauth_path = os.path.expanduser("~/.Xauthority")
+        if os.path.exists(xauth_path):
+            os.environ["XAUTHORITY"] = xauth_path
+
 try:
     import pyautogui
-except (ImportError, Exception):
+except ImportError:
+    pyautogui = None
+except (SystemExit, Exception) as e:
+    print(f"[Automation] pyautogui import failed: {e}")
     pyautogui = None
 
 try:
     import pywinctl
 except ImportError:
+    pywinctl = None
+except Exception as e:
+    print(f"[Automation] pywinctl import failed: {e}")
     pywinctl = None
 
 try:
@@ -52,68 +71,223 @@ class AutomationEngine:
 
     def _handle_window_ops(self, tag):
         """
-        Handles window management using pywinctl (preferred) or pyautogui (fallback).
+        Handles window management.
+        - Linux: uses xdotool (works on X11 and Wayland/XWayland)
+        - Windows: uses pywinctl (preferred) or pyautogui hotkeys (fallback)
+        - macOS: uses pywinctl (preferred) or pyautogui hotkeys (fallback)
         """
-        if not pyautogui and not pywinctl:
-            self.speaker.speak("Window management libraries are not available.")
-            return
-        
+        current_os = platform.system()
+
         try:
-            # Get Active Window
+            # ---- LINUX: Use xdotool directly (pywinctl/pyautogui don't work on Wayland) ----
+            if current_os == "Linux":
+                self._handle_window_ops_linux(tag)
+                return
+
+            # ---- WINDOWS & macOS: Use pywinctl + pyautogui fallback ----
+            if not pyautogui and not pywinctl:
+                self.speaker.speak("Window management libraries are not available.")
+                return
+
             active_window = None
             if pywinctl:
-                active_window = pywinctl.getActiveWindow()
-            
+                try:
+                    active_window = pywinctl.getActiveWindow()
+                except Exception:
+                    active_window = None
+
             if tag == 'window_minimize':
                 if active_window:
                     active_window.minimize()
-                else:
-                    # Fallback: Win+Down usually minimizes or restores
-                    pyautogui.hotkey('win', 'down')
-                    pyautogui.hotkey('win', 'down') 
+                elif pyautogui:
+                    if current_os == "Darwin":
+                        pyautogui.hotkey('command', 'm')
+                    else:
+                        pyautogui.hotkey('win', 'down')
+                        pyautogui.hotkey('win', 'down')
                 self.speaker.speak("Window minimized.")
 
             elif tag == 'window_maximize':
                 if active_window:
                     active_window.maximize()
-                else:
-                    pyautogui.hotkey('win', 'up')
+                elif pyautogui:
+                    if current_os == "Darwin":
+                        self.speaker.speak("Could not maximize — no active window found.")
+                        return
+                    else:
+                        pyautogui.hotkey('win', 'up')
                 self.speaker.speak("Window maximized.")
 
             elif tag == 'window_restore':
                 if active_window:
                     active_window.restore()
-                else:
-                    pyautogui.hotkey('win', 'down')
+                elif pyautogui:
+                    if current_os == "Darwin":
+                        self.speaker.speak("Could not restore — no active window found.")
+                        return
+                    else:
+                        pyautogui.hotkey('win', 'down')
                 self.speaker.speak("Window restored.")
 
             elif tag == 'window_close':
                 if active_window:
                     active_window.close()
-                else:
-                    pyautogui.hotkey('alt', 'f4')
+                elif pyautogui:
+                    if current_os == "Darwin":
+                        pyautogui.hotkey('command', 'q')
+                    else:
+                        pyautogui.hotkey('alt', 'f4')
                 self.speaker.speak("Window closed.")
 
             elif tag == 'window_snap_left':
-                # Windows Snap
-                pyautogui.hotkey('win', 'left')
+                if pyautogui:
+                    if current_os == "Darwin":
+                        self.speaker.speak("Window snapping is not natively supported on macOS.")
+                        return
+                    else:
+                        pyautogui.hotkey('win', 'left')
                 self.speaker.speak("Window snapped left.")
-                
+
             elif tag == 'window_snap_right':
-                pyautogui.hotkey('win', 'right')
+                if pyautogui:
+                    if current_os == "Darwin":
+                        self.speaker.speak("Window snapping is not natively supported on macOS.")
+                        return
+                    else:
+                        pyautogui.hotkey('win', 'right')
                 self.speaker.speak("Window snapped right.")
 
             elif tag == 'window_switch':
-                pyautogui.hotkey('alt', 'tab')
-                # No speech for this - user is switching windows
-                
+                if pyautogui:
+                    if current_os == "Darwin":
+                        pyautogui.hotkey('command', 'tab')
+                    else:
+                        pyautogui.hotkey('alt', 'tab')
+
             elif tag == 'window_show_desktop':
-                pyautogui.hotkey('win', 'd')
+                if pyautogui:
+                    if current_os == "Darwin":
+                        pyautogui.hotkey('fn', 'F11')
+                    else:
+                        pyautogui.hotkey('win', 'd')
                 self.speaker.speak("Showing desktop.")
 
         except Exception as e:
             print(f"Window Op Error: {e}")
             self.speaker.speak("I encountered an issue managing the window.")
+
+    def _handle_window_ops_linux(self, tag):
+        """
+        Linux-specific window management using evdev UInput (Wayland-compatible).
+        Creates a virtual keyboard at kernel level which the compositor accepts as real input.
+        Uses GNOME keyboard shortcuts (Super+H=minimize, Alt+F10=maximize, etc).
+        """
+        try:
+            if tag == 'window_minimize':
+                # GNOME keybinding: Super+H
+                self._linux_send_keys(['KEY_LEFTMETA', 'KEY_H'])
+                self.speaker.speak("Window minimized.")
+
+            elif tag == 'window_maximize':
+                # GNOME keybinding: Alt+F10 (toggle maximize)
+                self._linux_send_keys(['KEY_LEFTALT', 'KEY_F10'])
+                self.speaker.speak("Window maximized.")
+
+            elif tag == 'window_restore':
+                # GNOME keybinding: Alt+F10 (toggle maximize/restore)
+                self._linux_send_keys(['KEY_LEFTALT', 'KEY_F10'])
+                self.speaker.speak("Window restored.")
+
+            elif tag == 'window_close':
+                # Alt+F4 — universal
+                self._linux_send_keys(['KEY_LEFTALT', 'KEY_F4'])
+                self.speaker.speak("Window closed.")
+
+            elif tag == 'window_snap_left':
+                # GNOME tiling: Super+Left
+                self._linux_send_keys(['KEY_LEFTMETA', 'KEY_LEFT'])
+                self.speaker.speak("Window snapped left.")
+
+            elif tag == 'window_snap_right':
+                # GNOME tiling: Super+Right
+                self._linux_send_keys(['KEY_LEFTMETA', 'KEY_RIGHT'])
+                self.speaker.speak("Window snapped right.")
+
+            elif tag == 'window_switch':
+                # Alt+Tab — universal
+                self._linux_send_keys(['KEY_LEFTALT', 'KEY_TAB'])
+
+            elif tag == 'window_show_desktop':
+                # GNOME keybinding: Super+D
+                self._linux_send_keys(['KEY_LEFTMETA', 'KEY_D'])
+                self.speaker.speak("Showing desktop.")
+
+        except Exception as e:
+            print(f"[Automation] Linux window op error: {e}")
+            self.speaker.speak("I encountered an issue managing the window.")
+
+    def _linux_send_keys(self, key_names):
+        """
+        Send a keyboard combo on Linux via evdev UInput (kernel-level virtual keyboard).
+        This works on both X11 and Wayland because the compositor sees it as real hardware.
+
+        Args:
+            key_names: list of evdev key constant names, e.g. ['KEY_LEFTMETA', 'KEY_H']
+        """
+        try:
+            from evdev import UInput, ecodes
+        except ImportError:
+            # Fallback: try xdotool (X11 only)
+            print("[Automation] evdev not available, falling back to xdotool")
+            self._linux_send_keys_xdotool(key_names)
+            return
+
+        # Resolve key names to evdev key codes
+        keycodes = []
+        for name in key_names:
+            code = getattr(ecodes, name, None)
+            if code is None:
+                print(f"[Automation] Unknown key: {name}")
+                return
+            keycodes.append(code)
+
+        # Create virtual keyboard with full key capability set
+        capabilities = {ecodes.EV_KEY: list(range(0, 256))}
+        ui = UInput(capabilities, name='cortex-virtual-kbd')
+
+        try:
+            time.sleep(0.5)  # Wait for compositor to register virtual device
+
+            # Press all keys in order
+            for code in keycodes:
+                ui.write(ecodes.EV_KEY, code, 1)
+                ui.syn()
+                time.sleep(0.05)
+
+            time.sleep(0.1)  # Hold combo briefly
+
+            # Release all keys in reverse order
+            for code in reversed(keycodes):
+                ui.write(ecodes.EV_KEY, code, 0)
+                ui.syn()
+                time.sleep(0.05)
+        finally:
+            time.sleep(0.1)
+            ui.close()
+
+    def _linux_send_keys_xdotool(self, key_names):
+        """Fallback: use xdotool for X11-only systems without evdev."""
+        if not shutil.which("xdotool"):
+            return
+        # Map evdev names to xdotool names
+        key_map = {
+            'KEY_LEFTMETA': 'super', 'KEY_LEFTALT': 'alt',
+            'KEY_H': 'h', 'KEY_D': 'd', 'KEY_TAB': 'Tab',
+            'KEY_F4': 'F4', 'KEY_F10': 'F10',
+            'KEY_LEFT': 'Left', 'KEY_RIGHT': 'Right',
+        }
+        xkeys = [key_map.get(k, k.replace('KEY_', '').lower()) for k in key_names]
+        subprocess.run(["xdotool", "key", "+".join(xkeys)], timeout=3)
 
     def _handle_clipboard_ops(self, tag):
         """
@@ -281,17 +455,33 @@ class AutomationEngine:
                 elif node_type == 'System Command':
                     if val:
                         self.speaker.speak(f"Running command: {val}")
+                        wf_os = platform.system()
                         try:
                             # 1. Check if it's a directory
                             if os.path.isdir(val):
-                                os.startfile(val)
+                                if wf_os == "Windows":
+                                    os.startfile(val)
+                                elif wf_os == "Darwin":
+                                    subprocess.Popen(["open", val])
+                                else:  # Linux
+                                    subprocess.Popen(["xdg-open", val])
                                 self.speaker.speak("Opening folder.")
                             else:
                                 # 2. Try executing as a command in a NEW WINDOW
-                                # 'start' is a shell command in Windows
-                                # 'cmd /k' keeps the window open after execution
-                                cmd_str = f'start cmd /k "{val}"'
-                                subprocess.Popen(cmd_str, shell=True) 
+                                if wf_os == "Windows":
+                                    cmd_str = f'start cmd /k "{val}"'
+                                    subprocess.Popen(cmd_str, shell=True)
+                                elif wf_os == "Darwin":
+                                    # Open Terminal.app and run the command
+                                    apple_script = f'tell application "Terminal" to do script "{val}"'
+                                    subprocess.Popen(["osascript", "-e", apple_script])
+                                else:  # Linux
+                                    terminal = self._find_linux_terminal()
+                                    if terminal:
+                                        subprocess.Popen([terminal, "-e", "bash", "-c", f'{val}; exec bash'])
+                                    else:
+                                        # Fallback: run in background
+                                        subprocess.Popen(val, shell=True)
                         except Exception as e:
                             print(f"[Automation] Command Error: {e}")
                             self.speaker.speak("I could not run that command.")
@@ -315,3 +505,21 @@ class AutomationEngine:
         except Exception as e:
             print(f"[Automation] Execution Error: {e}")
             self.speaker.speak("Error executing workflow.")
+
+    def _find_linux_terminal(self):
+        """Find an available terminal emulator on Linux."""
+        terminals = [
+            "x-terminal-emulator",  # Debian/Ubuntu default
+            "gnome-terminal",
+            "konsole",
+            "xfce4-terminal",
+            "mate-terminal",
+            "tilix",
+            "alacritty",
+            "kitty",
+            "xterm",
+        ]
+        for term in terminals:
+            if shutil.which(term):
+                return term
+        return None

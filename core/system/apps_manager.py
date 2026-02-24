@@ -117,12 +117,169 @@ class AppsManager:
         return list(unique_apps.values())
 
     def _get_linux_apps(self):
-        # Placeholder for Linux
-        return [{"name": "Linux App Support Pending", "version": "0.1", "size": "0 MB"}]
+        """
+        List installed applications on Linux using available package managers.
+        Tries dpkg (Debian/Ubuntu), rpm (Fedora/RHEL), and pacman (Arch) in order.
+        """
+        import shutil
+        
+        apps = []
+        
+        # Strategy 1: dpkg (Debian/Ubuntu/Mint)
+        if shutil.which("dpkg-query"):
+            try:
+                result = subprocess.run(
+                    ["dpkg-query", "-W", "-f",
+                     "${Package}\\t${Version}\\t${Installed-Size}\\t${Maintainer}\\n"],
+                    capture_output=True, text=True, timeout=30
+                )
+                if result.returncode == 0:
+                    for line in result.stdout.strip().split('\n'):
+                        parts = line.split('\t')
+                        if len(parts) >= 2:
+                            name = parts[0]
+                            version = parts[1] if len(parts) > 1 else "Unknown"
+                            
+                            # Size from dpkg is in KB
+                            size_str = "-"
+                            if len(parts) > 2 and parts[2]:
+                                try:
+                                    size_kb = int(parts[2])
+                                    size_str = f"{size_kb / 1024:.2f} MB"
+                                except ValueError:
+                                    pass
+                            
+                            publisher = parts[3] if len(parts) > 3 else "Unknown"
+                            # Clean publisher (often has email in angle brackets)
+                            if '<' in publisher:
+                                publisher = publisher.split('<')[0].strip()
+                            
+                            apps.append({
+                                "name": name,
+                                "version": version,
+                                "size": size_str,
+                                "publisher": publisher,
+                                "uninstall_string": f"sudo apt remove {name}",
+                                "quiet_uninstall_string": f"sudo apt remove -y {name}",
+                                "modify_path": ""
+                            })
+                    return apps
+            except (subprocess.TimeoutExpired, Exception) as e:
+                print(f"[AppsManager] dpkg-query failed: {e}")
+        
+        # Strategy 2: rpm (Fedora/RHEL/openSUSE)
+        if shutil.which("rpm"):
+            try:
+                result = subprocess.run(
+                    ["rpm", "-qa", "--queryformat",
+                     "%{NAME}\\t%{VERSION}-%{RELEASE}\\t%{SIZE}\\t%{VENDOR}\\n"],
+                    capture_output=True, text=True, timeout=30
+                )
+                if result.returncode == 0:
+                    for line in result.stdout.strip().split('\n'):
+                        parts = line.split('\t')
+                        if len(parts) >= 2:
+                            name = parts[0]
+                            version = parts[1] if len(parts) > 1 else "Unknown"
+                            
+                            size_str = "-"
+                            if len(parts) > 2 and parts[2]:
+                                try:
+                                    size_bytes = int(parts[2])
+                                    size_str = f"{size_bytes / (1024 * 1024):.2f} MB"
+                                except ValueError:
+                                    pass
+                            
+                            publisher = parts[3] if len(parts) > 3 else "Unknown"
+                            
+                            # Determine uninstall command based on available tool
+                            if shutil.which("dnf"):
+                                uninstall_cmd = f"sudo dnf remove {name}"
+                            elif shutil.which("yum"):
+                                uninstall_cmd = f"sudo yum remove {name}"
+                            else:
+                                uninstall_cmd = f"sudo rpm -e {name}"
+                            
+                            apps.append({
+                                "name": name,
+                                "version": version,
+                                "size": size_str,
+                                "publisher": publisher,
+                                "uninstall_string": uninstall_cmd,
+                                "quiet_uninstall_string": f"{uninstall_cmd} -y",
+                                "modify_path": ""
+                            })
+                    return apps
+            except (subprocess.TimeoutExpired, Exception) as e:
+                print(f"[AppsManager] rpm failed: {e}")
+        
+        # Strategy 3: pacman (Arch/Manjaro)
+        if shutil.which("pacman"):
+            try:
+                result = subprocess.run(
+                    ["pacman", "-Q"],
+                    capture_output=True, text=True, timeout=30
+                )
+                if result.returncode == 0:
+                    for line in result.stdout.strip().split('\n'):
+                        parts = line.split()
+                        if len(parts) >= 2:
+                            name = parts[0]
+                            version = parts[1]
+                            
+                            apps.append({
+                                "name": name,
+                                "version": version,
+                                "size": "-",
+                                "publisher": "Unknown",
+                                "uninstall_string": f"sudo pacman -R {name}",
+                                "quiet_uninstall_string": f"sudo pacman -R --noconfirm {name}",
+                                "modify_path": ""
+                            })
+                    return apps
+            except (subprocess.TimeoutExpired, Exception) as e:
+                print(f"[AppsManager] pacman failed: {e}")
+        
+        return apps
 
     def _get_mac_apps(self):
-        # Placeholder for macOS
-        return [{"name": "macOS App Support Pending", "version": "0.1", "size": "0 MB"}]
+        """
+        List installed applications on macOS using system_profiler.
+        """
+        import json as json_mod
+        apps = []
+        
+        try:
+            result = subprocess.run(
+                ["system_profiler", "SPApplicationsDataType", "-json"],
+                capture_output=True, text=True, timeout=60
+            )
+            if result.returncode == 0:
+                data = json_mod.loads(result.stdout)
+                app_list = data.get("SPApplicationsDataType", [])
+                
+                for app in app_list:
+                    name = app.get("_name", "Unknown")
+                    version = app.get("version", "Unknown")
+                    path = app.get("path", "")
+                    
+                    # Estimate size from path if available
+                    size_str = "-"
+                    obtained_from = app.get("obtained_from", "Unknown")
+                    
+                    apps.append({
+                        "name": name,
+                        "version": version,
+                        "size": size_str,
+                        "publisher": obtained_from,
+                        "uninstall_string": f"rm -rf '{path}'" if path else "",
+                        "quiet_uninstall_string": "",
+                        "modify_path": ""
+                    })
+        except (subprocess.TimeoutExpired, Exception) as e:
+            print(f"[AppsManager] macOS system_profiler failed: {e}")
+        
+        return apps
 
     def uninstall_app(self, app_data):
         """
@@ -140,6 +297,31 @@ class AppsManager:
                     return False, str(e)
             else:
                 return False, "No uninstall command found."
+        
+        elif self.os_type == 'Linux':
+            cmd = app_data.get("uninstall_string", "")
+            if cmd:
+                try:
+                    # Open in a terminal so user can see progress and enter sudo password
+                    import shutil
+                    terminal = None
+                    for t in ["gnome-terminal", "konsole", "xfce4-terminal", "xterm"]:
+                        if shutil.which(t):
+                            terminal = t
+                            break
+                    
+                    if terminal == "gnome-terminal":
+                        subprocess.Popen(f'gnome-terminal -- bash -c "{cmd}; read -p Press_Enter..."', shell=True)
+                    elif terminal == "konsole":
+                        subprocess.Popen(f'konsole -e bash -c "{cmd}; read -p Press_Enter..."', shell=True)
+                    else:
+                        subprocess.Popen(f'xterm -e bash -c "{cmd}; read"', shell=True)
+                    
+                    return True, "Uninstaller started in terminal."
+                except Exception as e:
+                    return False, str(e)
+            return False, "No uninstall command found."
+        
         return False, "Not supported on this OS."
 
     def repair_app(self, app_data):
@@ -179,4 +361,36 @@ class AppsManager:
                     return False, str(e)
             
             return False, "No specific repair command found."
+        
+        elif self.os_type == 'Linux':
+            # On Linux, the closest to "repair" is reinstalling the package
+            name = app_data.get("name", "")
+            if name:
+                import shutil
+                if shutil.which("apt"):
+                    repair_cmd = f"sudo apt install --reinstall {name}"
+                elif shutil.which("dnf"):
+                    repair_cmd = f"sudo dnf reinstall {name}"
+                elif shutil.which("pacman"):
+                    repair_cmd = f"sudo pacman -S {name}"
+                else:
+                    return False, "No supported package manager found."
+                
+                try:
+                    terminal = None
+                    for t in ["gnome-terminal", "konsole", "xfce4-terminal", "xterm"]:
+                        if shutil.which(t):
+                            terminal = t
+                            break
+                    
+                    if terminal == "gnome-terminal":
+                        subprocess.Popen(f'gnome-terminal -- bash -c "{repair_cmd}; read -p Press_Enter..."', shell=True)
+                    else:
+                        subprocess.Popen(f'xterm -e bash -c "{repair_cmd}; read"', shell=True)
+                    
+                    return True, "Reinstall started in terminal."
+                except Exception as e:
+                    return False, str(e)
+            return False, "No package name available."
+        
         return False, "Not supported on this OS."

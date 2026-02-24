@@ -61,14 +61,51 @@ def open_system_config(speaker):
         _run_command("gnome-system-monitor", speaker)
 
 def open_device_manager(speaker):
-    if platform.system() == 'Windows':
+    os_type = platform.system()
+    if os_type == 'Windows':
         _run_command("start devmgmt.msc", speaker)
-    else:
-        speaker.speak("Device Manager is a Windows-specific tool.")
+    elif os_type == 'Linux':
+        # Try hardware info tools in order of preference
+        if shutil.which("hardinfo"):
+            _run_command("hardinfo", speaker)
+        elif shutil.which("hardinfo2"):
+            _run_command("hardinfo2", speaker)
+        elif shutil.which("gnome-device-manager"):
+            _run_command("gnome-device-manager", speaker)
+        else:
+            # Fallback: show lspci + lsusb in a terminal
+            speaker.speak("Opening device listing in terminal.")
+            terminal = _find_linux_terminal()
+            inner = "echo '=== PCI Devices ==='; lspci; echo; echo '=== USB Devices ==='; lsusb; echo; read -p 'Press Enter to close...'"
+            if terminal == "gnome-terminal":
+                _run_command(f'gnome-terminal -- bash -c "{inner}"', speaker)
+            elif terminal == "konsole":
+                _run_command(f'konsole -e bash -c "{inner}"', speaker)
+            else:
+                _run_command(f'xterm -e bash -c "{inner}"', speaker)
+    elif os_type == 'Darwin':
+        _run_command(r"open /Applications/Utilities/System\ Information.app", speaker)
 
 def open_registry_editor(speaker):
-    if platform.system() == 'Windows':
+    os_type = platform.system()
+    if os_type == 'Windows':
         # Requires Admin usually
         _run_command("start regedit", speaker)
-    else:
-        speaker.speak("Registry Editor is Windows-specific.")
+    elif os_type == 'Linux':
+        # dconf-editor is the closest Linux equivalent (GNOME settings database)
+        if shutil.which("dconf-editor"):
+            _run_command("dconf-editor", speaker)
+        else:
+            speaker.speak("dconf editor is not installed. You can install it with: sudo apt install dconf-editor, or sudo pacman -S dconf-editor.")
+    elif os_type == 'Darwin':
+        speaker.speak("macOS does not have a registry. Opening System Settings instead.")
+        _run_command("open -a 'System Settings'", speaker)
+
+
+def _find_linux_terminal():
+    """Find an available terminal emulator on Linux."""
+    terminals = ["gnome-terminal", "konsole", "xfce4-terminal", "mate-terminal", "xterm"]
+    for t in terminals:
+        if shutil.which(t):
+            return t
+    return "xterm"
