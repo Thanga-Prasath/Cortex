@@ -1,5 +1,26 @@
 import threading
 import time
+import platform
+
+def _is_virtual_linux_device(name: str) -> bool:
+    """Return True if *name* should be excluded from connect/disconnect monitoring on Linux.
+    
+    On Linux, ALSA built-in sound cards (e.g. HDA Intel PCH) temporarily vanish
+    from PyAudio when TTS or other apps use the device.  Only genuinely external
+    devices (USB headsets, Bluetooth speakers) can actually be plugged / unplugged,
+    so we only monitor those.
+    """
+    if platform.system() != 'Linux':
+        return False
+    upper = name.upper()
+    # Keep only devices that are clearly USB or Bluetooth
+    if 'USB' in upper or 'BLUETOOTH' in upper or 'BT' in upper:
+        return False   # Not virtual — worth monitoring
+    return True        # Everything else is excluded on Linux
+
+# Number of consecutive polls a device must be missing before reporting disconnect.
+# With a 3-second poll interval this means ~9 seconds of confirmed absence.
+_DEBOUNCE_POLLS = 3
 
 class AudioDeviceMonitor(threading.Thread):
     def __init__(self, tts_queue, status_queue):
@@ -13,6 +34,10 @@ class AudioDeviceMonitor(threading.Thread):
         self.current_outputs = set()
         self.current_default_in = None
         self.current_default_out = None
+        
+        # Tracks devices that have disappeared but haven't been confirmed gone yet.
+        # Key: (device_type, device_name)  Value: consecutive-miss count
+        self._pending_removals: dict[tuple[str, str], int] = {}
         
         # Initial snapshot to prevent spamming on startup
         self._poll_devices(initial=True)
@@ -58,8 +83,8 @@ except Exception as e:
             data = json.loads(result.stdout.strip())
             if 'error' in data: return
             
-            new_inputs = set(data.get('inputs', []))
-            new_outputs = set(data.get('outputs', []))
+            new_inputs = set(d for d in data.get('inputs', []) if not _is_virtual_linux_device(d))
+            new_outputs = set(d for d in data.get('outputs', []) if not _is_virtual_linux_device(d))
             new_def_in = data.get('default_in')
             new_def_out = data.get('default_out')
             
@@ -82,8 +107,12 @@ except Exception as e:
                         if self.tts_queue: self.tts_queue.put(msg)
                         if self.status_queue: self.status_queue.put(("AUDIO_DEVICES_CHANGED", None))
                 
-            self.current_inputs = new_inputs
-            self.current_outputs = new_outputs
+            # Keep pending-removal devices in the "current" sets so they
+            # don't trigger a false "New connected" when they reappear.
+            pending_inputs = {name for (dt, name) in self._pending_removals if dt == "Microphone"}
+            pending_outputs = {name for (dt, name) in self._pending_removals if dt == "Speaker"}
+            self.current_inputs = new_inputs | pending_inputs
+            self.current_outputs = new_outputs | pending_outputs
             self.current_default_in = new_def_in
             self.current_default_out = new_def_out
 
@@ -93,23 +122,48 @@ except Exception as e:
     def _check_diff(self, old_set, new_set, device_type):
         added = new_set - old_set
         removed = old_set - new_set
+        changed = False
         
-        if added or removed:
-            for device in added:
+        # --- Handle devices that reappeared (cancel pending removal) ---
+        for device in list(self._pending_removals):
+            dt, name = device
+            if dt == device_type and name in new_set:
+                del self._pending_removals[device]
+        
+        # --- Handle newly added devices ---
+        for device in added:
+            key = (device_type, device)
+            if key in self._pending_removals:
+                # Was only transiently gone — silently cancel the pending removal
+                del self._pending_removals[key]
+            else:
+                # Genuinely new device
                 msg = f"New {device_type} connected: {device}"
                 print(f"[System] {msg}")
                 if self.tts_queue:
                     self.tts_queue.put(msg)
+                changed = True
                     
-            for device in removed:
+        # --- Handle removed devices (debounced) ---
+        for device in removed:
+            key = (device_type, device)
+            count = self._pending_removals.get(key, 0) + 1
+            if count >= _DEBOUNCE_POLLS:
+                # Confirmed gone — report it
                 msg = f"{device_type} disconnected: {device}"
                 print(f"[System] {msg}")
                 if self.tts_queue:
                     self.tts_queue.put(msg)
+                del self._pending_removals[key]
+                changed = True
+            else:
+                # Not confirmed yet — keep it in the "current" set so it isn't
+                # reported as added when it comes back next poll
+                self._pending_removals[key] = count
                     
-            # Notify UI to refresh dropdowns
-            if self.status_queue:
-                self.status_queue.put(("AUDIO_DEVICES_CHANGED", None))
+        # Notify UI to refresh dropdowns only on confirmed changes
+        if changed and self.status_queue:
+            self.status_queue.put(("AUDIO_DEVICES_CHANGED", None))
 
     def run(self):
         print("[System] Real-time audio hardware monitor started.")

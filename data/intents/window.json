@@ -160,6 +160,59 @@
                 "minimize",
                 "desktop"
             ]
+        },
+        {
+            "tag": "window_switch_to",
+            "patterns": [
+                "switch to firefox",
+                "switch to chrome",
+                "switch to terminal",
+                "go to firefox",
+                "focus on chrome",
+                "bring up terminal",
+                "show me firefox",
+                "open chrome window",
+                "activate firefox"
+            ],
+            "responses": [
+                "Switching to application."
+            ],
+            "keywords": [
+                "switch to"
+            ],
+            "anchors": [
+                "switch to",
+                "go to",
+                "focus on",
+                "bring up",
+                "activate"
+            ]
+        },
+        {
+            "tag": "window_show_all",
+            "patterns": [
+                "show all windows",
+                "tile windows",
+                "arrange windows",
+                "show all applications",
+                "tile all windows",
+                "split windows",
+                "show overview"
+            ],
+            "responses": [
+                "Showing all windows."
+            ],
+            "keywords": [
+                "show all",
+                "tile"
+            ],
+            "anchors": [
+                "show all",
+                "tile",
+                "arrange",
+                "overview",
+                "split"
+            ]
         }
     ]
 }

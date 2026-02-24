@@ -47,7 +47,7 @@ class AutomationEngine:
 
         # --- Phase 2: Window Management ---
         if tag.startswith('window_'):
-            self._handle_window_ops(tag)
+            self._handle_window_ops(tag, command)
             return True
 
         # --- Phase 3: Productivity ---
@@ -69,19 +69,19 @@ class AutomationEngine:
 
         return False
 
-    def _handle_window_ops(self, tag):
+    def _handle_window_ops(self, tag, command=""):
         """
         Handles window management.
-        - Linux: uses xdotool (works on X11 and Wayland/XWayland)
+        - Linux: uses evdev UInput (Wayland) or xdotool (X11)
         - Windows: uses pywinctl (preferred) or pyautogui hotkeys (fallback)
         - macOS: uses pywinctl (preferred) or pyautogui hotkeys (fallback)
         """
         current_os = platform.system()
 
         try:
-            # ---- LINUX: Use xdotool directly (pywinctl/pyautogui don't work on Wayland) ----
+            # ---- LINUX: Use evdev UInput / xdotool ----
             if current_os == "Linux":
-                self._handle_window_ops_linux(tag)
+                self._handle_window_ops_linux(tag, command)
                 return
 
             # ---- WINDOWS & macOS: Use pywinctl + pyautogui fallback ----
@@ -164,6 +164,12 @@ class AutomationEngine:
                     else:
                         pyautogui.hotkey('alt', 'tab')
 
+            elif tag == 'window_switch_to':
+                self._switch_to_app(command, current_os)
+
+            elif tag == 'window_show_all':
+                self._tile_all_windows(current_os)
+
             elif tag == 'window_show_desktop':
                 if pyautogui:
                     if current_os == "Darwin":
@@ -176,7 +182,7 @@ class AutomationEngine:
             print(f"Window Op Error: {e}")
             self.speaker.speak("I encountered an issue managing the window.")
 
-    def _handle_window_ops_linux(self, tag):
+    def _handle_window_ops_linux(self, tag, command=""):
         """
         Linux-specific window management using evdev UInput (Wayland-compatible).
         Creates a virtual keyboard at kernel level which the compositor accepts as real input.
@@ -216,6 +222,12 @@ class AutomationEngine:
             elif tag == 'window_switch':
                 # Alt+Tab — universal
                 self._linux_send_keys(['KEY_LEFTALT', 'KEY_TAB'])
+
+            elif tag == 'window_switch_to':
+                self._switch_to_app(command, "Linux")
+
+            elif tag == 'window_show_all':
+                self._tile_all_windows("Linux")
 
             elif tag == 'window_show_desktop':
                 # GNOME keybinding: Super+D
@@ -288,6 +300,320 @@ class AutomationEngine:
         }
         xkeys = [key_map.get(k, k.replace('KEY_', '').lower()) for k in key_names]
         subprocess.run(["xdotool", "key", "+".join(xkeys)], timeout=3)
+
+    # =============================================
+    #  Switch To Specific App Window
+    # =============================================
+    def _extract_app_name(self, command):
+        """
+        Extract the application name from a voice command.
+        e.g. "switch to Firefox" → "firefox"
+             "go to chrome" → "chrome"
+             "focus on terminal" → "terminal"
+        """
+        command_lower = command.lower().strip()
+        # Remove common prefixes
+        prefixes = [
+            "switch to ", "go to ", "focus on ", "bring up ",
+            "show me ", "activate ", "open ", "focus "
+        ]
+        for prefix in prefixes:
+            if command_lower.startswith(prefix):
+                app_name = command_lower[len(prefix):].strip()
+                # Remove trailing "window" or "app"
+                for suffix in [" window", " app", " application"]:
+                    if app_name.endswith(suffix):
+                        app_name = app_name[:-len(suffix)].strip()
+                return app_name
+        # Fallback: return last word(s) after removing common words
+        words = command_lower.split()
+        stop_words = {'the', 'a', 'an', 'to', 'on', 'my', 'please', 'window', 'app'}
+        meaningful = [w for w in words if w not in stop_words]
+        return meaningful[-1] if meaningful else ""
+
+    def _is_app_running(self, app_name, current_os):
+        """
+        Check if an application is currently running.
+        Returns True/False.
+        """
+        if current_os == "Windows":
+            # Use pywinctl to check if any window title contains the app name
+            if pywinctl:
+                try:
+                    windows = pywinctl.getWindowsWithTitle(app_name)
+                    return len(windows) > 0
+                except Exception:
+                    pass
+            # Fallback: tasklist
+            try:
+                result = subprocess.run(
+                    ["tasklist", "/FI", f"IMAGENAME eq {app_name}*"],
+                    capture_output=True, text=True, timeout=5
+                )
+                return app_name.lower() in result.stdout.lower()
+            except Exception:
+                return False
+        else:
+            # Linux & macOS: use pgrep
+            try:
+                result = subprocess.run(
+                    ["pgrep", "-fi", app_name],
+                    capture_output=True, text=True, timeout=5
+                )
+                return result.returncode == 0
+            except Exception:
+                return False
+
+    def _switch_to_app(self, command, current_os):
+        """
+        Switch to a specific application window.
+        Extracts app name from command, checks if running, then activates.
+        """
+        app_name = self._extract_app_name(command)
+        if not app_name:
+            self.speaker.speak("Which application would you like me to switch to?")
+            return
+
+        print(f"[Automation] Switching to app: '{app_name}'")
+
+        # Check if the app is running
+        if not self._is_app_running(app_name, current_os):
+            self.speaker.speak(f"{app_name} is not currently running.")
+            return
+
+        try:
+            if current_os == "Linux":
+                self._switch_to_app_linux(app_name)
+            elif current_os == "Darwin":
+                self._switch_to_app_macos(app_name)
+            else:  # Windows
+                self._switch_to_app_windows(app_name)
+        except Exception as e:
+            print(f"[Automation] Switch to app error: {e}")
+            self.speaker.speak(f"Could not switch to {app_name}.")
+
+    def _switch_to_app_linux(self, app_name):
+        """Activate an app window on Linux using wmctrl or xdotool."""
+        # Try wmctrl first (works for X11 / XWayland apps)
+        if shutil.which("wmctrl"):
+            result = subprocess.run(
+                ["wmctrl", "-a", app_name],
+                capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0:
+                self.speaker.speak(f"Switched to {app_name}.")
+                return
+
+        # Try xdotool search + activate
+        if shutil.which("xdotool"):
+            result = subprocess.run(
+                ["xdotool", "search", "--name", app_name],
+                capture_output=True, text=True, timeout=5
+            )
+            window_ids = result.stdout.strip().split('\n')
+            if window_ids and window_ids[0]:
+                subprocess.run(
+                    ["xdotool", "windowactivate", window_ids[0]],
+                    timeout=5
+                )
+                self.speaker.speak(f"Switched to {app_name}.")
+                return
+
+        # Fallback: try gtk-launch with .desktop file
+        try:
+            subprocess.run(
+                ["gtk-launch", f"{app_name.lower()}"],
+                capture_output=True, timeout=5
+            )
+            self.speaker.speak(f"Switched to {app_name}.")
+        except Exception:
+            self.speaker.speak(f"Could not switch to {app_name}. Try using Alt+Tab.")
+
+    def _switch_to_app_windows(self, app_name):
+        """Activate an app window on Windows using pywinctl."""
+        if not pywinctl:
+            self.speaker.speak("Window control library is not available.")
+            return
+        try:
+            windows = pywinctl.getWindowsWithTitle(app_name)
+            if windows:
+                win = windows[0]
+                if hasattr(win, 'activate'):
+                    win.activate()
+                self.speaker.speak(f"Switched to {app_name}.")
+            else:
+                self.speaker.speak(f"Could not find {app_name} window.")
+        except Exception as e:
+            print(f"[Automation] Windows switch error: {e}")
+            self.speaker.speak(f"Could not switch to {app_name}.")
+
+    def _switch_to_app_macos(self, app_name):
+        """Activate an app window on macOS using osascript."""
+        try:
+            subprocess.run(
+                ["osascript", "-e",
+                 f'tell application "{app_name}" to activate'],
+                capture_output=True, timeout=5
+            )
+            self.speaker.speak(f"Switched to {app_name}.")
+        except Exception as e:
+            print(f"[Automation] macOS switch error: {e}")
+            self.speaker.speak(f"Could not switch to {app_name}.")
+
+    # =============================================
+    #  Tile All Windows (Hyprland-style)
+    # =============================================
+    def _tile_all_windows(self, current_os):
+        """
+        Tile all visible windows in an equal grid layout.
+        Linux: Activities Overview (Super key) on Wayland, wmctrl on X11.
+        Windows/macOS: pywinctl move+resize.
+        """
+        try:
+            if current_os == "Linux":
+                self._tile_all_linux()
+            elif current_os == "Darwin":
+                self._tile_all_macos()
+            else:  # Windows
+                self._tile_all_pywinctl()
+        except Exception as e:
+            print(f"[Automation] Tile all error: {e}")
+            self.speaker.speak("I encountered an issue arranging the windows.")
+
+    def _tile_all_linux(self):
+        """Tile windows on Linux."""
+        import math
+
+        # Try wmctrl tiling first (works on X11 / XWayland)
+        if shutil.which("wmctrl"):
+            try:
+                # Get window list
+                result = subprocess.run(
+                    ["wmctrl", "-lG"],
+                    capture_output=True, text=True, timeout=5
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    lines = [l for l in result.stdout.strip().split('\n')
+                             if not l.strip().startswith('-1')]  # skip desktop
+                    if lines:
+                        # Get screen size from first desktop line or default
+                        try:
+                            desk_result = subprocess.run(
+                                ["wmctrl", "-d"],
+                                capture_output=True, text=True, timeout=3
+                            )
+                            # Parse "DG: WIDTHxHEIGHT" from output
+                            for part in desk_result.stdout.split():
+                                if 'x' in part and part.replace('x', '').isdigit():
+                                    w, h = part.split('x')
+                                    screen_w, screen_h = int(w), int(h)
+                                    break
+                            else:
+                                screen_w, screen_h = 1920, 1080
+                        except Exception:
+                            screen_w, screen_h = 1920, 1080
+
+                        n = len(lines)
+                        cols = math.ceil(math.sqrt(n))
+                        rows = math.ceil(n / cols)
+                        cell_w = screen_w // cols
+                        cell_h = screen_h // rows
+
+                        for i, line in enumerate(lines):
+                            win_id = line.split()[0]
+                            col = i % cols
+                            row = i // cols
+                            x = col * cell_w
+                            y = row * cell_h
+                            # wmctrl: -e gravity,x,y,width,height
+                            subprocess.run(
+                                ["wmctrl", "-ir", win_id, "-e",
+                                 f"0,{x},{y},{cell_w},{cell_h}"],
+                                timeout=3
+                            )
+
+                        self.speaker.speak(f"Arranged {n} windows in a grid.")
+                        return
+            except Exception as e:
+                print(f"[Automation] wmctrl tiling failed: {e}")
+
+        # Fallback: GNOME Activities Overview (Super key press)
+        self._linux_send_keys(['KEY_LEFTMETA'])
+        self.speaker.speak("Showing all windows in overview.")
+
+    def _tile_all_pywinctl(self):
+        """Tile windows using pywinctl (Windows/macOS)."""
+        import math
+
+        if not pywinctl:
+            self.speaker.speak("Window control library is not available.")
+            return
+
+        try:
+            all_windows = pywinctl.getAllWindows()
+        except Exception:
+            self.speaker.speak("Could not get window list.")
+            return
+
+        # Filter: visible, non-minimized, has a title
+        visible = []
+        for w in all_windows:
+            try:
+                title = w.title if hasattr(w, 'title') else str(w)
+                if not title or title.strip() == '':
+                    continue
+                # Skip system windows and the Cortex UI
+                skip_titles = ['', 'Program Manager', 'Desktop', 'Cortex']
+                if title in skip_titles:
+                    continue
+                visible.append(w)
+            except Exception:
+                continue
+
+        if not visible:
+            self.speaker.speak("No windows to arrange.")
+            return
+
+        # Get screen size
+        try:
+            if pyautogui:
+                screen_w, screen_h = pyautogui.size()
+            else:
+                screen_w, screen_h = 1920, 1080
+        except Exception:
+            screen_w, screen_h = 1920, 1080
+
+        n = len(visible)
+        cols = math.ceil(math.sqrt(n))
+        rows = math.ceil(n / cols)
+        cell_w = screen_w // cols
+        cell_h = screen_h // rows
+
+        for i, win in enumerate(visible):
+            col = i % cols
+            row = i // cols
+            x = col * cell_w
+            y = row * cell_h
+            try:
+                win.moveTo(x, y)
+                win.resizeTo(cell_w, cell_h)
+            except Exception as e:
+                print(f"[Automation] Could not tile window '{win.title}': {e}")
+
+        self.speaker.speak(f"Arranged {n} windows in a grid.")
+
+    def _tile_all_macos(self):
+        """Tile windows on macOS."""
+        # Try pywinctl tiling first
+        if pywinctl:
+            self._tile_all_pywinctl()
+            return
+        # Fallback: Mission Control (Ctrl+Up or F3)
+        if pyautogui:
+            pyautogui.hotkey('ctrl', 'up')
+            self.speaker.speak("Showing Mission Control.")
+        else:
+            self.speaker.speak("Window tiling is not available.")
 
     def _handle_clipboard_ops(self, tag):
         """
