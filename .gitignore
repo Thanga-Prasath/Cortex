@@ -6,3 +6,6 @@ vosk-model*
 .venv_old
 __pycache__/
 *.pyc
+
+# Large Piper TTS voice model files (too large for GitHub)
+*.onnx

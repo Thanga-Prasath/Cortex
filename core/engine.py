@@ -58,6 +58,11 @@ class CortexEngine:
         if self.action_queue:
             import threading
             threading.Thread(target=self._action_queue_listener, daemon=True).start()
+            
+        # ── Start Audio Device Monitor ──
+        from .audio_monitor import AudioDeviceMonitor
+        self.audio_monitor = AudioDeviceMonitor(self.speaker.tts_queue, self.status_queue)
+        self.audio_monitor.start()
         
         # Tag to Human Readable Name Mapping for Confirmations
         self.intent_names = {

@@ -422,6 +422,11 @@ class StatusWindow(QMainWindow):
         if self.windows["hub"] and self.windows["hub"].isVisible():
             self.windows["hub"].add_log_entry(message)
 
+    def trigger_audio_device_refresh(self):
+        """Called by the process loop when real-time audio devices change."""
+        if self.windows.get("settings") and self.windows["settings"].isVisible():
+            self.windows["settings"].refresh_audio_devices()
+
     def open_module(self, module_name):
         """Lazy load and show the requested UI module."""
         try:

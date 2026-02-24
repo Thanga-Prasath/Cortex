@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
+  <metadata>
+    <id>AudioDeviceCmdlets</id>
+    <version>3.1.0.2</version>
+    <authors>Francois Gendron &lt;fg@frgn.ca&gt;</authors>
+    <owners>frgnca</owners>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <licenseUrl>https://github.com/frgnca/AudioDeviceCmdlets/blob/master/LICENSE</licenseUrl>
+    <projectUrl>https://github.com/frgnca/AudioDeviceCmdlets</projectUrl>
+    <description>AudioDeviceCmdlets is a suite of PowerShell Cmdlets to control audio devices on Windows</description>
+    <releaseNotes>Default communication devices can now be controlled separately from default devices</releaseNotes>
+    <copyright>(c) 2016-2022 Francois Gendron &lt;fg@frgn.ca&gt;</copyright>
+    <tags>audio default playback recording communication device session volume mute mixer toggle switch get set PSModule PSIncludes_Cmdlet PSCmdlet_Get-AudioDevice PSCmdlet_Set-AudioDevice PSCmdlet_Write-AudioDevice PSCommand_Get-AudioDevice PSCommand_Set-AudioDevice PSCommand_Write-AudioDevice</tags>
+  </metadata>
+</package>

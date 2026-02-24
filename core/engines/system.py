@@ -133,6 +133,18 @@ class SystemEngine:
         elif tag == 'restart_audio':
             audio.restart_audio_service(self.speaker)
             return True
+        elif tag == 'switch_microphone':
+            audio.switch_system_microphone(self.speaker)
+            return True
+        elif tag == 'switch_speaker':
+            audio.switch_system_speaker(self.speaker)
+            return True
+        elif tag == 'switch_system_speaker':
+            audio.switch_system_speaker(self.speaker)
+            return True
+        elif tag == 'switch_system_microphone':
+            audio.switch_system_microphone(self.speaker)
+            return True
 
         # Round 2 Features
         elif tag == 'wifi_password':

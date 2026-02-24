@@ -78,6 +78,9 @@ def ui_process_target(status_queue, action_queue, reset_event=None, shutdown_eve
                         for win in list(workspace_windows):
                             if isinstance(win, CancelSearchDialog):
                                 win.remove_search(query)
+                                
+                elif status == "AUDIO_DEVICES_CHANGED":
+                    window.trigger_audio_device_refresh()
 
                 elif status == "SEARCH_COUNT":
                     # data = Total matches found so far

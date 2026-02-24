@@ -1033,6 +1033,97 @@
                 "widget",
                 "remove"
             ]
+        },
+        {
+            "tag": "switch_microphone",
+            "patterns": [
+                "switch microphone",
+                "change microphone",
+                "use external microphone",
+                "use default microphone",
+                "switch mic"
+            ],
+            "responses": [],
+            "keywords": [
+                "switch microphone",
+                "change mic"
+            ],
+            "anchors": [
+                "switch",
+                "change",
+                "microphone",
+                "mic",
+                "external",
+                "default"
+            ]
+        },
+        {
+            "tag": "switch_speaker",
+            "patterns": [
+                "switch speaker",
+                "change speaker",
+                "use external speaker",
+                "use default speaker",
+                "switch audio output"
+            ],
+            "responses": [],
+            "keywords": [
+                "switch speaker",
+                "change speaker"
+            ],
+            "anchors": [
+                "switch",
+                "change",
+                "speaker",
+                "audio",
+                "output",
+                "external",
+                "default"
+            ]
+        },
+        {
+            "tag": "switch_system_microphone",
+            "patterns": [
+                "switch system microphone",
+                "change system microphone",
+                "use system microphone",
+                "change default system microphone",
+                "switch system mic",
+                "change os microphone"
+            ],
+            "responses": [],
+            "keywords": [
+                "system microphone",
+                "system mic"
+            ],
+            "anchors": [
+                "system",
+                "microphone",
+                "mic",
+                "default",
+                "os"
+            ]
+        },
+        {
+            "tag": "switch_system_speaker",
+            "patterns": [
+                "switch system speaker",
+                "change system speaker",
+                "change default system speaker",
+                "change os speaker",
+                "switch os speaker"
+            ],
+            "responses": [],
+            "keywords": [
+                "system speaker",
+                "system audio"
+            ],
+            "anchors": [
+                "system",
+                "speaker",
+                "default",
+                "os"
+            ]
         }
     ]
 }

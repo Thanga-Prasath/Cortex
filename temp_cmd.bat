@@ -1,8 +1,8 @@
 @echo off
-title NETWORK TRAFFIC (Bytes)
-echo NETWORK TRAFFIC (Bytes)
+title IP ADDRESS
+echo IP ADDRESS
 echo ====================
-netstat -e
+ipconfig
 echo.
 pause
 del "E:\Sunday-final-year\temp_cmd.bat" & exit

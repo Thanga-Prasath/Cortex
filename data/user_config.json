@@ -1,13 +1,16 @@
 {
     "name": "Sir",
     "theme": "Neon Green",
-    "voice_rate": 175,
+    "voice_rate": 267,
     "voice_volume": 1.0,
+    "voice_pack": "en_US-amy-medium",
     "status_gui_enabled": true,
     "status_gui_opacity": 1.0,
     "status_gui_color": "#000000",
     "status_gui_transparency": true,
     "status_gui_invisible": false,
     "status_gui_bg_opacity": 180,
-    "screenshot_path": ""
+    "screenshot_path": "",
+    "input_device_index": null,
+    "output_device_index": null
 }

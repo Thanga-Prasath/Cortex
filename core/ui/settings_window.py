@@ -1,18 +1,69 @@
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
-                             QLabel, QLineEdit, QPushButton, QTabWidget, 
-                             QMessageBox, QFrame, QFormLayout, QCheckBox,
-                             QSlider, QColorDialog, QFileDialog, QComboBox)
-from PyQt6.QtGui import QColor
-from PyQt6.QtCore import Qt
+                              QLabel, QLineEdit, QPushButton, QTabWidget, 
+                              QMessageBox, QFrame, QFormLayout, QCheckBox,
+                              QSlider, QColorDialog, QFileDialog, QComboBox,
+                              QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
+                              QProgressBar, QStyle)
+from PyQt6.QtGui import QColor, QFont
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
 import json
 import os
 from .styles import get_stylesheet
+import requests
+import pyaudio
+
+class VoiceDownloadThread(QThread):
+    progress = pyqtSignal(int)
+    finished = pyqtSignal(bool, str)
+
+    def __init__(self, voice_data):
+        super().__init__()
+        self.voice_data = voice_data
+        self.voices_dir = os.path.join(os.getcwd(), 'piper_engine', 'voices')
+
+    def run(self):
+        try:
+            if not os.path.exists(self.voices_dir):
+                os.makedirs(self.voices_dir)
+
+            v_id = self.voice_data["id"]
+            url_onnx = self.voice_data["url"]
+            url_json = url_onnx + ".json"
+
+            paths = [
+                (url_onnx, os.path.join(self.voices_dir, f"{v_id}.onnx")),
+                (url_json, os.path.join(self.voices_dir, f"{v_id}.onnx.json"))
+            ]
+
+            total_files = len(paths)
+            for idx, (url, dest) in enumerate(paths):
+                response = requests.get(url, stream=True)
+                response.raise_for_status()
+                
+                total_size = int(response.headers.get('content-length', 0))
+                downloaded = 0
+                
+                with open(dest, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                            downloaded += len(chunk)
+                            if total_size > 0:
+                                # Simple weighted progress: file1 is 0-50%, file2 is 50-100%
+                                p = int((downloaded / total_size) * 50) + (idx * 50)
+                                self.progress.emit(p)
+            
+            self.progress.emit(100)
+            self.finished.emit(True, "Download Complete")
+        except Exception as e:
+            self.finished.emit(False, str(e))
 
 class SettingsWindow(QMainWindow):
     def __init__(self, reset_event=None, status_window=None):
         super().__init__()
         self.reset_event = reset_event
         self.status_window = status_window
+        self.active_downloads = {} # Tracks active QProgressBars by voice_id
         self.setWindowTitle("Cortex Control - Settings")
         self.setGeometry(100, 100, 700, 500)
         
@@ -50,10 +101,12 @@ class SettingsWindow(QMainWindow):
         
         self.tab_general = QWidget()
         self.tab_voice = QWidget()
+        self.tab_io = QWidget()
         # Removed redundant Theme tab
         
         self.tabs.addTab(self.tab_general, "General")
         self.tabs.addTab(self.tab_voice, "Voice")
+        self.tabs.addTab(self.tab_io, "Input & Output")
         
         main_layout.addWidget(self.tabs)
         
@@ -62,6 +115,9 @@ class SettingsWindow(QMainWindow):
         
         # --- Tab: Voice ---
         self.init_voice_tab()
+
+        # --- Tab: Input & Output ---
+        self.init_io_tab()
 
         # --- Footer Actions ---
         footer_layout = QHBoxLayout()
@@ -242,29 +298,215 @@ class SettingsWindow(QMainWindow):
 
     def init_voice_tab(self):
         layout = QVBoxLayout()
-        layout.setSpacing(20)
+        layout.setSpacing(15)
         self.tab_voice.setLayout(layout)
         
+        # 1. Voice Manager Table
+        lbl_head = QLabel("Voice Packs Manager")
+        lbl_head.setStyleSheet("font-size: 14px; font-weight: bold; color: #fff;")
+        layout.addWidget(lbl_head)
+        
+        self.voice_table = QTableWidget()
+        self.voice_table.setColumnCount(4)
+        self.voice_table.setHorizontalHeaderLabels(["", "Voice Label", "Size", "Actions"])
+        self.voice_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        self.voice_table.setColumnWidth(0, 40)
+        self.voice_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.voice_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        self.voice_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self.voice_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.voice_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.voice_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.voice_table.verticalHeader().setVisible(False)
+        self.voice_table.cellClicked.connect(self.on_voice_row_clicked)
+        self.voice_table.setMaximumHeight(150) 
+        
+        # Style the table
+        current_theme = self.config_data.get("theme", "Neon Green")
+        from .styles import THEME_COLORS
+        accent = THEME_COLORS.get(current_theme, "#39FF14")
+        
+        self.voice_table.setStyleSheet(f"""
+            QTableWidget {{ background-color: #1a1a1a; border: 1px solid {accent}; color: white; border-radius: 5px; }}
+            QTableWidget::item:selected {{ background-color: #333333; color: {accent}; }}
+            QHeaderView::section {{ background-color: #2d2d30; color: white; padding: 5px; border: 1px solid #444; }}
+        """)
+        
+        layout.addWidget(self.voice_table)
+        self.refresh_voice_table()
+        
+        # 2. Controls Area
+        controls_frame = QFrame()
+        controls_frame.setStyleSheet("background: #252526; border-radius: 8px; padding: 10px;")
+        controls_layout = QFormLayout(controls_frame)
+        
         # Rate Slider
-        lbl_rate = QLabel("Speech Rate:")
         self.slider_rate = self._create_slider(50, 300, self.config_data.get("voice_rate", 175))
-        layout.addWidget(lbl_rate)
-        layout.addWidget(self.slider_rate)
+        controls_layout.addRow("Speech Rate:", self.slider_rate)
         
         # Volume Slider
-        lbl_vol = QLabel("Voice Volume:")
-        # Slider is int 0-100, mapped to float 0.0-1.0
         current_vol = int(self.config_data.get("voice_volume", 1.0) * 100)
         self.slider_vol = self._create_slider(0, 100, current_vol)
-        layout.addWidget(lbl_vol)
-        layout.addWidget(self.slider_vol)
+        controls_layout.addRow("Voice Volume:", self.slider_vol)
+        
+        layout.addWidget(controls_frame)
         
         # Test Button
-        btn_test = QPushButton("🔊 Test Voice")
+        btn_test = QPushButton("🔊 Test Current Voice")
         btn_test.clicked.connect(self.test_voice)
         layout.addWidget(btn_test)
         
         layout.addStretch()
+
+    def refresh_voice_table(self):
+        """Populate voices from manifest and check local existence."""
+        manifest_path = os.path.join(os.getcwd(), 'data', 'voices_manifest.json')
+        voices_dir = os.path.join(os.getcwd(), 'piper_engine', 'voices')
+        current_pack = self.config_data.get("voice_pack", "system_default")
+        
+        if not os.path.exists(manifest_path):
+            return
+
+        with open(manifest_path, 'r') as f:
+            manifest = json.load(f)
+            
+        voices = manifest.get("voices", [])
+        self.voice_table.setRowCount(len(voices))
+        
+        for i, voice in enumerate(voices):
+            v_id = voice["id"]
+            if v_id == "system_default":
+                is_local = True
+            else:
+                is_local = os.path.exists(os.path.join(voices_dir, f"{v_id}.onnx"))
+            
+            is_active = (v_id == current_pack)
+            
+            # Column 0: Checkmark
+            check_item = QTableWidgetItem("✅" if is_active else "")
+            check_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.voice_table.setItem(i, 0, check_item)
+            
+            # Column 1: Label
+            label_item = QTableWidgetItem(voice["label"])
+            self.voice_table.setItem(i, 1, label_item)
+            
+            # Column 2: Size
+            size_item = QTableWidgetItem(voice["size"])
+            self.voice_table.setItem(i, 2, size_item)
+            
+            # Column 3: Actions
+            if v_id in self.active_downloads:
+                # Keep showing the existing progress bar
+                self.voice_table.setCellWidget(i, 3, self.active_downloads[v_id])
+            else:
+                actions_widget = QWidget()
+                actions_layout = QHBoxLayout(actions_widget)
+                actions_layout.setContentsMargins(2, 2, 2, 2)
+                
+                # Download Button
+                btn_dl = QPushButton()
+                btn_dl.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ArrowDown))
+                btn_dl.setToolTip("Download Voice Pack")
+                btn_dl.setFixedWidth(30)
+                btn_dl.setEnabled(not is_local)
+                btn_dl.clicked.connect(lambda checked, v=voice: self.download_voice(v))
+                
+                # Trash Button
+                btn_del = QPushButton()
+                btn_del.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon))
+                btn_del.setToolTip("Delete Voice Pack")
+                btn_del.setFixedWidth(30)
+                # Cannot delete the only voice or the active one for safety, and never the system default
+                btn_del.setEnabled(is_local and not is_active and v_id != "system_default")
+                btn_del.clicked.connect(lambda checked, v=voice: self.delete_voice(v))
+                
+                actions_layout.addWidget(btn_dl)
+                actions_layout.addWidget(btn_del)
+                
+                self.voice_table.setCellWidget(i, 3, actions_widget)
+
+    def on_voice_row_clicked(self, row, column):
+        # Allow selection by clicking anywhere on the row
+        label_item = self.voice_table.item(row, 1)
+        if not label_item: return
+        
+        label = label_item.text()
+        manifest_path = os.path.join(os.getcwd(), 'data', 'voices_manifest.json')
+        voices_dir = os.path.join(os.getcwd(), 'piper_engine', 'voices')
+        
+        with open(manifest_path, 'r') as f:
+            manifest = json.load(f)
+            
+        for voice in manifest.get("voices", []):
+            if voice["label"] == label:
+                # Only allow selecting if it is downloaded locally or is system default
+                if voice["id"] == "system_default" or os.path.exists(os.path.join(voices_dir, f"{voice['id']}.onnx")):
+                    self.select_voice(voice)
+                else:
+                    QMessageBox.warning(self, "Not Downloaded", f"You must download '{label}' before selecting it.")
+                break
+
+    def select_voice(self, voice):
+        self.config_data["voice_pack"] = voice["id"]
+        self.save_settings(silent=True)
+        self.refresh_voice_table()
+        print(f"[UI] Voice pack changed to: {voice['label']}")
+
+    def delete_voice(self, voice):
+        voices_dir = os.path.join(os.getcwd(), 'piper_engine', 'voices')
+        onnx_path = os.path.join(voices_dir, f"{voice['id']}.onnx")
+        json_path = os.path.join(voices_dir, f"{voice['id']}.onnx.json")
+        
+        try:
+            if os.path.exists(onnx_path): os.remove(onnx_path)
+            if os.path.exists(json_path): os.remove(json_path)
+            QMessageBox.information(self, "Success", f"Voice pack '{voice['label']}' deleted.")
+            self.refresh_voice_table()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to delete voice: {e}")
+
+    def download_voice(self, voice):
+        # Create a progress bar overlay or find the row
+        row = -1
+        for r in range(self.voice_table.rowCount()):
+            if self.voice_table.item(r, 1).text() == voice["label"]:
+                row = r
+                break
+        
+        if row == -1: return
+
+        if voice["id"] in self.active_downloads:
+            return  # Already downloading
+
+        # Swap button for progress bar
+        self.pbar = QProgressBar()
+        self.pbar.setRange(0, 100)
+        self.pbar.setStyleSheet("height: 10px; font-size: 10px;")
+        
+        self.active_downloads[voice["id"]] = self.pbar
+        self.voice_table.setCellWidget(row, 3, self.pbar)
+
+        # Store thread so it isn't garbage collected
+        if not hasattr(self, 'dl_threads'):
+            self.dl_threads = []
+            
+        dl_thread = VoiceDownloadThread(voice)
+        dl_thread.progress.connect(self.pbar.setValue)
+        dl_thread.finished.connect(lambda success, msg: self.on_download_finished(success, msg, voice))
+        self.dl_threads.append(dl_thread)
+        dl_thread.start()
+
+    def on_download_finished(self, success, msg, voice):
+        v_id = voice["id"]
+        if v_id in self.active_downloads:
+            del self.active_downloads[v_id]
+            
+        if success:
+            QMessageBox.information(self, "Success", f"Voice '{voice['label']}' downloaded successfully!")
+        else:
+            QMessageBox.critical(self, "Error", f"Download failed: {msg}")
+        self.refresh_voice_table()
 
     def _create_slider(self, min_val, max_val, current_val):
         slider = QSlider(Qt.Orientation.Horizontal)
@@ -306,18 +548,20 @@ class SettingsWindow(QMainWindow):
         import subprocess
         
         os_type = platform.system()
-        piper_path = None
-        model_path = None
         
+        # Determine Piper binary path
         if os_type == 'Windows':
-             piper_path = os.path.abspath("piper_engine/piper_windows/piper/piper.exe")
+             piper_bin = os.path.abspath("piper_engine/piper_windows/piper/piper.exe")
         else:
-             piper_path = os.path.abspath("piper_engine/piper/piper")
+             piper_bin = os.path.abspath("piper_engine/piper/piper")
         
-        model_path = os.path.abspath("piper_engine/voice.onnx")
+        # Determine Voice Model path
+        current_pack = self.config_data.get("voice_pack", "system_default")
+        voices_dir = os.path.join(os.getcwd(), 'piper_engine', 'voices')
+        model_path = os.path.join(voices_dir, f"{current_pack}.onnx")
         
         use_piper = False
-        if os.path.exists(piper_path) and os.path.exists(model_path):
+        if os.path.exists(piper_bin) and os.path.exists(model_path):
              use_piper = True
              
         try:
@@ -333,7 +577,7 @@ class SettingsWindow(QMainWindow):
                     import audioop
                     
                     piper_proc = subprocess.Popen(
-                        [piper_path, '--model', model_path, '--output_raw', '--length_scale', str(length_scale)], 
+                        [piper_bin, '--model', model_path, '--output_raw', '--length_scale', str(length_scale)], 
                         stdin=subprocess.PIPE, 
                         stdout=subprocess.PIPE,
                         stderr=subprocess.DEVNULL
@@ -367,6 +611,10 @@ class SettingsWindow(QMainWindow):
                     QMessageBox.information(self, "Linux/Mac", "Piper test preview not fully implemented for this OS in Settings yet. Save to test.")
 
             else:
+                if current_pack != "system_default":
+                    QMessageBox.warning(self, "Voice Download Required", 
+                        "The selected Piper voice is not downloaded yet.\n\nPlease download a Piper voice above to preview it. The assistant will use your computer's built-in OS voice as a fallback in the meantime.")
+                
                 # Pyttsx3 Fallback
                 import pyttsx3
                 engine = pyttsx3.init()
@@ -394,6 +642,119 @@ class SettingsWindow(QMainWindow):
         except Exception as e:
             QMessageBox.warning(self, "Test Failed", f"Could not test voice: {e}")
 
+    def init_io_tab(self):
+        layout = QFormLayout()
+        layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        layout.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        layout.setSpacing(20)
+        self.tab_io.setLayout(layout)
+        
+        lbl_info = QLabel("Select the hardware devices to use for Voice commands.")
+        lbl_info.setStyleSheet("color: #aaa; font-style: italic; margin-bottom: 10px;")
+        layout.addRow(lbl_info)
+        
+        # PyAudio Device Setup
+        self.combo_input = QComboBox()
+        self.combo_output = QComboBox()
+        style = "padding: 8px; background: #252526; border: 1px solid #555; color: #fff;"
+        self.combo_input.setStyleSheet(style)
+        self.combo_output.setStyleSheet(style)
+        
+        self.default_in_name = None
+        self.default_out_name = None
+        
+        # Dynamically populate the combo boxes
+        self._populate_audio_combos()
+        
+        layout.addRow("Microphone (Input):", self.combo_input)
+        layout.addRow("Speaker (Output):", self.combo_output)
+
+    def refresh_audio_devices(self):
+        """Hot-reload the audio setting comboboxes from the background monitor."""
+        self._populate_audio_combos()
+
+    def _populate_audio_combos(self):
+        """Scans and populates audio comboboxes while preserving active selection."""
+        # Save current selections to restore them after repopulating
+        current_in = self.combo_input.currentText()
+        current_out = self.combo_output.currentText()
+        
+        # Disconnect signals temporarily if they exist (to prevent false triggers during clear)
+        self.combo_input.blockSignals(True)
+        self.combo_output.blockSignals(True)
+        
+        self.combo_input.clear()
+        self.combo_output.clear()
+        
+        try:
+            import subprocess
+            import sys
+            import json
+            
+            script = """
+import pyaudio, json, sys, os
+sys.stderr = open(os.devnull, 'w')
+try:
+    p = pyaudio.PyAudio()
+    try: api = p.get_default_host_api_info()['index']
+    except: api = None
+    
+    try: def_in = p.get_default_input_device_info().get('name')
+    except: def_in = None
+    
+    try: def_out = p.get_default_output_device_info().get('name')
+    except: def_out = None
+    
+    ins, outs = [], []
+    for i in range(p.get_device_count()):
+        info = p.get_device_info_by_index(i)
+        if api is not None and info.get('hostApi') != api: continue
+        name = info.get('name', '')
+        if not name or 'Microsoft Sound Mapper' in name: continue
+        if info.get('maxInputChannels', 0) > 0: ins.append(name)
+        if info.get('maxOutputChannels', 0) > 0: outs.append(name)
+        
+    print(json.dumps({'inputs': ins, 'outputs': outs, 'default_in': def_in, 'default_out': def_out}))
+    p.terminate()
+except Exception as e:
+    print(json.dumps({'error': str(e)}))
+"""
+            result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=2)
+            if result.returncode == 0 and result.stdout.strip():
+                data = json.loads(result.stdout.strip())
+                if 'error' not in data:
+                    self.default_in_name = data.get('default_in')
+                    self.default_out_name = data.get('default_out')
+                    
+                    for name in data.get('inputs', []):
+                        self.combo_input.addItem(name, name)
+                    for name in data.get('outputs', []):
+                        self.combo_output.addItem(name, name)
+                        
+        except Exception as e:
+            print(f"[Settings] Error scanning audio devices via subprocess: {e}")
+            
+        # Restore Selections
+        saved_input = self.config_data.get("input_device_name") or self.default_in_name
+        saved_output = self.config_data.get("output_device_name") or self.default_out_name
+        
+        target_in = current_in if current_in else saved_input
+        target_out = current_out if current_out else saved_output
+        
+        if target_in:
+            idx = self.combo_input.findText(target_in)
+            if idx >= 0:
+                self.combo_input.setCurrentIndex(idx)
+                
+        if target_out:
+            idx = self.combo_output.findText(target_out)
+            if idx >= 0:
+                self.combo_output.setCurrentIndex(idx)
+                
+        # Re-enable signals
+        self.combo_input.blockSignals(False)
+        self.combo_output.blockSignals(False)
+
     def reset_defaults(self):
         reply = QMessageBox.question(
             self, 'Reset Defaults', 
@@ -417,6 +778,14 @@ class SettingsWindow(QMainWindow):
             self.chk_transparency.setChecked(True)
             self.chk_lock_widget.setChecked(False)
             self.input_screenshot.setText("")
+            
+            if self.default_in_name:
+                idx = self.combo_input.findText(self.default_in_name)
+                if idx >= 0: self.combo_input.setCurrentIndex(idx)
+            
+            if self.default_out_name:
+                idx = self.combo_output.findText(self.default_out_name)
+                if idx >= 0: self.combo_output.setCurrentIndex(idx)
 
             self.save_settings(silent=True)
 
@@ -435,6 +804,9 @@ class SettingsWindow(QMainWindow):
         self.config_data["status_gui_transparency"] = self.chk_transparency.isChecked()
         self.config_data["status_gui_invisible"] = self.chk_invisible.isChecked()
         self.config_data["screenshot_path"] = self.input_screenshot.text()
+        
+        self.config_data["input_device_name"] = self.combo_input.currentData()
+        self.config_data["output_device_name"] = self.combo_output.currentData()
         
         # Save Taskbar Widget Config
         self.widget_config["locked"] = self.chk_lock_widget.isChecked()

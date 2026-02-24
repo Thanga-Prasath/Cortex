@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<coreProperties xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.openxmlformats.org/package/2006/metadata/core-properties">
+  <dc:creator>Francois Gendron &lt;fg@frgn.ca&gt;</dc:creator>
+  <dc:description>AudioDeviceCmdlets is a suite of PowerShell Cmdlets to control audio devices on Windows</dc:description>
+  <dc:identifier>AudioDeviceCmdlets</dc:identifier>
+  <version>3.1.0.2</version>
+  <keywords>audio default playback recording communication device session volume mute mixer toggle switch get set PSModule PSIncludes_Cmdlet PSCmdlet_Get-AudioDevice PSCmdlet_Set-AudioDevice PSCmdlet_Write-AudioDevice PSCommand_Get-AudioDevice PSCommand_Set-AudioDevice PSCommand_Write-AudioDevice</keywords>
+  <lastModifiedBy>NuGet.Build.Tasks.Pack, Version=6.2.0.146, Culture=neutral, PublicKeyToken=31bf3856ad364e35;</lastModifiedBy>
+</coreProperties>

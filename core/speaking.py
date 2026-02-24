@@ -14,20 +14,35 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
     import json
     import audioop
     
-    engine = None
-    use_piper = False
+    # Engine setup variables
+    current_model_path = None
+    piper_available = False
     
-    # Try initializing Piper if requested (Linux or Windows)
-    if (os_type == 'Linux' or os_type == 'Windows') and piper_path and model_path:
-        if os.path.exists(piper_path) and os.path.exists(model_path):
-             use_piper = True
-             if os_type == 'Windows':
-                 import pyaudio
+    # Try local discovery if piper exists
+    voices_dir = os.path.join(os.getcwd(), 'piper_engine', 'voices')
+    
+    def resolve_model(requested_pack):
+        """Find the best available model following the cascading fallback plan."""
+        # 0. System Default -> Force Pyttsx3
+        if requested_pack == "system_default":
+            return None
 
+        # 1. Try Requested Pack
+        if requested_pack:
+            p = os.path.join(voices_dir, f"{requested_pack}.onnx")
+            if os.path.exists(p):
+                return p
+        
+        # 2. If not found, fallback to System Default (return None)
+        return None
 
     print("[OK] TTS Worker Started Ready")
 
     config_path = os.path.join(os.getcwd(), 'data', 'user_config.json')
+    
+    # Pre-check piper bin
+    if not os.path.exists(piper_path):
+        piper_path = None
 
     while True:
         try:
@@ -42,13 +57,21 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
             # Load Config PER UTTERANCE
             voice_rate = 175
             voice_volume = 1.0
+            voice_pack = "system_default"
+            output_device_name = None
             try:
                 if os.path.exists(config_path):
                     with open(config_path, 'r') as f:
                         data = json.load(f)
                         voice_rate = data.get("voice_rate", 175)
                         voice_volume = data.get("voice_volume", 1.0)
+                        voice_pack = data.get("voice_pack", "system_default")
+                        output_device_name = data.get("output_device_name", None)
             except: pass
+            
+            # Resolve Model Path live
+            model_path = resolve_model(voice_pack)
+            use_piper = bool(piper_path and model_path)
             
             # SIGNAL START
             if is_speaking_flag:
@@ -69,7 +92,8 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
                     try:
                         import pyaudio
                         from core.alsa_error import no_alsa_error
-                        
+                        import subprocess # Ensure subprocess is available for Piper playback
+
                         # Start Piper Process
                         piper_proc = subprocess.Popen(
                             [piper_path, '--model', model_path, '--output_raw', '--length_scale', str(length_scale)], 
@@ -81,8 +105,47 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
                         # Initialize PyAudio (suppress ALSA errors)
                         with no_alsa_error():
                             p = pyaudio.PyAudio()
-                            # 22050Hz is standard for most Piper voices
-                            stream = p.open(format=pyaudio.paInt16, channels=1, rate=22050, output=True)
+                            
+                            output_device_index = None
+                            if output_device_name:
+                                import subprocess
+                                import sys
+                                cmd = "import pyaudio, json, sys, os; sys.stderr=open(os.devnull, 'w'); p=pyaudio.PyAudio(); print(json.dumps({'def': p.get_default_output_device_info().get('name') if p.get_device_count() else None})); p.terminate()"
+                                res = subprocess.run([sys.executable, "-c", cmd], capture_output=True, text=True, timeout=2)
+                                
+                                true_default = None
+                                if res.returncode == 0 and res.stdout.strip():
+                                    try: true_default = json.loads(res.stdout.strip()).get("def")
+                                    except: pass
+                                    
+                                if true_default != output_device_name:
+                                    try: default_host_api = p.get_default_host_api_info()['index']
+                                    except Exception: default_host_api = None
+                                        
+                                    for i in range(p.get_device_count()):
+                                        info = p.get_device_info_by_index(i)
+                                        if default_host_api is not None and info.get('hostApi') != default_host_api:
+                                            continue
+                                        if info.get('name') == output_device_name and info.get('maxOutputChannels', 0) > 0:
+                                            output_device_index = i
+                                            break
+                            
+                            kwargs = {
+                                'format': pyaudio.paInt16,
+                                'channels': 1,
+                                'rate': 22050, # standard for Piper
+                                'output': True
+                            }
+                            if output_device_index is not None:
+                                kwargs['output_device_index'] = output_device_index
+                                
+                            try:
+                                stream = p.open(**kwargs)
+                            except Exception as e:
+                                print(f"[!] Target output device unavailable, falling back to default: {e}")
+                                if 'output_device_index' in kwargs:
+                                    del kwargs['output_device_index']
+                                stream = p.open(**kwargs)
 
                         # Write text to Piper's stdin
                         piper_proc.stdin.write(text.encode('utf-8'))
@@ -200,25 +263,22 @@ class Speaker:
         self.worker_process.start()
 
     def _check_piper(self):
-        """Check Piper availability."""
+        """Check Piper availability and binary path."""
         try:
             if self.os_type == 'Windows':
                  self.piper_path = os.path.abspath("piper_engine/piper_windows/piper/piper.exe")
             else:
                  self.piper_path = os.path.abspath("piper_engine/piper/piper")
             
-            self.model_path = os.path.abspath("piper_engine/voice.onnx")
-            
-            if os.path.exists(self.piper_path) and os.path.exists(self.model_path):
-                if os.access(self.piper_path, os.X_OK):
-                    self.piper_available = True
-                    print(f"[OK] Piper TTS available")
-                else:
-                    print(f"[!] Piper found but not executable")
+            if os.path.exists(self.piper_path) and os.access(self.piper_path, os.X_OK):
+                self.piper_available = True
+                print(f"[OK] Piper TTS Binary available")
             else:
-                print(f"[!] Piper not found")
+                self.piper_available = False
+                print(f"[!] Piper binary not found at {self.piper_path}")
         except Exception as e:
             print(f"[!] Error checking Piper: {e}")
+            self.piper_available = False
     
     def _check_pyttsx3(self):
         """Check pyttsx3 availability."""
