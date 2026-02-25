@@ -37,8 +37,9 @@ except ImportError:
     pyperclip = None
 
 class AutomationEngine:
-    def __init__(self, speaker):
+    def __init__(self, speaker, status_queue=None):
         self.speaker = speaker
+        self.status_queue = status_queue
 
     def handle_intent(self, tag, command=""):
         # --- Phase 1: Dictation (Already Implemented) ---
@@ -66,8 +67,114 @@ class AutomationEngine:
         if tag == 'run_workflow':
             self.execute_workflow()
             return True
+            
+        if tag == 'list_automations':
+            if self.status_queue:
+                self.speaker.speak("Here are your automations.")
+                self.status_queue.put(("AUTOMATION_LIST", None))
+            else:
+                self.speaker.speak("UI is not connected, cannot show automations.")
+            return True
+
+        if tag == 'run_automation_by_number':
+            self.handle_run_by_numbers(command)
+            return True
+
+        if tag == 'run_automation_by_name':
+            self.handle_run_by_name(command)
+            return True
 
         return False
+
+    def _get_sorted_automation_names(self):
+        """Returns automations sorted with primary first, then alphabetically."""
+        import json, glob, os
+        data_dir = os.path.join(os.getcwd(), 'data', 'automations')
+
+        primary = None
+        state_file = os.path.join(data_dir, 'state.json')
+        if os.path.exists(state_file):
+            try:
+                with open(state_file, 'r') as f:
+                    primary = json.load(f).get('primary', None)
+            except: pass
+
+        json_files = glob.glob(os.path.join(data_dir, "*.json"))
+        names = []
+        for f in json_files:
+            name = os.path.basename(f).replace(".json", "")
+            if name != "state":
+                names.append(name)
+
+        names.sort()
+        if primary and primary in names:
+            names.remove(primary)
+            names.insert(0, primary)
+
+        return names
+
+    def handle_run_by_numbers(self, command):
+        """Extract numbers from command and run corresponding automations by index."""
+        import re
+        numbers = re.findall(r'\d+', command)
+        if not numbers:
+            self.speaker.speak("Please specify which automation number to run.")
+            return
+
+        names = self._get_sorted_automation_names()
+        if not names:
+            self.speaker.speak("No automations found.")
+            return
+
+        ran = []
+        for n_str in numbers:
+            idx = int(n_str) - 1  # 1-based to 0-based
+            if 0 <= idx < len(names):
+                name = names[idx]
+                ran.append(name)
+                self.execute_workflow(workflow_name=name)
+            else:
+                self.speaker.speak(f"Automation number {n_str} does not exist.")
+
+        if ran:
+            label = " and ".join(ran)
+            print(f"[Automation] Ran by number: {label}")
+
+    def handle_run_by_name(self, command):
+        """Extract automation name from command and run it by fuzzy name match."""
+        import re
+        cmd = command.lower()
+        # Strip trigger phrases to get the name token(s)
+        # Supports: "run {name} automation", "run automation {name}", "start {name}"
+        for pat in [
+            r'run\s+(.+?)\s+automation\b',
+            r'(?:run|start|execute)\s+automation\s+(.+)',
+            r'(?:run|start|execute)\s+(.+)',
+        ]:
+            m = re.search(pat, cmd)
+            if m:
+                name_query = m.group(1).strip()
+                break
+        else:
+            self.speaker.speak("Which automation would you like me to run?")
+            return
+
+        names = self._get_sorted_automation_names()
+        if not names:
+            self.speaker.speak("No automations found.")
+            return
+
+        # Fuzzy match: find best matching automation name
+        from difflib import get_close_matches
+        matches = get_close_matches(name_query, [n.lower() for n in names], n=1, cutoff=0.4)
+        if matches:
+            matched_lower = matches[0]
+            # Resolve back to original cased name
+            matched_name = next(n for n in names if n.lower() == matched_lower)
+            print(f"[Automation] Running by name: '{name_query}' → '{matched_name}'")
+            self.execute_workflow(workflow_name=matched_name)
+        else:
+            self.speaker.speak(f"I couldn't find an automation named {name_query}.")
 
     def _handle_window_ops(self, tag, command=""):
         """
@@ -337,20 +444,35 @@ class AutomationEngine:
         Returns True/False.
         """
         if current_os == "Windows":
-            # Use pywinctl to check if any window title contains the app name
+            # Use pywinctl to check if any window title contains the app name (case-insensitive)
             if pywinctl:
                 try:
-                    windows = pywinctl.getWindowsWithTitle(app_name)
-                    return len(windows) > 0
+                    all_windows = pywinctl.getAllWindows()
+                    app_lower = app_name.lower()
+                    for w in all_windows:
+                        title = (w.title if hasattr(w, 'title') else '').lower()
+                        if app_lower in title:
+                            return True
                 except Exception:
                     pass
-            # Fallback: tasklist
+            # Fallback: tasklist — map common aliases to actual process names
+            process_aliases = {
+                "edge": "msedge", "microsoft edge": "msedge",
+                "chrome": "chrome", "google chrome": "chrome",
+                "firefox": "firefox", "code": "Code", "vscode": "Code",
+                "explorer": "explorer", "file explorer": "explorer",
+                "notepad": "notepad", "whatsapp": "WhatsApp",
+                "spotify": "Spotify", "word": "WINWORD",
+                "excel": "EXCEL", "powerpoint": "POWERPNT",
+                "terminal": "WindowsTerminal", "cmd": "cmd",
+            }
+            search_name = process_aliases.get(app_name.lower(), app_name)
             try:
                 result = subprocess.run(
-                    ["tasklist", "/FI", f"IMAGENAME eq {app_name}*"],
+                    ["tasklist", "/FI", f"IMAGENAME eq {search_name}*"],
                     capture_output=True, text=True, timeout=5
                 )
-                return app_name.lower() in result.stdout.lower()
+                return search_name.lower() in result.stdout.lower()
             except Exception:
                 return False
         else:
@@ -435,9 +557,14 @@ class AutomationEngine:
             self.speaker.speak("Window control library is not available.")
             return
         try:
-            windows = pywinctl.getWindowsWithTitle(app_name)
-            if windows:
-                win = windows[0]
+            # Case-insensitive window title search
+            all_windows = pywinctl.getAllWindows()
+            app_lower = app_name.lower()
+            matched = [w for w in all_windows
+                       if app_lower in (w.title if hasattr(w, 'title') else '').lower()
+                       and (w.title or '').strip()]
+            if matched:
+                win = matched[0]
                 if hasattr(win, 'activate'):
                     win.activate()
                 self.speaker.speak(f"Switched to {app_name}.")
@@ -708,17 +835,37 @@ class AutomationEngine:
             print(f"[Note Taking Error] {e}")
             self.speaker.speak("I encountered an error opening the text editor.")
 
-    def execute_workflow(self, workflow_path=None):
+    def execute_workflow(self, workflow_name=None):
         """
         Executes the saved workflow JSON.
         """
         import json, os, time
         
-        if not workflow_path:
-            workflow_path = os.path.join(os.getcwd(), 'data', 'workflow.json')
+        data_dir = os.path.join(os.getcwd(), 'data', 'automations')
+        
+        # Determine which workflow to run
+        if not workflow_name:
+            state_file = os.path.join(data_dir, 'state.json')
+            if os.path.exists(state_file):
+                try:
+                    with open(state_file, 'r') as f:
+                        state = json.load(f)
+                        workflow_name = state.get('primary', 'Default')
+                except:
+                    workflow_name = 'Default'
+            else:
+                workflow_name = 'Default'
+                
+        # Handle legacy or new path
+        workflow_path = os.path.join(data_dir, f'{workflow_name}.json')
+        
+        # Backwards compatibility check
+        legacy_path = os.path.join(os.getcwd(), 'data', 'workflow.json')
+        if not os.path.exists(workflow_path) and os.path.exists(legacy_path):
+            workflow_path = legacy_path
             
         if not os.path.exists(workflow_path):
-            self.speaker.speak("No workflow found.")
+            self.speaker.speak(f"No automation found named {workflow_name}.")
             return
 
         try:

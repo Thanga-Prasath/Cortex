@@ -6,6 +6,10 @@ pyttsx3>=2.90
 PyQt6
 psutil
 pyautogui
-winshell
+pyperclip
 Pillow
 requests
+
+# Windows-only dependencies (install only on Windows)
+# PyWinCtl  -- window management (Windows/macOS only, skip on Linux if not needed)
+# winshell  -- Windows Shell API (Windows only)

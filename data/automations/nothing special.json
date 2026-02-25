@@ -1,0 +1,41 @@
+{
+    "nodes": [
+        {
+            "id": "dbd20fd5-f78d-4408-abf9-d5ba2e2ef363",
+            "type": "Start",
+            "x": 2335.0,
+            "y": 2306.0,
+            "data": {
+                "value": ""
+            }
+        },
+        {
+            "id": "b60cb11b-bd88-4601-9566-65574b1cecbd",
+            "type": "Speak",
+            "x": 2436.0,
+            "y": 2425.0,
+            "data": {
+                "value": "This is nothing special"
+            }
+        },
+        {
+            "id": "4cd22fc4-4732-4add-b6ab-d82393df6c9a",
+            "type": "End",
+            "x": 2398.0,
+            "y": 2550.0,
+            "data": {
+                "value": ""
+            }
+        }
+    ],
+    "connections": [
+        {
+            "from": "dbd20fd5-f78d-4408-abf9-d5ba2e2ef363",
+            "to": "b60cb11b-bd88-4601-9566-65574b1cecbd"
+        },
+        {
+            "from": "b60cb11b-bd88-4601-9566-65574b1cecbd",
+            "to": "4cd22fc4-4732-4add-b6ab-d82393df6c9a"
+        }
+    ]
+}

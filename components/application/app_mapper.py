@@ -139,13 +139,25 @@ class AppMapper:
 
     def search_app(self, query):
         """Fuzzy search for an app."""
-        query = query.lower()
+        query = query.lower().strip()
+
         # Direct match
         if query in self.apps:
             return self.apps[query]
-            
-        # Substring match
+
+        # Safety guard: do NOT substring-search on very short queries —
+        # "to" is inside "navigator", "on" is inside "anaconda", etc.
+        if len(query) < 4:
+            return None
+
+        # Word-boundary substring match:
+        # The query must start at a word boundary inside the app name,
+        # NOT match mid-word (e.g. "window" must match "windows" at pos 0,
+        # not match "camerawindow" mid-string).
+        import re
+        pattern = re.compile(r'\b' + re.escape(query), re.IGNORECASE)
         for name, cmd in self.apps.items():
-            if query in name:
+            if pattern.search(name):
                 return cmd
+
         return None

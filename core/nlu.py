@@ -90,6 +90,21 @@ class NeuralIntentModel:
                     self.intent_anchors = {}
                 self.intent_anchors[tag] = [a.lower() for a in intent['anchors']]
                 
+        # --- Build Template Patterns ---
+        # Patterns containing {placeholder} are treated as structural templates.
+        # e.g. "open {app_name}" → prefix="open ", suffix=""
+        # At predict time, if input matches the prefix+suffix structure, it's a hit.
+        import re
+        self.template_patterns = []  # list of (tag, prefix, suffix)
+        for i, pattern in enumerate(self.patterns):
+            if '{' in pattern and '}' in pattern:
+                # Extract the static prefix and suffix around the placeholder
+                match = re.match(r'^(.*?)\{[^}]+\}(.*)$', pattern.lower())
+                if match:
+                    prefix = match.group(1)
+                    suffix = match.group(2)
+                    self.template_patterns.append((self.tags[i], prefix, suffix))
+                
         print(f"NLU: Loaded {len(self.intents)} intents from {len(json_files)} files.")
 
     def train(self):
@@ -165,6 +180,25 @@ class NeuralIntentModel:
                     if not has_anchor:
                         valid_intents.discard(tag)
         
+        # --- 0.5. Priority Anchors (Temporary Explicit Rule) ---
+        # Route "run automation" → run_workflow, BUT only when it's a generic (no number, no name arg).
+        # "run automation 2" or "run automation {name}" must fall through to run_automation_by_number / name.
+        if "automation" in text and "run_workflow" in valid_intents:
+            if any(w in text for w in ["run", "start", "execute", "launch", "open"]):
+                import re as _re
+                # If there's a digit → run_automation_by_number should handle it
+                has_digit = bool(_re.search(r'\d+', text))
+                # Word-form numbers should also fall through
+                _WORD_NUMS = {"one","two","three","four","five","six","seven","eight","nine","ten",
+                              "to","too","for"}
+                has_word_num = any(w in text.split() for w in _WORD_NUMS)
+                # If "automation" is followed by any extra token, treat as name/number command
+                after_auto = _re.split(r'\bautomation\b', text, maxsplit=1)[-1].strip()
+                has_argument = bool(after_auto)
+                if not has_digit and not has_word_num and not has_argument:
+                    print("NLU: Priority Anchor Match 'run_workflow' (Automation)")
+                    return "run_workflow", 1.0
+        
         # --- 1. Keyword Boosting (Dynamic Logic) ---
         # Strategy: Find the intent with the LONGEST matching keyword phrase.
         # This prevents generic keywords (e.g., "wifi") from shadowing specific ones (e.g., "wifi password").
@@ -192,6 +226,36 @@ class NeuralIntentModel:
         if best_keyword_match_tag:
              print(f"NLU: Keyword Boost '{best_keyword_match_tag}' (Length: {max_keyword_len})")
              return best_keyword_match_tag, 1.0
+
+        # --- 1.5. Template Pattern Matching ---
+        # Patterns like "open {app_name}" are matched structurally:
+        # if input starts with the prefix and ends with the suffix, it's a match.
+        # Picks the longest matching prefix to avoid false positives.
+        best_template_tag = None
+        max_template_len = 0
+        
+        for tag, prefix, suffix in self.template_patterns:
+            if tag not in valid_intents:
+                continue
+            # Check structural match
+            prefix_ok = text.startswith(prefix) if prefix else True
+            suffix_ok = text.endswith(suffix) if suffix else True
+            if prefix_ok and suffix_ok:
+                # Ensure there's actual content in the placeholder slot
+                inner = text
+                if prefix:
+                    inner = inner[len(prefix):]
+                if suffix:
+                    inner = inner[:-len(suffix)]
+                if inner.strip():  # placeholder must not be empty
+                    match_len = len(prefix) + len(suffix)
+                    if match_len > max_template_len:
+                        max_template_len = match_len
+                        best_template_tag = tag
+        
+        if best_template_tag:
+            print(f"NLU: Template Match '{best_template_tag}' (Prefix Length: {max_template_len})")
+            return best_template_tag, 1.0
         
         # --- 2. Fuzzy Matching (Closest Match) ---
         best_match_tag = None

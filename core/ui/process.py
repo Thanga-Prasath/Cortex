@@ -133,6 +133,31 @@ def ui_process_target(status_queue, action_queue, reset_event=None, shutdown_eve
                 elif status == "SET_GUI_VISIBLE":
                     window.set_gui_visible(data)
 
+                elif status == "AUTOMATION_LIST":
+                    from core.ui.automation_window import AutomationListDialog
+                    dlg = AutomationListDialog(parent=None)
+                    dlg.show()
+                    dlg.raise_()
+                    dlg.activateWindow()
+                    track_window(dlg)
+                    # Keep reference for real-time sync
+                    window._active_automation_list_dlg = dlg
+                    
+                    if action_queue:
+                        action_queue.put(("AUTOMATION_DIALOG_STATE", True))
+                    
+                    def on_dlg_close():
+                        setattr(window, '_active_automation_list_dlg', None)
+                        if action_queue:
+                            action_queue.put(("AUTOMATION_DIALOG_STATE", False))
+                            
+                    dlg.finished.connect(on_dlg_close)
+
+                elif status == "PRIMARY_UPDATED":
+                    dlg = getattr(window, '_active_automation_list_dlg', None)
+                    if dlg and dlg.isVisible():
+                        dlg.refresh_list()
+
                 else:
                     # Default to status window update
                     window.update_status(status, data)

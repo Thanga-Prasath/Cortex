@@ -37,8 +37,7 @@ class CortexEngine:
         self.file_manager = FileManagerEngine(self.speaker, self.status_queue)
         self.application_engine = ApplicationEngine(self.speaker)
         self.workspace_engine = WorkspaceEngine(self.speaker, self.status_queue)
-        self.workspace_engine = WorkspaceEngine(self.speaker, self.status_queue)
-        self.automation_engine = AutomationEngine(self.speaker)
+        self.automation_engine = AutomationEngine(self.speaker, self.status_queue)
         
         # Static Engine (Database-Driven)
         from .engines.static import StaticCommandEngine
@@ -116,6 +115,8 @@ class CortexEngine:
             'note_take': "Take a Note",
             'timer_set': "Set Timer",
             'run_workflow': "Run Automation",
+            'list_automations': "List Automations",
+            'run_automation_by_number': "Run Automation by Number",
             # --- [NEW] UX Control Intents ---
             'hold_listening': "Hold / Go Idle",
             'resume_listening': "Resume Listening",
@@ -214,6 +215,9 @@ class CortexEngine:
                     elif cmd == "UPDATE_NAME":
                         self.user_config['name'] = data
                         print(f"[Engine] User Name synced live: {data}")
+                    elif cmd == "AUTOMATION_DIALOG_STATE":
+                        self.automation_dialog_active = data
+                        print(f"[Engine] Automation Dialog Active: {self.automation_dialog_active}")
             except queue.Empty:
                 continue
             except Exception as e:
@@ -397,6 +401,31 @@ class CortexEngine:
             # Debug decision
             self._log(f"Predicted: {tag} ({confidence:.2f})")
             print(f"Predicted: {tag} ({confidence:.2f})")
+            
+            # --- UI CONTEXT OVERRIDE ---
+            # When the Automation List dialog is open, words like "run one",
+            # "run two" (or Whisper-transcribed homophones "to","for") should
+            # be treated as run-by-number commands, NOT as app launches.
+            if getattr(self, 'automation_dialog_active', False):
+                import re
+                _WORD_TO_NUM = {
+                    "one": "1", "two": "2", "to": "2", "too": "2",
+                    "three": "3", "four": "4", "for": "4",
+                    "five": "5", "six": "6", "seven": "7",
+                    "eight": "8", "nine": "9", "ten": "10"
+                }
+                words = command.lower().split()
+                # Normalise homophones into digits in the command
+                normalised = " ".join(_WORD_TO_NUM.get(w, w) for w in words)
+                trigger_words = {"run", "start", "execute"}
+                has_trigger = any(w in words for w in trigger_words)
+                has_number  = bool(re.search(r'\d+', normalised))
+                if has_trigger and has_number:
+                    print("[Engine] Context Override: Routing to automation runner because dialog is active.")
+                    tag     = "run_automation_by_number"
+                    confidence = 1.0
+                    command = normalised   # pass normalised cmd so engine sees digits
+                    self._log("Context Override → run_automation_by_number")
             
             # --- CONTEXT DETECTION FOR LONG SPEECH ---
             # If the user said a lot of words, they might not be talking to us

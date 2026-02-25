@@ -16,12 +16,114 @@
                 "Running Neural Sync sequence."
             ],
             "context_set": "",
+            "keywords": [
+                "run automation",
+                "start automation",
+                "execute automation",
+                "launch automation",
+                "open automation"
+            ],
             "anchors": [
                 "workflow",
                 "automation",
                 "flow",
                 "neural",
                 "sync"
+            ]
+        },
+        {
+            "tag": "list_automations",
+            "patterns": [
+                "show automations",
+                "list automations",
+                "run selected automation",
+                "what are my automations",
+                "show my automations"
+            ],
+            "responses": [
+                "Here are your automations."
+            ],
+            "context_set": "",
+            "keywords": [
+                "list automations",
+                "show automations",
+                "run selected automation"
+            ],
+            "anchors": [
+                "automation",
+                "automations",
+                "schedule"
+            ]
+        },
+        {
+            "tag": "run_automation_by_number",
+            "patterns": [
+                "run automation 1",
+                "run automation 2",
+                "run 1",
+                "run 2",
+                "execute 1",
+                "start 1",
+                "run one",
+                "run two",
+                "run three",
+                "run one and two",
+                "run automations 1 and 2",
+                "run 1 and 2",
+                "run number 1",
+                "execute automation 1",
+                "start automation number 1"
+            ],
+            "responses": [
+                "Running the selected automation."
+            ],
+            "context_set": "",
+            "keywords": [
+                "run 1",
+                "run 2",
+                "run one",
+                "run two",
+                "run 1 and",
+                "run one and",
+                "execute 1",
+                "start 1",
+                "run number",
+                "run automation 1",
+                "run automation 2"
+            ],
+            "anchors": [
+                "run",
+                "execute",
+                "start",
+                "1",
+                "2",
+                "one",
+                "two",
+                "number"
+            ]
+        },
+        {
+            "tag": "run_automation_by_name",
+            "patterns": [
+                "run nothing special automation",
+                "run default automation",
+                "run automation nothing special",
+                "run automation default",
+                "start nothing special automation",
+                "execute nothing special",
+                "run my automation called default"
+            ],
+            "responses": [
+                "Running the automation."
+            ],
+            "context_set": "",
+            "keywords": [
+                "run automation",
+                "start automation",
+                "run my automation"
+            ],
+            "anchors": [
+                "automation"
             ]
         }
     ]
