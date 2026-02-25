@@ -13,6 +13,6 @@
     "screenshot_path": "",
     "input_device_index": null,
     "output_device_index": null,
-    "input_device_name": "default",
-    "output_device_name": "default"
+    "input_device_name": "Microphone Array (Realtek(R) Au",
+    "output_device_name": "Speakers (Realtek(R) Audio)"
 }

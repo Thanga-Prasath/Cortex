@@ -190,10 +190,11 @@ class Listener:
             print(f"Calibration failed: {e}. Using default threshold.")
             self.THRESHOLD = 1000
 
-    def listen(self, timeout=None):
+    def listen(self, timeout=None, is_on_hold=False):
         """
         Records audio until silence and transcribes with Whisper.
         :param timeout: Max time to wait for speech start (seconds). Returns None if timeout.
+        :param is_on_hold: If True, publishes IDLE status instead of LISTENING.
         """
         try:
             # Check for system speech to prevent self-listening
@@ -236,7 +237,10 @@ class Listener:
             
             print("Listening...", end="", flush=True)
             if self.status_queue:
-                self.status_queue.put(("LISTENING", None))
+                if is_on_hold:
+                    self.status_queue.put(("IDLE", None))
+                else:
+                    self.status_queue.put(("LISTENING", None))
 
             # 1. Wait for speech to start (Voice Activity Detection)
             frames = []
@@ -402,6 +406,105 @@ class Listener:
                 if 'stream' in locals() and stream.is_active():
                     stream.stop_stream()
                     stream.close()
+            except: pass
+
+    def listen_for_interrupt(self, timeout=30):
+        """
+        A SEPARATE lightweight listener used exclusively by the interrupt thread.
+        KEY DIFFERENCES from listen():
+          - Opens its OWN PyAudio instance so it doesn't conflict with self.p
+          - Does NOT wait for is_speaking_flag (that's exactly the point)
+          - Hard timeout so it doesn't block forever
+          - Only transcribes short bursts, not full commands
+        Returns the transcript string, or empty string on timeout/no speech.
+        """
+        p_int = None
+        stream_int = None
+        try:
+            with no_alsa_error():
+                p_int = pyaudio.PyAudio()
+                try:
+                    stream_int = p_int.open(
+                        format=self.FORMAT,
+                        channels=self.CHANNELS,
+                        rate=self.RATE,
+                        input=True,
+                        frames_per_buffer=self.CHUNK
+                    )
+                except Exception as e:
+                    print(f"[Interrupt Listener] Could not open audio stream: {e}")
+                    return ""
+
+            frames = []
+            started = False
+            start_time = time.time()
+            last_speech_time = time.time()
+
+            while True:
+                # Global hard timeout
+                if time.time() - start_time > timeout:
+                    break
+
+                # If speaking already finished with no speech detected, bail out
+                if not started and self.is_speaking_flag and not self.is_speaking_flag.value:
+                    # Speaking ended; no point listening further
+                    if time.time() - start_time > 1.0:  # Give at least 1s
+                        break
+
+                try:
+                    data = stream_int.read(self.CHUNK, exception_on_overflow=False)
+                except Exception:
+                    break
+
+                samples = np.frombuffer(data, dtype=np.int16).astype(np.float32)
+                samples = samples - np.mean(samples)
+                rms = np.sqrt(np.mean(samples**2))
+
+                if not started:
+                    if rms > self.THRESHOLD:
+                        started = True
+                        frames.append(data)
+                        last_speech_time = time.time()
+                else:
+                    frames.append(data)
+                    if rms > self.THRESHOLD:
+                        last_speech_time = time.time()
+                    # Silence = done speaking
+                    if time.time() - last_speech_time > 0.8:
+                        break
+                    # Hard cap: 5 seconds max for an interrupt phrase
+                    if len(frames) * self.CHUNK / self.RATE > 5:
+                        break
+
+            if not frames:
+                return ""
+
+            # Transcribe captured audio
+            audio_data = b''.join(frames)
+            audio_np = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
+            segments, _ = self.model.transcribe(
+                audio_np,
+                beam_size=1,        # Fast — we only need coarse recognition
+                temperature=0,
+                language="en",
+                initial_prompt="stop talking, stop speaking, be quiet, shut up, enough, silence, quiet"
+            )
+            text = "".join(seg.text for seg in segments).strip().lower()
+            text = text.replace(".", "").replace("?", "").replace(",", "").replace("!", "")
+            return text
+
+        except Exception as e:
+            print(f"[Interrupt Listener] Error: {e}")
+            return ""
+        finally:
+            try:
+                if stream_int and stream_int.is_active():
+                    stream_int.stop_stream()
+                    stream_int.close()
+            except: pass
+            try:
+                if p_int:
+                    p_int.terminate()
             except: pass
 
     def terminate(self):

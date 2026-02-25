@@ -13,6 +13,7 @@ import os
 import datetime
 import random
 import json
+import threading
 try:
     import pyautogui
 except (ImportError, Exception):
@@ -45,6 +46,7 @@ class CortexEngine:
         
         # Internal State
         self.dictation_active = False
+        self.is_on_hold = False  # [NEW] Hold/Wake state
         
         # NLU Model
         self.nlu = NeuralIntentModel()
@@ -113,7 +115,11 @@ class CortexEngine:
             'clipboard_clear': "Clear Clipboard",
             'note_take': "Take a Note",
             'timer_set': "Set Timer",
-            'run_workflow': "Run Automation"
+            'run_workflow': "Run Automation",
+            # --- [NEW] UX Control Intents ---
+            'hold_listening': "Hold / Go Idle",
+            'resume_listening': "Resume Listening",
+            'stop_speaking': "Stop Speaking",
         }
 
     def get_confirmation_message(self, tag, command):
@@ -213,6 +219,42 @@ class CortexEngine:
             except Exception as e:
                 print(f"[Error] Action listener: {e}")
 
+    # ─────────────────────────────────────────────────────────────
+    # [NEW] Background Interrupt Thread for mid-speech interruption
+    # ─────────────────────────────────────────────────────────────
+    def _start_interrupt_listener(self):
+        """Launch a one-shot background thread that listens for stop-speaking keywords
+        while the assistant is speaking. Returns immediately."""
+        t = threading.Thread(target=self._interrupt_listen_thread, daemon=True)
+        t.start()
+
+    def _interrupt_listen_thread(self):
+        """Worker thread: listens for 'stop talking' ONLY while is_speaking_flag is True.
+        Uses a separate short listen call with a hard timeout so it doesn't block the
+        main loop."""
+        import time
+        STOP_KEYWORDS = [
+            "stop", "stop talking", "stop speaking", "shut up",
+            "be quiet", "enough", "silence", "quiet", "zip it", "cancel speech"
+        ]
+        # Poll until speaking starts (max 1s) to avoid a race where speech hasn't begun yet
+        deadline = time.time() + 1.0
+        while not self.speaker.is_speaking_flag.value:
+            if time.time() > deadline:
+                return  # Speech never started
+            time.sleep(0.05)
+
+        # Now listen with a small timeout for an interrupt command
+        transcript = self.listener.listen_for_interrupt(timeout=30)  # separate PyAudio, bypasses speaking flag
+        if transcript:
+            transcript = transcript.lower().strip()
+            print(f"[Interrupt Thread] Heard: '{transcript}'")
+            if any(kw in transcript for kw in STOP_KEYWORDS):
+                print("[Interrupt Thread] Stop keyword detected! Interrupting speech.")
+                self.speaker.stop()
+                if self.status_queue:
+                    self.status_queue.put(("LISTENING", None))
+
     def execute_intent(self, tag, command):
         """Helper to route intent to the correct engine."""
         self._log(f"Executing: {tag}")
@@ -286,8 +328,8 @@ class CortexEngine:
                 print("[Engine] Shutdown signal received. Exiting...")
                 return "EXIT"
 
-            # listen() blocks safely now
-            command = self.listener.listen(timeout=None) # Default timeout None for main loop
+            # listen() blocks safely now. Pass is_on_hold so UI knows not to show "Listening"
+            command = self.listener.listen(timeout=None, is_on_hold=self.is_on_hold) 
             
             if not command:
                 continue
@@ -305,10 +347,43 @@ class CortexEngine:
                     pyautogui.write(command + " ")
                 continue
 
+            # ─────────────────────────────────────────────────────
+            # [FEATURE 1] HOLD / WAKE  (checked before everything)
+            # ─────────────────────────────────────────────────────
+            HOLD_KEYWORDS   = ["hold", "hold on", "pause", "pause listening",
+                               "stop listening", "standby", "stand by", "go idle",
+                               "be quiet", "take a break", "go to sleep mode"]
+            RESUME_KEYWORDS = ["listen", "wake up", "resume", "start listening",
+                               "resume listening", "i am back", "come back", "attention"]
+
+            if self.is_on_hold:
+                # While on hold, ONLY respond to resume keywords
+                if any(kw in command for kw in RESUME_KEYWORDS):
+                    self.is_on_hold = False
+                    print("[Engine] Waking up from hold.")
+                    self.speaker.speak("I am listening again.")
+                else:
+                    print(f"[Engine] On hold — ignoring: {command}")
+                continue  # Either woke up or still on hold; skip normal processing
+
+            if any(kw in command for kw in HOLD_KEYWORDS):
+                self.is_on_hold = True
+                print("[Engine] Going on hold.")
+                self.speaker.speak("Going on hold. Say 'Listen' to wake me up.")
+                if self.status_queue:
+                    self.status_queue.put(("IDLE", None))
+                continue
+
             # --- SAFETY OVERRIDE ---
             if command in ["stop", "exit", "bye", "shutdown", "quit", "cortex stop"]:
                 self.execute_intent('exit', command)
                 break
+
+            # ────────────────────────────────────────────────────
+            # [FEATURE 2] Start background interrupt listener thread
+            # It will detect 'stop talking' while the assistant speaks
+            # ────────────────────────────────────────────────────
+            self._start_interrupt_listener()
 
             # Predict Intent
             if self.status_queue:
@@ -378,16 +453,14 @@ class CortexEngine:
                         display_name = self.get_confirmation_message(tag, command)
                         self.speaker.speak(f"Did you say {display_name}?")
                     
-                    # Listen for response with timeout preference
-                    # We need to make sure listen() doesn't block forever here
+                    # Listen for confirmation response
                     response = self.listener.listen() 
                     
                     if response:
-                        response = response.lower()
+                        response = response.lower().strip()
                         print(f"Confirmation response: {response}")
                         
                         positives = ["yes", "yeah", "yup", "sure", "correct", "do it", "yep", "affirmative", "confirm"]
-                        negatives = ["no", "nope", "not really", "wrong", "stop", "never mind", "incorrect", "cancel"]
                         
                         if any(word in response for word in positives):
                             res = self.execute_intent(tag, command)
@@ -396,7 +469,34 @@ class CortexEngine:
                             if res == "TOGGLE_DICTATION":
                                 self.dictation_active = True
                                 self.speaker.speak("Dictation mode enabled.")
+
+                        # ─────────────────────────────────────────────────────────
+                        # [FEATURE 3] QUICK CORRECTION on medium confidence NO
+                        #
+                        # If user says plain "No" → cancel as usual (quick)
+                        # If user says "No open browser" → strip the "no",
+                        #   re-predict the corrected command, and execute it
+                        #   immediately, skipping the cancel delay entirely.
+                        # ─────────────────────────────────────────────────────────
+                        elif response.startswith("no "):
+                            corrected_cmd = response[3:].strip()  # Everything after "no "
+                            if corrected_cmd:
+                                print(f"[Quick Correction] User corrected to: '{corrected_cmd}'")
+                                corr_tag, corr_conf = self.nlu.predict(corrected_cmd)
+                                print(f"[Quick Correction] Predicted: {corr_tag} ({corr_conf:.2f})")
+                                self._log(f"Quick Correction → {corr_tag}")
+                                res = self.execute_intent(corr_tag, corrected_cmd)
+                                if res == "EXIT":
+                                    break
+                                if res == "TOGGLE_DICTATION":
+                                    self.dictation_active = True
+                                    self.speaker.speak("Dictation mode enabled.")
+                            else:
+                                # Plain "no" with nothing after → regular cancel
+                                self.speaker.speak("Cancelled.")
+                                res = "CANCELLED"
                         else:
+                            # Any other negative → cancel
                             self.speaker.speak("Cancelled.")
                             res = "CANCELLED"
                     else:

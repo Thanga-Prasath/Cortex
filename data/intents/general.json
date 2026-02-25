@@ -211,6 +211,105 @@
                 "typing",
                 "type"
             ]
+        },
+        {
+            "tag": "hold_listening",
+            "patterns": [
+                "hold",
+                "hold on",
+                "pause listening",
+                "stop listening",
+                "go idle",
+                "stand by",
+                "standby",
+                "be quiet",
+                "cortex hold",
+                "cortex pause",
+                "take a break",
+                "go to sleep mode"
+            ],
+            "responses": [
+                "Going on hold. Say 'Listen' to wake me up.",
+                "Standing by. I will resume when you say listen.",
+                "On hold. Call me when you need me."
+            ],
+            "keywords": [
+                "hold",
+                "pause",
+                "standby"
+            ],
+            "anchors": [
+                "hold",
+                "pause",
+                "standby",
+                "quiet",
+                "idle",
+                "sleep"
+            ]
+        },
+        {
+            "tag": "resume_listening",
+            "patterns": [
+                "listen",
+                "wake up",
+                "start listening",
+                "resume listening",
+                "i am back",
+                "cortex listen",
+                "cortex wake up",
+                "hey cortex listen",
+                "resume",
+                "come back",
+                "attention"
+            ],
+            "responses": [
+                "I am listening again.",
+                "Resumed. How can I help you?",
+                "Back online. What do you need?"
+            ],
+            "keywords": [
+                "listen",
+                "wake",
+                "resume"
+            ],
+            "anchors": [
+                "listen",
+                "wake",
+                "resume",
+                "back",
+                "attention"
+            ]
+        },
+        {
+            "tag": "stop_speaking",
+            "patterns": [
+                "stop talking",
+                "stop speaking",
+                "be quiet",
+                "shut up",
+                "enough",
+                "stop",
+                "cancel speech",
+                "stop it",
+                "silence",
+                "quiet",
+                "that's enough",
+                "zip it"
+            ],
+            "responses": [],
+            "keywords": [
+                "stop",
+                "quiet",
+                "silence"
+            ],
+            "anchors": [
+                "stop",
+                "talking",
+                "speaking",
+                "quiet",
+                "silence",
+                "enough"
+            ]
         }
     ]
 }

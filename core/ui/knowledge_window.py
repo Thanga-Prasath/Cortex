@@ -312,7 +312,8 @@ class KnowledgeWindow(QMainWindow):
         icon_map = {
             "automation": "⚡", "system": "🖥️", "media": "🎵", "general": "💬",
             "files": "📁", "apps": "🚀", "browser": "🌐", "window": "🪟", "workspace": "🏢",
-            "developer": "👨‍💻", "network_advanced": "📡", "power_user": "🛠️", "file_ops": "🗄️"
+            "developer": "👨‍💻", "network_advanced": "📡", "power_user": "🛠️", "file_ops": "🗄️",
+            "voice_control": "🎙️"
         }
         
         row, col = 0, 0

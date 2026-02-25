@@ -5,7 +5,7 @@ import multiprocessing
 import time
 import queue
 
-def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaking_flag=None, status_queue=None):
+def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaking_flag=None, status_queue=None, stop_event=None):
     """
     Persistent Worker function to run TTS in a separate process.
     Initializes the engine ONCE and then waits for messages.
@@ -153,7 +153,12 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
 
                         # Read and stream Piper's stdout to PyAudio
                         chunk_size = 1024
+                        interrupted = False
                         while True:
+                            # Check stop event mid-stream
+                            if stop_event and stop_event.is_set():
+                                interrupted = True
+                                break
                             data = piper_proc.stdout.read(chunk_size)
                             if not data:
                                 break
@@ -164,12 +169,22 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
                                     data = audioop.mul(data, 2, voice_volume)
                                 except: pass
                                 
-                            stream.write(data)
+                            try:
+                                stream.write(data)
+                            except Exception as e:
+                                # Writing failed (maybe stream was closed by interrupt)
+                                interrupted = True
+                                break
                         
                         # Cleanup resources
                         stream.stop_stream()
                         stream.close()
                         p.terminate()
+                        # Terminate piper and discard remaining audio if interrupted
+                        try:
+                            piper_proc.kill()
+                        except Exception:
+                            pass
                         piper_proc.wait()
 
                     except Exception as e:
@@ -205,6 +220,7 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
                         engine.runAndWait()
                         
                         # Explicitly delete engine to free COM resources
+                        engine.stop()
                         del engine
                         
                     except Exception as e:
@@ -253,11 +269,14 @@ class Speaker:
         else:
             self._check_pyttsx3()
             
+        # Event to interrupt TTS mid-sentence
+        self.stop_event = multiprocessing.Event()
+        
         # Start Persistent Worker
         self.tts_queue = multiprocessing.Queue()
         self.worker_process = multiprocessing.Process(
             target=run_tts_loop, 
-            args=(self.tts_queue, self.os_type, self.piper_path, self.model_path, self.is_speaking_flag, self.status_queue)
+            args=(self.tts_queue, self.os_type, self.piper_path, self.model_path, self.is_speaking_flag, self.status_queue, self.stop_event)
         )
         self.worker_process.daemon = True # Kill when main process dies
         self.worker_process.start()
@@ -318,6 +337,22 @@ class Speaker:
         
         # REMOVED: Immediate IDLE update. 
         # We rely on the worker process to set IDLE when done.
+
+    def stop(self):
+        """Interrupt current speech immediately. Drains the TTS queue."""
+        self.stop_event.set()
+        # Drain any queued utterances so the assistant doesn't keep talking
+        try:
+            while True:
+                self.tts_queue.get_nowait()
+        except Exception:
+            pass
+        # Reset flag so the worker clears the event itself after stopping
+        # We clear here because the worker loop checks, but never clears it
+        import time
+        time.sleep(0.15)  # Brief wait for the worker to notice the event
+        self.stop_event.clear()
+        self.is_speaking_flag.value = False
 
     def terminate(self):
         self.tts_queue.put(None)
