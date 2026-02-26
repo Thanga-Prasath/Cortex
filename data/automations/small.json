@@ -1,0 +1,57 @@
+{
+    "nodes": [
+        {
+            "id": "023fde03-db3d-431d-abe0-b8799e1d759c",
+            "type": "Open Target",
+            "x": 2371.0,
+            "y": 2672.0,
+            "data": {
+                "value": "D:/Downloads/gengar-terror.1920x1080.mp4"
+            }
+        },
+        {
+            "id": "d12abeb2-cb5a-41b5-aef5-a6f58f03f7a7",
+            "type": "Start",
+            "x": 2366.0,
+            "y": 2368.0,
+            "data": {
+                "value": ""
+            }
+        },
+        {
+            "id": "a2b7be4a-6168-4579-b7e1-070762268bed",
+            "type": "Speak",
+            "x": 2369.0,
+            "y": 2518.0,
+            "data": {
+                "value": "Activating small"
+            }
+        },
+        {
+            "id": "0342a005-cf24-482d-9db5-ad290584be64",
+            "type": "End",
+            "x": 2371.0,
+            "y": 2794.0,
+            "data": {
+                "value": ""
+            }
+        }
+    ],
+    "connections": [
+        {
+            "from": "023fde03-db3d-431d-abe0-b8799e1d759c",
+            "from_port": null,
+            "to": "0342a005-cf24-482d-9db5-ad290584be64"
+        },
+        {
+            "from": "a2b7be4a-6168-4579-b7e1-070762268bed",
+            "from_port": null,
+            "to": "023fde03-db3d-431d-abe0-b8799e1d759c"
+        },
+        {
+            "from": "d12abeb2-cb5a-41b5-aef5-a6f58f03f7a7",
+            "from_port": null,
+            "to": "a2b7be4a-6168-4579-b7e1-070762268bed"
+        }
+    ]
+}

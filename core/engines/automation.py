@@ -37,6 +37,20 @@ except ImportError:
     pyperclip = None
 
 class AutomationEngine:
+    def _wait_for_speaker(self, timeout=30):
+        """
+        Block until the TTS worker finishes speaking.
+        Polls is_speaking_flag every 50ms with a max timeout safety.
+        """
+        import time
+        deadline = time.time() + timeout
+        # Brief initial yield so the worker process has time to set the flag
+        time.sleep(0.15)
+        while getattr(self.speaker, 'is_speaking_flag', None) and self.speaker.is_speaking_flag.value:
+            if time.time() > deadline:
+                break
+            time.sleep(0.05)
+
     def __init__(self, speaker, status_queue=None):
         self.speaker = speaker
         self.status_queue = status_queue
@@ -65,7 +79,11 @@ class AutomationEngine:
             return True
 
         if tag == 'run_workflow':
-            self.execute_workflow()
+            # Priority: If command contains a name, run that. Otherwise run primary.
+            if self._try_run_by_name(command):
+                return True
+            import threading
+            threading.Thread(target=self.execute_workflow, daemon=True).start()
             return True
             
         if tag == 'list_automations':
@@ -132,7 +150,8 @@ class AutomationEngine:
             if 0 <= idx < len(names):
                 name = names[idx]
                 ran.append(name)
-                self.execute_workflow(workflow_name=name)
+                import threading
+                threading.Thread(target=self.execute_workflow, kwargs={'workflow_name': name}, daemon=True).start()
             else:
                 self.speaker.speak(f"Automation number {n_str} does not exist.")
 
@@ -142,39 +161,53 @@ class AutomationEngine:
 
     def handle_run_by_name(self, command):
         """Extract automation name from command and run it by fuzzy name match."""
+        if not self._try_run_by_name(command):
+            self.speaker.speak("Which automation would you like me to run?")
+
+    def _try_run_by_name(self, command):
+        """
+        Attempts to extract and run an automation by name from the command.
+        Returns True if a match was found and executed (or explicitly rejected if name not found), False otherwise.
+        """
         import re
         cmd = command.lower()
-        # Strip trigger phrases to get the name token(s)
-        # Supports: "run {name} automation", "run automation {name}", "start {name}"
+        
+        if 'automation' not in cmd and 'workflow' not in cmd:
+            return False
+
+        name_query = None
         for pat in [
-            r'run\s+(.+?)\s+automation\b',
-            r'(?:run|start|execute)\s+automation\s+(.+)',
-            r'(?:run|start|execute)\s+(.+)',
+            r'(?:run|start|execute|launch|open)\s+(.+?)\s+(?:automation|workflow)\b',
+            r'(?:run|start|execute|launch|open)\s+(?:automation|workflow)\s+(.+)',
         ]:
             m = re.search(pat, cmd)
             if m:
-                name_query = m.group(1).strip()
-                break
-        else:
-            self.speaker.speak("Which automation would you like me to run?")
-            return
+                extracted = m.group(1).strip()
+                if extracted not in ["", "the", "my"]:
+                    name_query = extracted
+                    break
+        
+        if not name_query:
+            return False
 
         names = self._get_sorted_automation_names()
         if not names:
             self.speaker.speak("No automations found.")
-            return
+            return True
 
-        # Fuzzy match: find best matching automation name
+        # Fuzzy match
         from difflib import get_close_matches
         matches = get_close_matches(name_query, [n.lower() for n in names], n=1, cutoff=0.4)
         if matches:
             matched_lower = matches[0]
-            # Resolve back to original cased name
             matched_name = next(n for n in names if n.lower() == matched_lower)
-            print(f"[Automation] Running by name: '{name_query}' → '{matched_name}'")
-            self.execute_workflow(workflow_name=matched_name)
+            print(f"[Automation] Found name match: '{name_query}' → '{matched_name}'")
+            import threading
+            threading.Thread(target=self.execute_workflow, kwargs={'workflow_name': matched_name}, daemon=True).start()
+            return True
         else:
-            self.speaker.speak(f"I couldn't find an automation named {name_query}.")
+            self.speaker.speak(f"I couldn't find an automation named {name_query}, sir.")
+            return True
 
     def _handle_window_ops(self, tag, command=""):
         """
@@ -835,12 +868,184 @@ class AutomationEngine:
             print(f"[Note Taking Error] {e}")
             self.speaker.speak("I encountered an error opening the text editor.")
 
-    def execute_workflow(self, workflow_name=None):
+    def evaluate_condition(self, prop_dict):
+        """Cross-platform evaluation of system conditions."""
+        import platform, os, subprocess
+        from datetime import datetime
+        
+        c_type = prop_dict.get("condition_type", "App is Running")
+        value = prop_dict.get("value", "").strip()
+        sys_os = platform.system()
+        
+        print(f"[Automation] Evaluating Condition: {c_type} (value: {value})")
+
+        try:
+            if c_type == "App is Running":
+                import psutil, ctypes
+                search = value.lower()
+
+                # Normalize: build a set of candidate exe names to match
+                candidates = {search}
+                if not search.endswith(".exe"):
+                    candidates.add(search + ".exe")
+                else:
+                    candidates.add(search[:-4])
+
+                # Step 1: Find matching PIDs
+                matching_pids = set()
+                for proc in psutil.process_iter(['name', 'pid']):
+                    try:
+                        pname = proc.info['name'].lower()
+                        if pname in candidates:
+                            matching_pids.add(proc.info['pid'])
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        continue
+
+                if not matching_pids:
+                    return False
+
+                # Step 2: Confirm at least one VISIBLE window with a title exists
+                # (handles background-only apps like Edge/Chrome leftover processes)
+                if sys_os == "Windows":
+                    visible = [False]
+                    def _enum_cb(hwnd, _):
+                        if visible[0]:
+                            return True
+                        if ctypes.windll.user32.IsWindowVisible(hwnd):
+                            pid = ctypes.c_ulong()
+                            ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+                            if pid.value in matching_pids:
+                                length = ctypes.windll.user32.GetWindowTextLengthW(hwnd)
+                                if length > 0:
+                                    visible[0] = True
+                        return True
+                    WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+                    ctypes.windll.user32.EnumWindows(WNDENUMPROC(_enum_cb), 0)
+                    return visible[0]
+
+                elif sys_os == "Linux":
+                    try:
+                        import subprocess as sp
+                        out = sp.check_output(["wmctrl", "-lp"], text=True, timeout=3)
+                        for line in out.splitlines():
+                            parts = line.split(None, 4)
+                            if len(parts) >= 3:
+                                try:
+                                    wpid = int(parts[2])
+                                    if wpid in matching_pids:
+                                        return True
+                                except ValueError:
+                                    continue
+                    except Exception:
+                        pass
+                    # Fallback: just check process exists
+                    return bool(matching_pids)
+
+                elif sys_os == "Darwin":
+                    try:
+                        import pywinctl
+                        all_wins = pywinctl.getAllTitles()
+                        # Check if any window belongs to our process
+                        for proc in psutil.process_iter(['name', 'pid']):
+                            try:
+                                if proc.info['pid'] in matching_pids:
+                                    wins = pywinctl.getWindowsWithTitle("")
+                                    for w in wins:
+                                        if w.title:
+                                            return True
+                            except Exception:
+                                continue
+                    except Exception:
+                        pass
+                    return bool(matching_pids)
+
+                return bool(matching_pids)
+
+            elif c_type == "File or Folder Exists":
+                return os.path.exists(value) if value else False
+
+            elif c_type == "Time of Day (HH:MM)":
+                if not value: return False
+                try:
+                    now = datetime.now()
+                    h, m = map(int, value.split(':'))
+                    target = now.replace(hour=h, minute=m, second=0, microsecond=0)
+                    return now >= target
+                except: return False
+
+            elif c_type == "Active Window Title Contains":
+                if not value: return False
+                try:
+                    import pywinctl
+                    win = pywinctl.getActiveWindow()
+                    return value.lower() in win.title.lower() if win else False
+                except: return False
+
+            elif c_type == "Text Area is Active":
+                if sys_os == "Windows":
+                    try:
+                        import concurrent.futures
+                        def _check_uia():
+                            import uiautomation as auto
+                            elem = auto.GetFocusedControl()
+                            if not elem:
+                                return False
+                            ct = elem.ControlType
+                            if ct in [
+                                auto.ControlType.DocumentControl,
+                                auto.ControlType.EditControl,
+                                auto.ControlType.TextControl,
+                                auto.ControlType.ComboBoxControl
+                            ]:
+                                return True
+                            cn = elem.ClassName.lower()
+                            return any(x in cn for x in ['edit', 'textbox', 'scintilla', 'document', 'rich'])
+                        
+                        # 3-second timeout to prevent blocking
+                        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+                            future = ex.submit(_check_uia)
+                            try:
+                                return future.result(timeout=3)
+                            except concurrent.futures.TimeoutError:
+                                print("[Automation] Text Area check timed out.")
+                                return False
+                    except Exception as e:
+                        print(f"[Automation] Text Area Check Error: {e}")
+                        return False
+                elif sys_os == "Linux":
+                    try:
+                        # On Linux check focused window class via EWMH/xprop
+                        import subprocess as sp
+                        win_id = sp.check_output(['xdotool', 'getfocus'], text=True).strip()
+                        cls = sp.check_output(['xprop', '-id', win_id, 'WM_CLASS'], text=True).lower()
+                        return any(x in cls for x in ['entry', 'edit', 'text', 'terminal', 'gedit'])
+                    except:
+                        return False
+                return False 
+            return False
+        except Exception as e:
+            print(f"[Automation] Condition Evaluation Error: {e}")
+            return False
+
+    def execute_workflow(self, workflow_name=None, _visited=None, _depth=0):
         """
         Executes the saved workflow JSON.
+        _visited: set of automation names/paths already in the call chain (cycle detection)
+        _depth: recursion depth guard (max 10 levels)
         """
         import json, os, time
-        
+
+        MAX_DEPTH = 10
+        if _depth > MAX_DEPTH:
+            print(f"[Automation] Max sub-automation depth ({MAX_DEPTH}) reached. Stopping.")
+            self.speaker.speak("Maximum automation depth reached. Stopping.")
+            self._wait_for_speaker()
+            return
+
+        if _visited is None:
+            _visited = set()
+
+
         data_dir = os.path.join(os.getcwd(), 'data', 'automations')
         
         # Determine which workflow to run
@@ -857,28 +1062,52 @@ class AutomationEngine:
                 workflow_name = 'Default'
                 
         # Handle legacy or new path
-        workflow_path = os.path.join(data_dir, f'{workflow_name}.json')
+        # If workflow_name is already a full path (e.g. called recursively by sub-automation), use it directly
+        if workflow_name and os.path.isabs(workflow_name):
+            workflow_path = workflow_name
+        else:
+            workflow_path = os.path.join(data_dir, f'{workflow_name}.json')
         
+
         # Backwards compatibility check
         legacy_path = os.path.join(os.getcwd(), 'data', 'workflow.json')
         if not os.path.exists(workflow_path) and os.path.exists(legacy_path):
             workflow_path = legacy_path
             
         if not os.path.exists(workflow_path):
-            self.speaker.speak(f"No automation found named {workflow_name}.")
+            # Clean name for the error message (strip path/extension if a full path was passed)
+            display_name = os.path.splitext(os.path.basename(workflow_name))[0] if workflow_name else workflow_name
+            self.speaker.speak(f"No automation found named {display_name}.")
             return
+
+        # --- Cycle Detection ---
+        canonical = os.path.normcase(os.path.abspath(workflow_path))
+        if canonical in _visited:
+            display_name = os.path.splitext(os.path.basename(workflow_path))[0]
+            print(f"[Automation] Circular reference detected: {display_name}. Stopping.")
+            self.speaker.speak(f"Circular automation reference detected. Skipping {display_name}.")
+            self._wait_for_speaker()
+            return
+        _visited = _visited | {canonical}  # immutable copy so siblings are not affected
+
 
         try:
             with open(workflow_path, 'r') as f:
                 data = json.load(f)
                 
             nodes = {n['id']: n for n in data['nodes']}
-            # Build Adjacency Map: from_id -> list of to_ids
+            # Build Adjacency Map: from_id -> {port_tag: [to_ids]}
             edges = {} 
             for conn in data['connections']:
-                if conn['from'] not in edges:
-                    edges[conn['from']] = []
-                edges[conn['from']].append(conn['to'])
+                f_id = conn['from']
+                t_id = conn['to']
+                tag = conn.get('from_port') # None, "true", or "false"
+                
+                if f_id not in edges:
+                    edges[f_id] = {}
+                if tag not in edges[f_id]:
+                    edges[f_id][tag] = []
+                edges[f_id][tag].append(t_id)
                 
             # Find Start Node
             current_id = None
@@ -892,7 +1121,7 @@ class AutomationEngine:
                 return
                 
             print("[Automation] Starting Workflow Execution...")
-            self.speaker.speak("Starting automation workflow.")
+            
             
             # BFS Traversal for Branching
             queue = [current_id]
@@ -912,10 +1141,17 @@ class AutomationEngine:
                 # Execute Logic
                 node_data = node.get('data', {})
                 val = node_data.get('value', '').strip()
+                
+                # Branching Logic
+                branch_result = None
+                if node_type == 'If Condition':
+                    branch_result = self.evaluate_condition(node_data)
+                    print(f"[Automation] Branch Result: {branch_result}")
 
                 if node_type == 'Speak':
                     text_to_speak = val if val else "No text provided for speak node."
                     self.speaker.speak(text_to_speak)
+                    self._wait_for_speaker()  # Block until speech is done
                     
                 elif node_type == 'Delay' or node_type == 'Delay (5s)':
                     # Use provided value if it's a number, else default to 5
@@ -960,16 +1196,139 @@ class AutomationEngine:
                             self.speaker.speak("I could not run that command.")
                     else:
                         self.speaker.speak("No command provided for system node.")
-                    
+                        
+                elif node_type == 'Press Hotkey':
+                    if val:
+                        wf_os = platform.system()
+                        if wf_os == "Linux" and not pyautogui:
+                            keys = [k.strip().upper() for k in val.split(',')]
+                            mapped = []
+                            for k in keys:
+                                if k == 'CTRL': mapped.append('KEY_LEFTCTRL')
+                                elif k == 'ALT': mapped.append('KEY_LEFTALT')
+                                elif k == 'SHIFT': mapped.append('KEY_LEFTSHIFT')
+                                elif k in ['WIN', 'SUPER', 'COMMAND', 'CMD']: mapped.append('KEY_LEFTMETA')
+                                else: mapped.append(f"KEY_{k}")
+                            self._linux_send_keys(mapped)
+                        elif pyautogui:
+                            keys = [k.strip().lower() for k in val.split(',')]
+                            pyautogui.hotkey(*keys)
+                            
+                elif node_type == 'Type Text':
+                    if pyautogui and val:
+                        pyautogui.write(val, interval=0.02)
+                    elif not pyautogui:
+                        print("[Automation] Cannot type text: pyautogui missing.")
+                        
+                elif node_type == 'Notify':
+                    try:
+                        from plyer import notification
+                        notification.notify(
+                            title="Neural Sync Automation",
+                            message=val if val else "Workflow Node Execution",
+                            app_name="Neural Sync",
+                            timeout=5
+                        )
+                    except ImportError:
+                        print("[Automation] python module 'plyer' not installed. Cannot show notification.")
+                        
+                elif node_type == 'Play Sound':
+                    try:
+                        wf_os = platform.system()
+                        if val.lower() == 'beep' or not val:
+                            if wf_os == 'Windows':
+                                import winsound
+                                winsound.MessageBeep()
+                            else:
+                                print('\a')
+                        elif os.path.exists(val):
+                            if wf_os == 'Windows':
+                                import winsound
+                                winsound.PlaySound(val, winsound.SND_FILENAME)
+                            elif wf_os == 'Darwin':
+                                subprocess.Popen(['afplay', val])
+                            else:
+                                subprocess.Popen(['aplay', val])
+                    except Exception as e:
+                        print(f"[Automation] Play Sound Error: {e}")
+                        
+                elif node_type == 'Open Target':
+                    if val:
+                        # --- Sub-Automation: runs inline, blocks until complete ---
+                        if val.startswith("automations://"):
+                            sub_name = val[len("automations://"):]
+                            sub_file = os.path.join(
+                                os.getcwd(), 'data', 'automations', f"{sub_name}.json"
+                            )
+                            if os.path.exists(sub_file):
+                                print(f"[Automation] Running sub-automation: {sub_name}")
+                                self.execute_workflow(sub_file, _visited=_visited, _depth=_depth + 1)  # BLOCKING recursive call
+
+                            else:
+                                print(f"[Automation] Sub-automation not found: {sub_name}")
+                                self.speaker.speak(f"I could not find the automation named {sub_name}.")
+                                self._wait_for_speaker()
+                        else:
+                            try:
+                                wf_os = platform.system()
+                                if wf_os == "Windows":
+                                    # Detect UWP AUMID (contains '!' and no backslash = UWP app ID from Get-StartApps)
+                                    is_uwp = "!" in val and not os.path.exists(val)
+                                    if is_uwp:
+                                        # Launch UWP via shell:AppsFolder
+                                        subprocess.Popen(
+                                            ["explorer", f"shell:AppsFolder\\{val}"],
+                                            shell=False
+                                        )
+                                    else:
+                                        os.startfile(val)
+
+                                elif wf_os == "Darwin":
+                                    # 'open' handles .app bundles, files, folders
+                                    subprocess.Popen(["open", val])
+                                else:
+                                    # Linux: .desktop executables need to be run directly
+                                    if val.endswith(".desktop"):
+                                        exec_cmd = None
+                                        try:
+                                            with open(val, encoding="utf-8", errors="ignore") as _f:
+                                                for _line in _f:
+                                                    if _line.startswith("Exec="):
+                                                        exec_cmd = _line.strip().split("=", 1)[1].split()[0]
+                                                        break
+                                        except: pass
+                                        if exec_cmd:
+                                            subprocess.Popen([exec_cmd])
+                                        else:
+                                            subprocess.Popen(["xdg-open", val])
+                                    else:
+                                        subprocess.Popen(["xdg-open", val])
+
+                            except Exception as e:
+                                print(f"[Automation] Target Open Error: {e}")
+                                self.speaker.speak("I could not open the target.")
+                                self._wait_for_speaker()
+
+
                 elif node_type == 'End':
                     print("[Automation] Reached End.")
-                    if not queue: # Only say complete if no other branches running
-                        self.speaker.speak("Workflow completed.")
+
                 
-                # Add children to queue
-                children = edges.get(current_id, [])
-                for child in children:
-                    queue.append(child)
+                # Add children to queue based on port/branching
+                out_ports = edges.get(current_id, {})
+                next_targets = []
+                
+                if node_type == 'If Condition':
+                    tag = "true" if branch_result else "false"
+                    next_targets = out_ports.get(tag, [])
+                else:
+                    # Non-branching nodes: follow all outgoing wires
+                    for t_list in out_ports.values():
+                        next_targets.extend(t_list)
+
+                for nid in next_targets:
+                    if nid and nid not in queue:
+                        queue.append(nid)
                 
                 # Small yield for UI responsiveness if needed (though running in thread/process usually)
                 time.sleep(0.1) 

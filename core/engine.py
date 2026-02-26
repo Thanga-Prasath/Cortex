@@ -145,6 +145,8 @@ class CortexEngine:
             self.status_queue.put(("LOG", message))
         print(f"[Log] {message}")
 
+
+
     def _extract_param(self, command, triggers):
         """Simple extraction helper for confirmation messages."""
         words = command.lower().split()

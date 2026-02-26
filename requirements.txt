@@ -9,7 +9,9 @@ pyautogui
 pyperclip
 Pillow
 requests
+plyer
+glob2
 
-# Windows-only dependencies (install only on Windows)
-# PyWinCtl  -- window management (Windows/macOS only, skip on Linux if not needed)
-# winshell  -- Windows Shell API (Windows only)
+# Windows-only dependencies
+# Install manually on Windows:
+# pip install uiautomation pywinctl pywin32

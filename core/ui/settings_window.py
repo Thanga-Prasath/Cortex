@@ -101,12 +101,10 @@ class SettingsWindow(QMainWindow):
         
         self.tab_general = QWidget()
         self.tab_voice = QWidget()
-        self.tab_io = QWidget()
         # Removed redundant Theme tab
         
         self.tabs.addTab(self.tab_general, "General")
         self.tabs.addTab(self.tab_voice, "Voice")
-        self.tabs.addTab(self.tab_io, "Input & Output")
         
         main_layout.addWidget(self.tabs)
         
@@ -116,8 +114,6 @@ class SettingsWindow(QMainWindow):
         # --- Tab: Voice ---
         self.init_voice_tab()
 
-        # --- Tab: Input & Output ---
-        self.init_io_tab()
 
         # --- Footer Actions ---
         footer_layout = QHBoxLayout()
@@ -642,118 +638,7 @@ class SettingsWindow(QMainWindow):
         except Exception as e:
             QMessageBox.warning(self, "Test Failed", f"Could not test voice: {e}")
 
-    def init_io_tab(self):
-        layout = QFormLayout()
-        layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
-        layout.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
-        layout.setSpacing(20)
-        self.tab_io.setLayout(layout)
-        
-        lbl_info = QLabel("Select the hardware devices to use for Voice commands.")
-        lbl_info.setStyleSheet("color: #aaa; font-style: italic; margin-bottom: 10px;")
-        layout.addRow(lbl_info)
-        
-        # PyAudio Device Setup
-        self.combo_input = QComboBox()
-        self.combo_output = QComboBox()
-        style = "padding: 8px; background: #252526; border: 1px solid #555; color: #fff;"
-        self.combo_input.setStyleSheet(style)
-        self.combo_output.setStyleSheet(style)
-        
-        self.default_in_name = None
-        self.default_out_name = None
-        
-        # Dynamically populate the combo boxes
-        self._populate_audio_combos()
-        
-        layout.addRow("Microphone (Input):", self.combo_input)
-        layout.addRow("Speaker (Output):", self.combo_output)
 
-    def refresh_audio_devices(self):
-        """Hot-reload the audio setting comboboxes from the background monitor."""
-        self._populate_audio_combos()
-
-    def _populate_audio_combos(self):
-        """Scans and populates audio comboboxes while preserving active selection."""
-        # Save current selections to restore them after repopulating
-        current_in = self.combo_input.currentText()
-        current_out = self.combo_output.currentText()
-        
-        # Disconnect signals temporarily if they exist (to prevent false triggers during clear)
-        self.combo_input.blockSignals(True)
-        self.combo_output.blockSignals(True)
-        
-        self.combo_input.clear()
-        self.combo_output.clear()
-        
-        try:
-            import subprocess
-            import sys
-            import json
-            
-            script = """
-import pyaudio, json, sys, os
-sys.stderr = open(os.devnull, 'w')
-try:
-    p = pyaudio.PyAudio()
-    try: api = p.get_default_host_api_info()['index']
-    except: api = None
-    
-    try: def_in = p.get_default_input_device_info().get('name')
-    except: def_in = None
-    
-    try: def_out = p.get_default_output_device_info().get('name')
-    except: def_out = None
-    
-    ins, outs = [], []
-    for i in range(p.get_device_count()):
-        info = p.get_device_info_by_index(i)
-        if api is not None and info.get('hostApi') != api: continue
-        name = info.get('name', '')
-        if not name or 'Microsoft Sound Mapper' in name: continue
-        if info.get('maxInputChannels', 0) > 0: ins.append(name)
-        if info.get('maxOutputChannels', 0) > 0: outs.append(name)
-        
-    print(json.dumps({'inputs': ins, 'outputs': outs, 'default_in': def_in, 'default_out': def_out}))
-    p.terminate()
-except Exception as e:
-    print(json.dumps({'error': str(e)}))
-"""
-            result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=2)
-            if result.returncode == 0 and result.stdout.strip():
-                data = json.loads(result.stdout.strip())
-                if 'error' not in data:
-                    self.default_in_name = data.get('default_in')
-                    self.default_out_name = data.get('default_out')
-                    
-                    for name in data.get('inputs', []):
-                        self.combo_input.addItem(name, name)
-                    for name in data.get('outputs', []):
-                        self.combo_output.addItem(name, name)
-                        
-        except Exception as e:
-            print(f"[Settings] Error scanning audio devices via subprocess: {e}")
-            
-        # Restore Selections
-        saved_input = self.config_data.get("input_device_name") or self.default_in_name
-        saved_output = self.config_data.get("output_device_name") or self.default_out_name
-        
-        target_in = current_in if current_in else saved_input
-        target_out = current_out if current_out else saved_output
-        
-        if target_in:
-            idx = self.combo_input.findText(target_in)
-            if idx >= 0:
-                self.combo_input.setCurrentIndex(idx)
-                
-        if target_out:
-            idx = self.combo_output.findText(target_out)
-            if idx >= 0:
-                self.combo_output.setCurrentIndex(idx)
-                
-        # Re-enable signals
-        self.combo_input.blockSignals(False)
-        self.combo_output.blockSignals(False)
 
     def reset_defaults(self):
         reply = QMessageBox.question(
@@ -778,14 +663,6 @@ except Exception as e:
             self.chk_transparency.setChecked(True)
             self.chk_lock_widget.setChecked(False)
             self.input_screenshot.setText("")
-            
-            if self.default_in_name:
-                idx = self.combo_input.findText(self.default_in_name)
-                if idx >= 0: self.combo_input.setCurrentIndex(idx)
-            
-            if self.default_out_name:
-                idx = self.combo_output.findText(self.default_out_name)
-                if idx >= 0: self.combo_output.setCurrentIndex(idx)
 
             self.save_settings(silent=True)
 
@@ -804,9 +681,6 @@ except Exception as e:
         self.config_data["status_gui_transparency"] = self.chk_transparency.isChecked()
         self.config_data["status_gui_invisible"] = self.chk_invisible.isChecked()
         self.config_data["screenshot_path"] = self.input_screenshot.text()
-        
-        self.config_data["input_device_name"] = self.combo_input.currentData()
-        self.config_data["output_device_name"] = self.combo_output.currentData()
         
         # Save Taskbar Widget Config
         self.widget_config["locked"] = self.chk_lock_widget.isChecked()

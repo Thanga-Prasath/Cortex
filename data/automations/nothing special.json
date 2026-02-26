@@ -1,28 +1,65 @@
 {
     "nodes": [
         {
-            "id": "dbd20fd5-f78d-4408-abf9-d5ba2e2ef363",
-            "type": "Start",
-            "x": 2335.0,
-            "y": 2306.0,
+            "id": "14a6273a-04c7-4e0f-8204-113f10fd15b6",
+            "type": "End",
+            "x": 2613.0,
+            "y": 2742.0,
             "data": {
                 "value": ""
             }
         },
         {
-            "id": "b60cb11b-bd88-4601-9566-65574b1cecbd",
+            "id": "ba8c9961-e0fb-40e7-aedd-0a5b8c4ebd79",
+            "type": "End",
+            "x": 2161.0,
+            "y": 2731.0,
+            "data": {
+                "value": ""
+            }
+        },
+        {
+            "id": "700db399-4f17-4143-b770-3dc43420579b",
+            "type": "Open Target",
+            "x": 2609.0,
+            "y": 2570.0,
+            "data": {
+                "value": "automations://Test"
+            }
+        },
+        {
+            "id": "459f6208-b691-4458-901c-1b1d1a68c5cc",
+            "type": "Open Target",
+            "x": 2162.0,
+            "y": 2571.0,
+            "data": {
+                "value": "automations://small"
+            }
+        },
+        {
+            "id": "ecdc63c3-c9cc-420c-93f3-25463b229696",
+            "type": "If Condition",
+            "x": 2364.0,
+            "y": 2531.0,
+            "data": {
+                "value": "D:/Downloads/gengar-terror.1920x1080.mp4",
+                "condition_type": "File or Folder Exists"
+            }
+        },
+        {
+            "id": "d8610d09-4d68-4a9d-8654-d94d4b667a4b",
             "type": "Speak",
-            "x": 2436.0,
-            "y": 2425.0,
+            "x": 2366.0,
+            "y": 2382.0,
             "data": {
                 "value": "This is nothing special"
             }
         },
         {
-            "id": "4cd22fc4-4732-4add-b6ab-d82393df6c9a",
-            "type": "End",
-            "x": 2398.0,
-            "y": 2550.0,
+            "id": "2bd91d9c-91de-42d1-aaf4-890707dfeb8b",
+            "type": "Start",
+            "x": 2366.0,
+            "y": 2250.0,
             "data": {
                 "value": ""
             }
@@ -30,12 +67,34 @@
     ],
     "connections": [
         {
-            "from": "dbd20fd5-f78d-4408-abf9-d5ba2e2ef363",
-            "to": "b60cb11b-bd88-4601-9566-65574b1cecbd"
+            "from": "700db399-4f17-4143-b770-3dc43420579b",
+            "from_port": null,
+            "to": "14a6273a-04c7-4e0f-8204-113f10fd15b6"
         },
         {
-            "from": "b60cb11b-bd88-4601-9566-65574b1cecbd",
-            "to": "4cd22fc4-4732-4add-b6ab-d82393df6c9a"
+            "from": "459f6208-b691-4458-901c-1b1d1a68c5cc",
+            "from_port": null,
+            "to": "ba8c9961-e0fb-40e7-aedd-0a5b8c4ebd79"
+        },
+        {
+            "from": "ecdc63c3-c9cc-420c-93f3-25463b229696",
+            "from_port": "false",
+            "to": "700db399-4f17-4143-b770-3dc43420579b"
+        },
+        {
+            "from": "ecdc63c3-c9cc-420c-93f3-25463b229696",
+            "from_port": "true",
+            "to": "459f6208-b691-4458-901c-1b1d1a68c5cc"
+        },
+        {
+            "from": "d8610d09-4d68-4a9d-8654-d94d4b667a4b",
+            "from_port": null,
+            "to": "ecdc63c3-c9cc-420c-93f3-25463b229696"
+        },
+        {
+            "from": "2bd91d9c-91de-42d1-aaf4-890707dfeb8b",
+            "from_port": null,
+            "to": "d8610d09-4d68-4a9d-8654-d94d4b667a4b"
         }
     ]
 }

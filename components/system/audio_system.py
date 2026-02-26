@@ -25,7 +25,9 @@ def _ensure_windows_dll():
     """Download AudioDeviceCmdlets.dll into data/tools if not present. Returns dll_path or None."""
     import urllib.request, zipfile
 
-    tools_dir = os.path.join(os.getcwd(), 'data', 'tools', 'AudioDeviceCmdlets')
+    # Anchor to the project root instead of cwd
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    tools_dir = os.path.join(project_root, 'data', 'tools', 'AudioDeviceCmdlets')
     dll_path = os.path.join(tools_dir, 'AudioDeviceCmdlets.dll')
 
     if os.path.exists(dll_path):

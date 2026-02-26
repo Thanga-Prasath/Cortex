@@ -58,7 +58,7 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
             voice_rate = 175
             voice_volume = 1.0
             voice_pack = "system_default"
-            output_device_name = None
+            # Output device relies purely on OS default via PyAudio's `output=True`
             try:
                 if os.path.exists(config_path):
                     with open(config_path, 'r') as f:
@@ -66,7 +66,6 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
                         voice_rate = data.get("voice_rate", 175)
                         voice_volume = data.get("voice_volume", 1.0)
                         voice_pack = data.get("voice_pack", "system_default")
-                        output_device_name = data.get("output_device_name", None)
             except: pass
             
             # Resolve Model Path live
@@ -106,46 +105,13 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
                         with no_alsa_error():
                             p = pyaudio.PyAudio()
                             
-                            output_device_index = None
-                            if output_device_name:
-                                import subprocess
-                                import sys
-                                cmd = "import pyaudio, json, sys, os; sys.stderr=open(os.devnull, 'w'); p=pyaudio.PyAudio(); print(json.dumps({'def': p.get_default_output_device_info().get('name') if p.get_device_count() else None})); p.terminate()"
-                                res = subprocess.run([sys.executable, "-c", cmd], capture_output=True, text=True, timeout=2)
-                                
-                                true_default = None
-                                if res.returncode == 0 and res.stdout.strip():
-                                    try: true_default = json.loads(res.stdout.strip()).get("def")
-                                    except: pass
-                                    
-                                if true_default != output_device_name:
-                                    try: default_host_api = p.get_default_host_api_info()['index']
-                                    except Exception: default_host_api = None
-                                        
-                                    for i in range(p.get_device_count()):
-                                        info = p.get_device_info_by_index(i)
-                                        if default_host_api is not None and info.get('hostApi') != default_host_api:
-                                            continue
-                                        if info.get('name') == output_device_name and info.get('maxOutputChannels', 0) > 0:
-                                            output_device_index = i
-                                            break
-                            
                             kwargs = {
                                 'format': pyaudio.paInt16,
                                 'channels': 1,
                                 'rate': 22050, # standard for Piper
                                 'output': True
                             }
-                            if output_device_index is not None:
-                                kwargs['output_device_index'] = output_device_index
-                                
-                            try:
-                                stream = p.open(**kwargs)
-                            except Exception as e:
-                                print(f"[!] Target output device unavailable, falling back to default: {e}")
-                                if 'output_device_index' in kwargs:
-                                    del kwargs['output_device_index']
-                                stream = p.open(**kwargs)
+                            stream = p.open(**kwargs)
 
                         # Write text to Piper's stdin
                         piper_proc.stdin.write(text.encode('utf-8'))

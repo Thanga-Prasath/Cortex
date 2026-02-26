@@ -1,0 +1,43 @@
+{
+    "nodes": [
+        {
+            "id": "0dd5ba67-d7b4-49cc-a83d-be4542eab225",
+            "type": "End",
+            "x": 2438.0,
+            "y": 2748.0,
+            "data": {
+                "value": ""
+            }
+        },
+        {
+            "id": "49141c43-a9b1-43a2-b67a-d72444e960ab",
+            "type": "Start",
+            "x": 2437.0,
+            "y": 2477.0,
+            "data": {
+                "value": ""
+            }
+        },
+        {
+            "id": "2619a0e0-f661-434d-8266-03957e786311",
+            "type": "Speak",
+            "x": 2438.0,
+            "y": 2611.0,
+            "data": {
+                "value": "there's no file named Gengar"
+            }
+        }
+    ],
+    "connections": [
+        {
+            "from": "2619a0e0-f661-434d-8266-03957e786311",
+            "from_port": null,
+            "to": "0dd5ba67-d7b4-49cc-a83d-be4542eab225"
+        },
+        {
+            "from": "49141c43-a9b1-43a2-b67a-d72444e960ab",
+            "from_port": null,
+            "to": "2619a0e0-f661-434d-8266-03957e786311"
+        }
+    ]
+}

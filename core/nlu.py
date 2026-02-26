@@ -180,24 +180,16 @@ class NeuralIntentModel:
                     if not has_anchor:
                         valid_intents.discard(tag)
         
-        # --- 0.5. Priority Anchors (Temporary Explicit Rule) ---
-        # Route "run automation" → run_workflow, BUT only when it's a generic (no number, no name arg).
-        # "run automation 2" or "run automation {name}" must fall through to run_automation_by_number / name.
-        if "automation" in text and "run_workflow" in valid_intents:
-            if any(w in text for w in ["run", "start", "execute", "launch", "open"]):
-                import re as _re
-                # If there's a digit → run_automation_by_number should handle it
-                has_digit = bool(_re.search(r'\d+', text))
-                # Word-form numbers should also fall through
-                _WORD_NUMS = {"one","two","three","four","five","six","seven","eight","nine","ten",
-                              "to","too","for"}
-                has_word_num = any(w in text.split() for w in _WORD_NUMS)
-                # If "automation" is followed by any extra token, treat as name/number command
-                after_auto = _re.split(r'\bautomation\b', text, maxsplit=1)[-1].strip()
-                has_argument = bool(after_auto)
-                if not has_digit and not has_word_num and not has_argument:
-                    print("NLU: Priority Anchor Match 'run_workflow' (Automation)")
-                    return "run_workflow", 1.0
+        # --- 0.5. Automation Domain Guard (Highest Priority for Automation Commands) ---
+        # If the text contains "automation" or "workflow" AND an action verb, it ALWAYS routes
+        # to run_workflow — no exceptions. The engine then decides if it's named or generic.
+        _action_words = {"run", "start", "execute", "launch", "open"}
+        _auto_words = {"automation", "workflow"}
+        text_words = set(text.split())
+        if text_words & _auto_words and text_words & _action_words:
+            print("NLU: Automation Domain Guard → 'run_workflow'")
+            return "run_workflow", 1.0
+        
         
         # --- 1. Keyword Boosting (Dynamic Logic) ---
         # Strategy: Find the intent with the LONGEST matching keyword phrase.

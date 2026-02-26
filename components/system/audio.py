@@ -121,14 +121,18 @@ except Exception as e:
     try:
         result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=2)
         if result.returncode == 0 and result.stdout.strip():
-            scanned_data = json.loads(result.stdout.strip())
-            if 'error' not in scanned_data:
-                if device_type == "input":
-                    available_devices = scanned_data.get('inputs', [])
-                    default_device_name = scanned_data.get('default_in')
-                else:
-                    available_devices = scanned_data.get('outputs', [])
-                    default_device_name = scanned_data.get('default_out')
+            # Robust JSON parsing to ignore any ALSA/PyAudio warnings intermixed in stdout
+            import re
+            match = re.search(r'\{.*\}', result.stdout.strip(), re.DOTALL)
+            if match:
+                scanned_data = json.loads(match.group(0))
+                if 'error' not in scanned_data:
+                    if device_type == "input":
+                        available_devices = scanned_data.get('inputs', [])
+                        default_device_name = scanned_data.get('default_in')
+                    else:
+                        available_devices = scanned_data.get('outputs', [])
+                        default_device_name = scanned_data.get('default_out')
     except Exception as e:
         print(f"[Audio Toggle] Error identifying devices: {e}")
             
@@ -171,14 +175,6 @@ except Exception as e:
             speaker.speak(msg)
         except Exception as e:
             speaker.speak(f"Failed to save settings: {e}")
-
-def switch_microphone(speaker):
-    """Alias — switches the system-level default input device."""
-    _toggle_device(speaker, "input", True)
-
-def switch_speaker(speaker):
-    """Alias — switches the system-level default output device."""
-    _toggle_device(speaker, "output", True)
 
 def switch_system_microphone(speaker):
     _toggle_device(speaker, "input", True)

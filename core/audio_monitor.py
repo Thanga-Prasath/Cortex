@@ -23,10 +23,11 @@ def _is_virtual_linux_device(name: str) -> bool:
 _DEBOUNCE_POLLS = 3
 
 class AudioDeviceMonitor(threading.Thread):
-    def __init__(self, tts_queue, status_queue):
+    def __init__(self, tts_queue, status_queue, on_change_callback=None):
         super().__init__()
         self.tts_queue = tts_queue
         self.status_queue = status_queue
+        self.on_change_callback = on_change_callback
         self.running = True
         self.daemon = True
         
@@ -89,23 +90,25 @@ except Exception as e:
             new_def_out = data.get('default_out')
             
             if not initial:
-                self._check_diff(self.current_inputs, new_inputs, "Microphone")
-                self._check_diff(self.current_outputs, new_outputs, "Speaker")
+                changed_any = False
+                if self._check_diff(self.current_inputs, new_inputs, "Microphone"): changed_any = True
+                if self._check_diff(self.current_outputs, new_outputs, "Speaker"): changed_any = True
                 
                 # Check for default device swaps (e.g. 3.5mm jack rerouting without new PyAudio endpoint)
                 if self.current_default_in and new_def_in and self.current_default_in != new_def_in:
                     if new_def_in not in (new_inputs - self.current_inputs):
                         msg = f"Swapped active Microphone to {new_def_in}"
                         print(f"[System] {msg}")
-                        if self.tts_queue: self.tts_queue.put(msg)
-                        if self.status_queue: self.status_queue.put(("AUDIO_DEVICES_CHANGED", None))
+                        changed_any = True
                         
                 if self.current_default_out and new_def_out and self.current_default_out != new_def_out:
                     if new_def_out not in (new_outputs - self.current_outputs):
                         msg = f"Swapped active Speaker to {new_def_out}"
                         print(f"[System] {msg}")
-                        if self.tts_queue: self.tts_queue.put(msg)
-                        if self.status_queue: self.status_queue.put(("AUDIO_DEVICES_CHANGED", None))
+                        changed_any = True
+                
+                if changed_any and self.on_change_callback:
+                    self.on_change_callback()
                 
             # Keep pending-removal devices in the "current" sets so they
             # don't trigger a false "New connected" when they reappear.
@@ -140,8 +143,6 @@ except Exception as e:
                 # Genuinely new device
                 msg = f"New {device_type} connected: {device}"
                 print(f"[System] {msg}")
-                if self.tts_queue:
-                    self.tts_queue.put(msg)
                 changed = True
                     
         # --- Handle removed devices (debounced) ---
@@ -152,8 +153,6 @@ except Exception as e:
                 # Confirmed gone — report it
                 msg = f"{device_type} disconnected: {device}"
                 print(f"[System] {msg}")
-                if self.tts_queue:
-                    self.tts_queue.put(msg)
                 del self._pending_removals[key]
                 changed = True
             else:
@@ -164,6 +163,8 @@ except Exception as e:
         # Notify UI to refresh dropdowns only on confirmed changes
         if changed and self.status_queue:
             self.status_queue.put(("AUDIO_DEVICES_CHANGED", None))
+            
+        return changed
 
     def run(self):
         print("[System] Real-time audio hardware monitor started.")

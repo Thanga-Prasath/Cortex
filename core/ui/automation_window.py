@@ -78,14 +78,20 @@ class ConnectionPath(QGraphicsPathItem):
 
 # --- 2. Port Item (Input/Output Dots) ---
 class PortItem(QGraphicsItem):
-    def __init__(self, parent, port_type="out"):
+    def __init__(self, parent, port_type="out", tag=None):
         super().__init__(parent)
         self.parent_node = parent
         self.port_type = port_type # 'in' or 'out'
+        self.tag = tag # 'true' or 'false'
         self.radius = 6
         self.connections = []
+        self.color = QColor("#fff")
+        if tag == "true": self.color = QColor("#39FF14")
+        elif tag == "false": self.color = QColor("#FF3131")
+
         self.setAcceptHoverEvents(True)
         
+        # Default positions (will be overridden by parent if special)
         if port_type == "in":
             self.setPos(75, 0)
         else:
@@ -107,8 +113,8 @@ class PortItem(QGraphicsItem):
         return QRectF(-self.radius, -self.radius, self.radius*2, self.radius*2)
         
     def paint(self, painter, option, widget):
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor("#fff"))
+        painter.setPen(QPen(QColor(0,0,0,100), 1))
+        painter.setBrush(self.color)
         painter.drawEllipse(-self.radius, -self.radius, self.radius*2, self.radius*2)
 
 # --- 3. Node Item ---
@@ -122,6 +128,16 @@ class NodeItem(QGraphicsItem):
         if "Delay" in text:
             self.text = "Delay"
             self.properties["value"] = "5"
+        elif text == "Press Hotkey":
+            self.properties["value"] = "ctrl, c"
+        elif text == "Type Text":
+            self.properties["value"] = "Hello World"
+        elif text == "Notify":
+            self.properties["value"] = "Automation complete"
+        elif text == "Play Sound":
+            self.properties["value"] = "beep"
+        elif text == "Open Target":
+            self.properties["value"] = "notepad"
             
         self.setPos(x, y)
         self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsMovable | 
@@ -137,47 +153,120 @@ class NodeItem(QGraphicsItem):
         # Add Ports
         self.in_port = None
         self.out_port = None
+        self.out_true = None
+        self.out_false = None
         
         if text != "Start":
             self.in_port = PortItem(self, "in")
         
-        if text != "End":
+        if text == "If Condition":
+            # Diamond shape ports
+            self.properties["condition_type"] = "App is Running"
+            self.properties["value"] = ""
+            if self.in_port: self.in_port.setPos(75, 0) # Top
+            self.out_true = PortItem(self, "out", tag="true")
+            self.out_true.setPos(0, 40) # Left
+            self.out_false = PortItem(self, "out", tag="false")
+            self.out_false.setPos(150, 40) # Right
+        elif text != "End":
             self.out_port = PortItem(self, "out")
-            
+
     def mouseDoubleClickEvent(self, event):
-        # Allow editing properties
-        if self.text in ["Speak", "System Command", "Delay"]:
+        if self.text == "If Condition":
+            dlg = ConditionDialog(
+                current_type=self.properties.get("condition_type", "App is Running"),
+                current_value=self.properties.get("value", "")
+            )
+            if dlg.exec():
+                self.properties["condition_type"] = dlg.target_type
+                self.properties["value"] = dlg.target_value
+                self.update()
+            super().mouseDoubleClickEvent(event)
+            return
+
+        # Open Target has a special picker dialog
+        if self.text == "Open Target":
+            exclude = set()
+            try:
+                scene = self.scene()
+                if scene:
+                    for view in scene.views():
+                        win = view.window()
+                        if hasattr(win, 'current_workflow') and win.current_workflow:
+                            exclude.add(win.current_workflow)
+                            break
+            except Exception:
+                pass
+            dlg = TargetPickerDialog(
+                current_value=self.properties.get("value", ""),
+                exclude_names=exclude
+            )
+            if dlg.exec():
+                self.properties["value"] = dlg.selected_path
+                self.update()
+            super().mouseDoubleClickEvent(event)
+            return
+
+        # All other editable nodes use a simple text prompt
+        editable_nodes = ["Speak", "System Command", "Delay", "Press Hotkey", "Type Text", "Notify", "Play Sound"]
+        if self.text in editable_nodes:
             prompt = f"Enter {self.text} value:"
             val, ok = QInputDialog.getText(None, "Node Properties", prompt, text=self.properties.get("value", ""))
             if ok:
                 self.properties["value"] = val
                 self.update()
         super().mouseDoubleClickEvent(event)
-            
+
     def boundingRect(self):
+        if self.text == "If Condition":
+            return QRectF(0, 0, 150, 80)
         return QRectF(0, 0, 150, 60)
         
     def paint(self, painter, option, widget):
         rect = self.boundingRect()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
         # Shadow
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QColor(0, 0, 0, 50))
-        painter.drawRoundedRect(rect.adjusted(2, 2, 2, 2), 8, 8)
+        if self.text == "If Condition":
+            path = QPainterPath()
+            path.moveTo(75, 0)
+            path.lineTo(150, 40)
+            path.lineTo(75, 80)
+            path.lineTo(0, 40)
+            path.closeSubpath()
+            painter.drawPath(path.translated(2, 2))
+        else:
+            painter.drawRoundedRect(rect.adjusted(2, 2, 2, 2), 8, 8)
         
         # Body
         painter.setPen(QPen(self.color, 2))
-        painter.setBrush(QColor(30, 30, 30, 200))
-        painter.drawRoundedRect(rect, 8, 8)
+        painter.setBrush(QColor(30, 30, 30, 220))
         
-        # Header
-        painter.setBrush(self.color)
-        painter.drawRoundedRect(0, 0, 150, 20, 8, 8)
-        painter.drawRect(0, 10, 150, 10)
-        
-        # Label
-        painter.setPen(Qt.GlobalColor.black)
-        painter.drawText(QRectF(0, 0, 150, 20), Qt.AlignmentFlag.AlignCenter, self.text)
+        if self.text == "If Condition":
+            path = QPainterPath()
+            path.moveTo(75, 0)
+            path.lineTo(150, 40)
+            path.lineTo(75, 80)
+            path.lineTo(0, 40)
+            path.closeSubpath()
+            painter.drawPath(path)
+            
+            # Label in center
+            painter.setPen(self.color)
+            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "IF")
+        else:
+            painter.drawRoundedRect(rect, 8, 8)
+            
+            # Header
+            painter.setBrush(self.color)
+            painter.drawRoundedRect(0, 0, 150, 20, 8, 8)
+            painter.drawRect(0, 10, 150, 10)
+            
+            # Label
+            painter.setPen(Qt.GlobalColor.black)
+            painter.drawText(QRectF(0, 0, 150, 20), Qt.AlignmentFlag.AlignCenter, self.text)
 
         # Property Preview
         if self.properties.get("value"):
@@ -185,13 +274,16 @@ class NodeItem(QGraphicsItem):
             font = painter.font()
             font.setPointSize(8)
             painter.setFont(font)
-            painter.drawText(QRectF(10, 25, 130, 30), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, 
+            y_off = 25 if self.text != "If Condition" else 45
+            painter.drawText(QRectF(10, y_off, 130, 30), Qt.AlignmentFlag.AlignCenter, 
                              self.properties["value"])
         
     def itemChange(self, change, value):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
              if self.in_port: self.in_port.update_connections()
              if self.out_port: self.out_port.update_connections()
+             if self.out_true: self.out_true.update_connections()
+             if self.out_false: self.out_false.update_connections()
         return super().itemChange(change, value)
 
 class ZoomableView(QGraphicsView):
@@ -258,6 +350,10 @@ class FlowView(ZoomableView):
             for c in list(node.in_port.connections): self._delete_connection(c)
         if node.out_port:
             for c in list(node.out_port.connections): self._delete_connection(c)
+        if node.out_true:
+            for c in list(node.out_true.connections): self._delete_connection(c)
+        if node.out_false:
+            for c in list(node.out_false.connections): self._delete_connection(c)
         self.scene().removeItem(node)
         
     def mouseMoveEvent(self, event):
@@ -351,6 +447,9 @@ class AutomationWindow(QMainWindow):
         btn_new = QPushButton("+ New")
         btn_new.clicked.connect(self.on_new_clicked)
         
+        btn_rename = QPushButton("✎ Rename")
+        btn_rename.clicked.connect(self.on_rename_clicked)
+        
         self.btn_primary = QPushButton("Set as Primary")
         self.btn_primary.clicked.connect(self.on_primary_clicked)
         
@@ -360,6 +459,7 @@ class AutomationWindow(QMainWindow):
         tb_layout.addWidget(QLabel("Automations:"))
         tb_layout.addWidget(self.combo_workflows)
         tb_layout.addWidget(btn_new)
+        tb_layout.addWidget(btn_rename)
         tb_layout.addWidget(self.btn_primary)
         tb_layout.addStretch()
         tb_layout.addWidget(self.lbl_primary)
@@ -370,7 +470,7 @@ class AutomationWindow(QMainWindow):
         
         # Toolbox
         tools = NodeList() # Using our custom NodeList
-        tools.addItems(["Start", "Speak", "Delay", "System Command", "End"])
+        tools.addItems(["Start", "Delay", "Speak", "System Command", "Press Hotkey", "Type Text", "Notify", "Play Sound", "Open Target", "If Condition", "End"])
         splitter.addWidget(tools)
         
         # Canvas
@@ -387,8 +487,8 @@ class AutomationWindow(QMainWindow):
         f_layout = QHBoxLayout(footer)
         f_layout.setContentsMargins(0, 0, 0, 0)
         
-        btn_apply = QPushButton("Apply Workflow")
-        btn_apply.clicked.connect(self.save_workflow)
+        self.btn_apply = QPushButton("Apply Workflow")
+        self.btn_apply.clicked.connect(self.save_workflow)
         
         btn_help = QPushButton("?")
         btn_help.setFixedSize(30, 30)
@@ -410,13 +510,20 @@ class AutomationWindow(QMainWindow):
         """)
         btn_help.clicked.connect(self.show_help)
 
-        f_layout.addWidget(btn_apply)
+        self.lbl_validation = QLabel("")
+        self.lbl_validation.setStyleSheet("color: #FF4444; font-weight: bold; font-size: 11px;")
+        
+        f_layout.addWidget(self.btn_apply)
+        f_layout.addWidget(self.lbl_validation)
+        f_layout.addStretch()
         f_layout.addWidget(btn_help)
         
         layout.addWidget(footer)
         
         # Load and Initialize Workflows
         self.init_workflows()
+        # Re-validate the canvas whenever nodes are added/removed
+        self.scene.changed.connect(self._on_scene_changed)
 
     def init_workflows(self):
         import json, glob
@@ -517,6 +624,41 @@ class AutomationWindow(QMainWindow):
         except: pass
         QMessageBox.information(self, "Primary Set", f"'{self.primary_workflow}' is now the primary automation.")
 
+    def on_rename_clicked(self):
+        old_name = self.current_workflow
+        new_name, ok = QInputDialog.getText(self, "Rename Automation", "New name:", text=old_name)
+        if not ok or not new_name.strip():
+            return
+        new_name = new_name.strip()
+        if new_name.lower() == "state":
+            QMessageBox.warning(self, "Invalid Name", "'state' is a reserved name.")
+            return
+        if new_name == old_name:
+            return
+        old_path = os.path.join(self.data_dir, f"{old_name}.json")
+        new_path = os.path.join(self.data_dir, f"{new_name}.json")
+        if os.path.exists(new_path):
+            QMessageBox.warning(self, "Exists", f"An automation named '{new_name}' already exists.")
+            return
+        try:
+            os.rename(old_path, new_path)
+        except Exception as e:
+            QMessageBox.critical(self, "Rename Failed", str(e))
+            return
+        # Update primary if needed
+        if self.primary_workflow == old_name:
+            self.primary_workflow = new_name
+        # Update combobox without triggering a save of the old (now gone) file
+        self.combo_workflows.blockSignals(True)
+        idx = self.combo_workflows.findText(old_name)
+        if idx >= 0:
+            self.combo_workflows.setItemText(idx, new_name)
+        self.combo_workflows.setCurrentText(new_name)
+        self.combo_workflows.blockSignals(False)
+        self.current_workflow = new_name
+        self.save_state()
+        self.update_primary_label()
+
     def load_workflow(self, name=None):
         import json, os
         if not name:
@@ -560,9 +702,16 @@ class AutomationWindow(QMainWindow):
                 start_node = node_map.get(from_id)
                 end_node = node_map.get(to_id)
                 
-                if start_node and end_node and start_node.out_port and end_node.in_port:
-                    conn = ConnectionPath(start_node.out_port, end_node.in_port)
-                    self.scene.addItem(conn)
+                if start_node and end_node and end_node.in_port:
+                    port = None
+                    p_tag = c_data.get("from_port")
+                    if p_tag == "true": port = start_node.out_true
+                    elif p_tag == "false": port = start_node.out_false
+                    else: port = start_node.out_port
+                    
+                    if port:
+                        conn = ConnectionPath(port, end_node.in_port)
+                        self.scene.addItem(conn)
                     
             print(f"[Automation] Loaded workflow from {file_path}")
         except Exception as e:
@@ -570,24 +719,140 @@ class AutomationWindow(QMainWindow):
 
     def show_help(self):
         msg = """
-        <h3>How to use Neural Sync</h3>
-        <p><b>1. Add Nodes:</b> Drag nodes from the left toolbox to the canvas.</p>
-        <p><b>2. Connect:</b> Drag from the BOTTOM connected of one node to the TOP connector of another.</p>
-        <p><b>3. Logic:</b>
-           <ul>
-           <li><b>Speak:</b> Double-click to type what Cortex should say.</li>
-           <li><b>System Command:</b> Double-click to type a command (e.g., 'notepad', 'calc').</li>
-           <li><b>Delay:</b> Double-click to set duration in seconds.</li>
-           </ul>
-        </p>
-        <p><b>4. Control:</b> Right-click a node or wire to delete it.</p>
-        <p><b>5. Run:</b> Click 'Apply', then say <b>"Run Workflow"</b>.</p>
+        <h2 style='color: #00FFFF;'>Cortex Automation help</h2>
+        <p>Build powerful workflows by dragging nodes from the sidebar and connecting them.</p>
+        
+        <h3 style='color: #39FF14;'>Node Guide:</h3>
+        <table border='0' cellpadding='5' cellspacing='0' style='color: #ccc; font-size: 13px;'>
+          <tr><td><b>Start / End</b></td><td>The beginning and finale of your automation.</td></tr>
+          <tr><td><b>Delay</b></td><td>Wait for X seconds before the next step.</td></tr>
+          <tr><td><b>Speak</b></td><td>Cortex will announce your message via TTS.</td></tr>
+          <tr><td><b>System Command</b></td><td>Runs a terminal command (use with caution).</td></tr>
+          <tr><td><b>Press Hotkey</b></td><td>Simulates keyboard shortcut (e.g. <i>ctrl, c</i>).</td></tr>
+          <tr><td><b>Type Text</b></td><td>Types out text as if you were typing on the keyboard.</td></tr>
+          <tr><td><b>Notify</b></td><td>Shows a desktop notification window.</td></tr>
+          <tr><td><b>Play Sound</b></td><td>Plays a .wav file or a default 'beep'.</td></tr>
+          <tr><td><b>Open Target</b></td><td>Opens an app, file, or runs ANOTHER automation.</td></tr>
+          <tr><td><b style='color: #39FF14;'>If Condition</b></td><td><b>The Diamond Node.</b> Evaluates a condition.
+              <ul>
+                <li><b>Green Port (Left)</b>: Executed if the condition is TRUE.</li>
+                <li><b>Red Port (Right)</b>: Executed if the condition is FALSE.</li>
+              </ul>
+          </td></tr>
+        </table>
+
+        <h3 style='color: #39FF14;'>Condition Types:</h3>
+        <ul style='color: #ccc; font-size: 12px;'>
+          <li><b>App is Running</b>: True if the process name is active.</li>
+          <li><b>File or Folder Exists</b>: True if the path is found on disk.</li>
+          <li><b>Time of Day</b>: True if current time is after the specified HH:MM.</li>
+          <li><b>Active Window</b>: True if the current focused window title matches.</li>
+          <li><b>Text Area Active</b>: True if the mouse cursor is on a text input (I-Beam).</li>
+        </ul>
+
+        <p><b style='color: #FF3131;'>Pro Tip:</b> Right-click any node or wire to delete it instantly.</p>
         """
         QMessageBox.information(self, "Neural Sync Help", msg)
+
+    def _on_scene_changed(self, _=None):
+        """Called whenever the scene changes — re-runs live validation."""
+        self.validate_canvas(save_blocked=False)
+
+    def validate_canvas(self, save_blocked=True):
+        """
+        DFS from Start. Every possible output path must terminate at an End node.
+        - Regular nodes: must have exactly one outgoing connection.
+        - If Condition: must have BOTH 'true' and 'false' outgoing connections.
+        Returns True if fully valid, False otherwise.
+        """
+        # Collect nodes and connections
+        all_nodes = []
+        conn_list = []  # (src_node, tag, dst_node)
+        for item in self.scene.items():
+            if isinstance(item, NodeItem):
+                all_nodes.append(item)
+            elif isinstance(item, ConnectionPath):
+                if item.start_port and item.end_port:
+                    conn_list.append((
+                        item.start_port.parent_node,
+                        item.start_port.tag,  # None, "true", or "false"
+                        item.end_port.parent_node
+                    ))
+
+        def _set_error(msg):
+            self.lbl_validation.setText(f"⚠ {msg}")
+            self.btn_apply.setEnabled(False)
+            self.btn_apply.setStyleSheet("background-color: #444; color: #777; border: 1px solid #555;")
+
+        def _set_ok():
+            self.lbl_validation.setText("")
+            self.btn_apply.setEnabled(True)
+            self.btn_apply.setStyleSheet("")
+
+        # Check mandatory nodes exist
+        types_present = {n.text for n in all_nodes}
+        if "Start" not in types_present:
+            _set_error("Missing START node"); return False
+        if "End" not in types_present:
+            _set_error("Missing END node"); return False
+
+        # Build adjacency: node -> {tag: [dst_nodes]}
+        adj = {n: {} for n in all_nodes}
+        for (src, tag, dst) in conn_list:
+            if src in adj:
+                adj[src].setdefault(tag, []).append(dst)
+
+        # DFS traversal
+        start_node = next(n for n in all_nodes if n.text == "Start")
+        open_issues = []
+
+        def dfs(node, visited):
+            if node in visited:
+                return  # Cycle — skip, engine handles this
+            visited = visited | {node}
+
+            if node.text == "End":
+                return  # ✅ Path closed
+
+            if node.text == "If Condition":
+                true_next  = adj.get(node, {}).get("true",  [])
+                false_next = adj.get(node, {}).get("false", [])
+                if not true_next:
+                    open_issues.append("IF True (green) branch has no connection")
+                else:
+                    for n in true_next: dfs(n, visited)
+                if not false_next:
+                    open_issues.append("IF False (red) branch has no connection")
+                else:
+                    for n in false_next: dfs(n, visited)
+            else:
+                # Regular node — follow None-tagged outgoing wire
+                next_nodes = adj.get(node, {}).get(None, [])
+                if not next_nodes:
+                    open_issues.append(f"'{node.text}' output is not connected")
+                else:
+                    for n in next_nodes: dfs(n, visited)
+
+        dfs(start_node, set())
+
+        if open_issues:
+            unique = list(dict.fromkeys(open_issues))
+            msg = unique[0]
+            if len(unique) > 1:
+                msg += f"  (+{len(unique)-1} more)"
+            _set_error(msg)
+            return False
+
+        _set_ok()
+        return True
 
     def save_workflow(self):
         import uuid
         
+        # Validate before saving
+        if not self.validate_canvas():
+            return
+
         # 1. Collect Nodes
         nodes_data = []
         node_map = {} # item -> uuid
@@ -606,6 +871,10 @@ class AutomationWindow(QMainWindow):
                     "data": item.properties
                 })
         
+        # Guard: never overwrite with an empty canvas
+        if not nodes_data:
+            return
+        
         # 2. Collect Connections
         connections_data = []
         for item in self.scene.items():
@@ -618,6 +887,7 @@ class AutomationWindow(QMainWindow):
                     if start_node in node_map and end_node in node_map:
                         connections_data.append({
                             "from": node_map[start_node],
+                            "from_port": item.start_port.tag if item.start_port else None,
                             "to": node_map[end_node]
                         })
         
@@ -639,6 +909,379 @@ class AutomationWindow(QMainWindow):
             
         except Exception as e:
             print(f"[Automation] Error saving: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Cross-platform Application Discovery
+# ---------------------------------------------------------------------------
+def get_installed_applications():
+    """
+    Returns a dict: { display_name: executable_path_or_command }
+    Works on Windows, macOS, and Linux.
+    """
+    import platform, os, glob
+    apps = {}
+    sys_os = platform.system()
+
+    if sys_os == "Windows":
+        # ---- God Mode via PowerShell Get-StartApps ----
+        # This returns ALL apps: classic EXEs, UWP (Settings, Store), and shortcuts
+        try:
+            import subprocess as _sp
+            ps_cmd = (
+                "Get-StartApps | ForEach-Object { $_.Name + '|' + $_.AppID } | "
+                "Out-String -Width 4096"
+            )
+            result = _sp.run(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_cmd],
+                capture_output=True, text=True, timeout=15
+            )
+            for line in result.stdout.splitlines():
+                line = line.strip()
+                if "|" in line:
+                    name, app_id = line.split("|", 1)
+                    name, app_id = name.strip(), app_id.strip()
+                    if name and app_id:
+                        apps[name] = app_id  # app_id can be an AUMID or a path
+        except Exception:
+            pass
+
+        # ---- Fallback: Classic Registry scan ----
+        if not apps:
+            import winreg, glob
+            hives = [
+                (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),
+                (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"),
+                (winreg.HKEY_CURRENT_USER,  r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),
+            ]
+            for hive, subkey in hives:
+                try:
+                    with winreg.OpenKey(hive, subkey) as key:
+                        for i in range(winreg.QueryInfoKey(key)[0]):
+                            try:
+                                with winreg.OpenKey(key, winreg.EnumKey(key, i)) as sub:
+                                    name = winreg.QueryValueEx(sub, "DisplayName")[0]
+                                    try:
+                                        exe = winreg.QueryValueEx(sub, "DisplayIcon")[0].split(",")[0].strip('"')
+                                    except:
+                                        exe = ""
+                                    if name and exe and os.path.exists(exe):
+                                        apps[name] = exe
+                            except:
+                                pass
+                except:
+                    pass
+            for sm in [
+                os.path.expandvars(r"%APPDATA%\Microsoft\Windows\Start Menu\Programs"),
+                os.path.expandvars(r"%PROGRAMDATA%\Microsoft\Windows\Start Menu\Programs"),
+            ]:
+                for lnk in glob.glob(os.path.join(sm, "**", "*.lnk"), recursive=True):
+                    name = os.path.splitext(os.path.basename(lnk))[0]
+                    if name not in apps:
+                        apps[name] = lnk
+
+
+    elif sys_os == "Darwin":
+        for d in ["/Applications", "/System/Applications", os.path.expanduser("~/Applications")]:
+            for app in glob.glob(os.path.join(d, "*.app")):
+                name = os.path.splitext(os.path.basename(app))[0]
+                apps[name] = app
+
+    else:  # Linux
+        desktop_dirs = [
+            "/usr/share/applications",
+            "/usr/local/share/applications",
+            os.path.expanduser("~/.local/share/applications"),
+        ]
+        for d in desktop_dirs:
+            for desk in glob.glob(os.path.join(d, "*.desktop")):
+                name, exe = "", ""
+                try:
+                    with open(desk, encoding="utf-8", errors="ignore") as f:
+                        for line in f:
+                            if line.startswith("Name=") and not name:
+                                name = line.strip().split("=", 1)[1]
+                            if line.startswith("Exec=") and not exe:
+                                exe = line.strip().split("=", 1)[1].split()[0].replace("%U", "").replace("%F", "").strip()
+                except:
+                    pass
+                if name and exe:
+                    apps[name] = exe
+
+    return dict(sorted(apps.items()))
+
+
+# ---------------------------------------------------------------------------
+# Condition Config Dialog
+# ---------------------------------------------------------------------------
+class ConditionDialog(QDialog):
+    def __init__(self, parent=None, current_type="App is Running", current_value=""):
+        super().__init__(parent)
+        from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout, QComboBox, QLineEdit, QPushButton, QLabel
+        self.setWindowTitle("Configure If Condition")
+        self.setMinimumWidth(400)
+        layout = QVBoxLayout(self)
+        
+        layout.addWidget(QLabel("Condition Type:"))
+        self.combo_type = QComboBox()
+        self.combo_type.addItems([
+            "App is Running",
+            "File or Folder Exists",
+            "Time of Day (HH:MM)",
+            "Active Window Title Contains",
+            "Text Area is Active"
+        ])
+        self.combo_type.setCurrentText(current_type)
+        layout.addWidget(self.combo_type)
+        
+        layout.addWidget(QLabel("Target Value:"))
+        
+        # Target Value layout
+        val_layout = QHBoxLayout()
+        self.edit_value = QLineEdit()
+        self.edit_value.setText(current_value)
+        self.edit_value.setPlaceholderText("e.g. spotify.exe, C:\\notes.txt, 18:00")
+        val_layout.addWidget(self.edit_value)
+        
+        self.btn_browse = QPushButton("Browse")
+        self.btn_browse.clicked.connect(self.on_browse)
+        val_layout.addWidget(self.btn_browse)
+        
+        layout.addLayout(val_layout)
+        
+        self.hint = QLabel("Note: 'Text Area is Active' does not require a value.")
+        self.hint.setStyleSheet("color: #888; font-size: 10px;")
+        layout.addWidget(self.hint)
+        
+        btns = QHBoxLayout()
+        btn_ok = QPushButton("OK")
+        btn_ok.clicked.connect(self.accept)
+        btn_cancel = QPushButton("Cancel")
+        btn_cancel.clicked.connect(self.reject)
+        btns.addWidget(btn_ok)
+        btns.addWidget(btn_cancel)
+        layout.addLayout(btns)
+        
+        self.target_type = current_type
+        self.target_value = current_value
+        
+    def on_browse(self):
+        import os
+        ctype = self.combo_type.currentText()
+        if ctype in ["App is Running", "File or Folder Exists"]:
+            dlg = TargetPickerDialog(self, current_value=self.edit_value.text())
+            if ctype == "App is Running":
+                dlg.mode_combo.setCurrentText("Application")
+            else:
+                dlg.mode_combo.setCurrentText("File / Folder")
+            if dlg.exec():
+                path = dlg.selected_path
+                if ctype == "App is Running" and ("\\" in path or "/" in path):
+                    self.edit_value.setText(os.path.basename(path))
+                else:
+                    self.edit_value.setText(path)
+
+        elif ctype == "Active Window Title Contains":
+            # Show a live list of open window titles
+            try:
+                import pywinctl
+                titles = [t for t in pywinctl.getAllTitles() if t.strip()]
+            except Exception:
+                titles = []
+
+            if not titles:
+                from PyQt6.QtWidgets import QMessageBox
+                QMessageBox.information(self, "No Windows", "No open windows detected.")
+                return
+
+            from PyQt6.QtWidgets import QDialog, QVBoxLayout, QListWidget, QPushButton, QLabel, QAbstractItemView
+            picker = QDialog(self)
+            picker.setWindowTitle("Select Active Window")
+            picker.setMinimumSize(420, 300)
+            pl = QVBoxLayout(picker)
+            pl.addWidget(QLabel("Pick an open window title:"))
+            lst = QListWidget()
+            lst.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+            for t in sorted(set(titles)):
+                lst.addItem(t)
+            pl.addWidget(lst)
+            btn_pick = QPushButton("Select")
+            btn_pick.clicked.connect(picker.accept)
+            pl.addWidget(btn_pick)
+            lst.itemDoubleClicked.connect(lambda: picker.accept())
+
+            if picker.exec() and lst.currentItem():
+                self.edit_value.setText(lst.currentItem().text())
+                    
+    def accept(self):
+        self.target_type = self.combo_type.currentText()
+        self.target_value = self.edit_value.text().strip()
+        super().accept()
+
+# ---------------------------------------------------------------------------
+# Target Picker Dialog
+# ---------------------------------------------------------------------------
+class TargetPickerDialog(QDialog):
+    """Dialog to select an Application or File for the Open Target node."""
+
+    def __init__(self, parent=None, current_value="", exclude_names=None):
+        super().__init__(parent)
+        self._exclude_names = exclude_names or set()
+        from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QComboBox,
+                                     QLineEdit, QListWidget, QPushButton,
+                                     QLabel, QFileDialog, QAbstractItemView)
+        from PyQt6.QtCore import Qt
+        self.setWindowTitle("Select Target")
+        self.setMinimumSize(480, 420)
+        self.selected_path = current_value
+        self._apps = {}
+
+        layout = QVBoxLayout(self)
+
+        # Mode picker
+        mode_row = QHBoxLayout()
+        mode_row.addWidget(QLabel("Open:"))
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItems(["Application", "File / Folder", "Automation"])
+        self.mode_combo.currentIndexChanged.connect(self._on_mode_changed)
+        mode_row.addWidget(self.mode_combo)
+        layout.addLayout(mode_row)
+
+        # Search bar (shared for App and Automation modes)
+        self.search_bar = QLineEdit()
+        self.search_bar.setPlaceholderText("Search...")
+        self.search_bar.textChanged.connect(self._filter_list)
+        layout.addWidget(self.search_bar)
+
+        # Shared list (used for App mode AND Automation mode)
+        self.app_list = QListWidget()
+        self.app_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.app_list.itemDoubleClicked.connect(self._accept_list_item)
+        layout.addWidget(self.app_list)
+
+        # File browse widget (hidden initially)
+        self.file_row = QHBoxLayout()
+        self.file_edit = QLineEdit()
+        self.file_edit.setPlaceholderText("Path to file or folder...")
+        self.file_edit.setText(current_value if not current_value.startswith("automations://") else "")
+        btn_browse = QPushButton("Browse...")
+        btn_browse.clicked.connect(self._browse_file)
+        self.file_row.addWidget(self.file_edit)
+        self.file_row.addWidget(btn_browse)
+        layout.addLayout(self.file_row)
+
+        # Buttons
+        btn_row = QHBoxLayout()
+        btn_ok = QPushButton("OK")
+        btn_ok.clicked.connect(self._on_ok)
+        btn_cancel = QPushButton("Cancel")
+        btn_cancel.clicked.connect(self.reject)
+        btn_row.addStretch()
+        btn_row.addWidget(btn_ok)
+        btn_row.addWidget(btn_cancel)
+        layout.addLayout(btn_row)
+
+        # Detect initial mode from existing value
+        if current_value.startswith("automations://"):
+            self.mode_combo.setCurrentIndex(2)
+        else:
+            self.mode_combo.setCurrentIndex(0)
+
+        self._on_mode_changed(self.mode_combo.currentIndex())
+
+    def _show_app_mode(self):
+        self.search_bar.setVisible(True)
+        self.app_list.setVisible(True)
+        self._set_file_row_visible(False)
+
+    def _show_file_mode(self):
+        self.search_bar.setVisible(False)
+        self.app_list.setVisible(False)
+        self._set_file_row_visible(True)
+
+    def _show_automation_mode(self):
+        self.search_bar.setVisible(True)
+        self.app_list.setVisible(True)
+        self._set_file_row_visible(False)
+        self._load_automations()
+
+    def _set_file_row_visible(self, visible):
+        for i in range(self.file_row.count()):
+            w = self.file_row.itemAt(i).widget()
+            if w:
+                w.setVisible(visible)
+
+    def _on_mode_changed(self, idx):
+        if idx == 0:
+            self._show_app_mode()
+            self._load_apps()
+        elif idx == 1:
+            self._show_file_mode()
+        else:  # 2 = Automation
+            self._show_automation_mode()
+
+    def _load_apps(self):
+        self.app_list.clear()
+        self.app_list.addItem("Loading applications...")
+        self.app_list.setEnabled(False)
+        from PyQt6.QtCore import QThread, pyqtSignal
+
+        class Loader(QThread):
+            done = pyqtSignal(dict)
+            def run(self):
+                self.done.emit(get_installed_applications())
+
+        self._loader = Loader()
+        self._loader.done.connect(self._on_apps_loaded)
+        self._loader.start()
+
+    def _on_apps_loaded(self, apps):
+        self._apps = apps
+        self.app_list.clear()
+        self.app_list.setEnabled(True)
+        for name in apps:
+            self.app_list.addItem(name)
+
+    def _load_automations(self):
+        """Populate the list with names of saved automations, excluding self-references."""
+        import glob
+        self.app_list.clear()
+        self._apps = {}
+        data_dir = os.path.join(os.getcwd(), 'data', 'automations')
+        for f in glob.glob(os.path.join(data_dir, "*.json")):
+            name = os.path.splitext(os.path.basename(f))[0]
+            if name != "state" and name not in self._exclude_names:
+                self.app_list.addItem(name)
+                self._apps[name] = f"automations://{name}"
+
+    def _filter_list(self, text):
+        for i in range(self.app_list.count()):
+            item = self.app_list.item(i)
+            item.setHidden(text.lower() not in item.text().lower())
+
+    def _browse_file(self):
+        from PyQt6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getOpenFileName(self, "Select File")
+        if path:
+            self.file_edit.setText(path)
+
+    def _accept_list_item(self, item):
+        self.selected_path = self._apps.get(item.text(), item.text())
+        self.accept()
+
+    def _on_ok(self):
+        idx = self.mode_combo.currentIndex()
+        if idx == 1:  # File mode
+            self.selected_path = self.file_edit.text().strip()
+        else:  # App or Automation mode — use list selection
+            items = self.app_list.selectedItems()
+            if items:
+                self.selected_path = self._apps.get(items[0].text(), items[0].text())
+            else:
+                self.selected_path = ""
+        self.accept()
+
+
 
 class AutomationListDialog(QDialog):
     """

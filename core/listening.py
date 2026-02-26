@@ -89,48 +89,15 @@ class Listener:
         print(f"[System] Speech Recognition Vocabulary Updated ({len(keywords_str)} chars).")
 
     def _get_input_stream_kwargs(self):
-        kwargs = {
+        """Returns keyword arguments for opening the PyAudio stream. 
+        Omitting 'input_device_index' forces PyAudio to use the OS Default via Sound Mapper."""
+        return {
             'format': self.FORMAT,
             'channels': self.CHANNELS,
             'rate': self.RATE,
             'input': True,
             'frames_per_buffer': self.CHUNK
         }
-        try:
-            config_path = os.path.join(os.getcwd(), 'data', 'user_config.json')
-            if os.path.exists(config_path):
-                with open(config_path, 'r') as f:
-                    data = json.load(f)
-                    input_device_name = data.get("input_device_name")
-                    if input_device_name:
-                        import subprocess
-                        import sys
-                        # Bypassing PyAudio cache to find true OS default in a timeout-shielded sandbox
-                        cmd = "import pyaudio, json, sys, os; sys.stderr=open(os.devnull, 'w'); p=pyaudio.PyAudio(); print(json.dumps({'def': p.get_default_input_device_info().get('name') if p.get_device_count() else None})); p.terminate()"
-                        res = subprocess.run([sys.executable, "-c", cmd], capture_output=True, text=True, timeout=2)
-                        
-                        true_default = None
-                        if res.returncode == 0 and res.stdout.strip():
-                            try: true_default = json.loads(res.stdout.strip()).get("def")
-                            except: pass
-                            
-                        # If the requested device is magically the OS default, let Sound Mapper handle it for hot-swap support
-                        if true_default == input_device_name:
-                            pass # Leaving input_device_index missing tells PyAudio to use Sound Mapper
-                        else:
-                            try: default_host_api = self.p.get_default_host_api_info()['index']
-                            except Exception: default_host_api = None
-                                
-                            for i in range(self.p.get_device_count()):
-                                info = self.p.get_device_info_by_index(i)
-                                if default_host_api is not None and info.get('hostApi') != default_host_api:
-                                    continue
-                                if info.get('name') == input_device_name and info.get('maxInputChannels', 0) > 0:
-                                    kwargs['input_device_index'] = i
-                                    break
-        except Exception as e:
-            print(f"[!] Warning reading input target device: {e}")
-        return kwargs
 
     def calibrate_noise(self):
         """Measures ambient noise level to set dynamic threshold."""
