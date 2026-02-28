@@ -14,6 +14,7 @@ import datetime
 import random
 import json
 import threading
+from core.runtime_path import get_app_root
 try:
     import pyautogui
 except (ImportError, Exception):
@@ -155,7 +156,7 @@ class CortexEngine:
 
     def _load_user_config(self):
         """Loads user configuration from JSON file."""
-        config_path = os.path.join(os.getcwd(), 'data', 'user_config.json')
+        config_path = os.path.join(get_app_root(), 'data', 'user_config.json')
         if os.path.exists(config_path):
             try:
                 with open(config_path, 'r') as f:
@@ -166,7 +167,7 @@ class CortexEngine:
 
     def _save_user_config(self):
         """Saves current user configuration to JSON file."""
-        config_path = os.path.join(os.getcwd(), 'data', 'user_config.json')
+        config_path = os.path.join(get_app_root(), 'data', 'user_config.json')
         try:
             with open(config_path, 'w') as f:
                 json.dump(self.user_config, f, indent=4)

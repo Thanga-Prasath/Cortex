@@ -9,6 +9,7 @@ from PyQt6.QtCore import Qt, QThread, pyqtSignal
 import json
 import os
 from .styles import get_stylesheet
+from core.runtime_path import get_app_root
 import requests
 import pyaudio
 
@@ -19,7 +20,7 @@ class VoiceDownloadThread(QThread):
     def __init__(self, voice_data):
         super().__init__()
         self.voice_data = voice_data
-        self.voices_dir = os.path.join(os.getcwd(), 'piper_engine', 'voices')
+        self.voices_dir = os.path.join(get_app_root(), 'piper_engine', 'voices')
 
     def run(self):
         try:
@@ -68,8 +69,8 @@ class SettingsWindow(QMainWindow):
         self.setGeometry(100, 100, 700, 500)
         
         # Data Setup
-        self.config_path = os.path.join(os.getcwd(), 'data', 'user_config.json')
-        self.widget_config_path = os.path.join(os.getcwd(), 'data', 'widget_config.json')
+        self.config_path = os.path.join(get_app_root(), 'data', 'user_config.json')
+        self.widget_config_path = os.path.join(get_app_root(), 'data', 'widget_config.json')
         self.config_data = self.load_config(self.config_path)
         self.widget_config = self.load_config(self.widget_config_path)
         
@@ -356,8 +357,8 @@ class SettingsWindow(QMainWindow):
 
     def refresh_voice_table(self):
         """Populate voices from manifest and check local existence."""
-        manifest_path = os.path.join(os.getcwd(), 'data', 'voices_manifest.json')
-        voices_dir = os.path.join(os.getcwd(), 'piper_engine', 'voices')
+        manifest_path = os.path.join(get_app_root(), 'data', 'voices_manifest.json')
+        voices_dir = os.path.join(get_app_root(), 'piper_engine', 'voices')
         current_pack = self.config_data.get("voice_pack", "system_default")
         
         if not os.path.exists(manifest_path):
@@ -428,8 +429,8 @@ class SettingsWindow(QMainWindow):
         if not label_item: return
         
         label = label_item.text()
-        manifest_path = os.path.join(os.getcwd(), 'data', 'voices_manifest.json')
-        voices_dir = os.path.join(os.getcwd(), 'piper_engine', 'voices')
+        manifest_path = os.path.join(get_app_root(), 'data', 'voices_manifest.json')
+        voices_dir = os.path.join(get_app_root(), 'piper_engine', 'voices')
         
         with open(manifest_path, 'r') as f:
             manifest = json.load(f)
@@ -450,7 +451,7 @@ class SettingsWindow(QMainWindow):
         print(f"[UI] Voice pack changed to: {voice['label']}")
 
     def delete_voice(self, voice):
-        voices_dir = os.path.join(os.getcwd(), 'piper_engine', 'voices')
+        voices_dir = os.path.join(get_app_root(), 'piper_engine', 'voices')
         onnx_path = os.path.join(voices_dir, f"{voice['id']}.onnx")
         json_path = os.path.join(voices_dir, f"{voice['id']}.onnx.json")
         
@@ -553,7 +554,7 @@ class SettingsWindow(QMainWindow):
         
         # Determine Voice Model path
         current_pack = self.config_data.get("voice_pack", "system_default")
-        voices_dir = os.path.join(os.getcwd(), 'piper_engine', 'voices')
+        voices_dir = os.path.join(get_app_root(), 'piper_engine', 'voices')
         model_path = os.path.join(voices_dir, f"{current_pack}.onnx")
         
         use_piper = False

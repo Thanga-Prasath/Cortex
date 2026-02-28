@@ -1,6 +1,7 @@
 import platform
 import subprocess
 import time
+from core.runtime_path import get_app_root
 
 def restart_audio_service(speaker):
     os_type = platform.system()
@@ -73,7 +74,7 @@ def _toggle_device(speaker, device_type="input", system_wide=False):
         speaker.speak("PyAudio is not installed.")
         return
 
-    config_path = os.path.join(os.getcwd(), 'data', 'user_config.json')
+    config_path = os.path.join(get_app_root(), 'data', 'user_config.json')
     data = {}
     if os.path.exists(config_path):
         try:

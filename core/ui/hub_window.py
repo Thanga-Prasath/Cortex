@@ -5,6 +5,7 @@ import psutil
 import json
 import os
 from .styles import get_stylesheet
+from core.runtime_path import get_app_root
 
 class HubWindow(QMainWindow):
     def __init__(self):
@@ -13,7 +14,7 @@ class HubWindow(QMainWindow):
         self.setGeometry(100, 100, 900, 600)
         
         # Load Config for Theme
-        config_path = os.path.join(os.getcwd(), 'data', 'user_config.json')
+        config_path = os.path.join(get_app_root(), 'data', 'user_config.json')
         theme = "Neon Green"
         if os.path.exists(config_path):
             try:

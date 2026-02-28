@@ -7,6 +7,7 @@ from PyQt6.QtGui import QBrush, QPen, QColor, QPainter, QPainterPath, QDrag, QPa
 from .styles import get_stylesheet, THEME_COLORS
 import os
 import json
+from core.runtime_path import get_app_root
 
 # --- 0. Custom List Widget to ensure clean Mime Data ---
 class NodeList(QListWidget):
@@ -407,7 +408,7 @@ class AutomationWindow(QMainWindow):
         # Apply Theme
         try:
             import json, os
-            config_path = os.path.join(os.getcwd(), 'data', 'user_config.json')
+            config_path = os.path.join(get_app_root(), 'data', 'user_config.json')
             with open(config_path, 'r') as f:
                 theme = json.load(f).get("theme", "Neon Green")
         except: theme = "Neon Green"
@@ -421,7 +422,7 @@ class AutomationWindow(QMainWindow):
         layout.addWidget(QLabel("Neural Sync: Automation Logic"))
         
         # Determine Automation Directory and State
-        self.data_dir = os.path.join(os.getcwd(), 'data', 'automations')
+        self.data_dir = os.path.join(get_app_root(), 'data', 'automations')
         if not os.path.exists(self.data_dir):
             os.makedirs(self.data_dir)
             
@@ -430,7 +431,7 @@ class AutomationWindow(QMainWindow):
         self.primary_workflow = "Default"
         
         # Migrate old workflow if it exists
-        old_wf = os.path.join(os.getcwd(), 'data', 'workflow.json')
+        old_wf = os.path.join(get_app_root(), 'data', 'workflow.json')
         if os.path.exists(old_wf):
             import shutil
             shutil.move(old_wf, os.path.join(self.data_dir, 'Default.json'))
@@ -1247,7 +1248,7 @@ class TargetPickerDialog(QDialog):
         import glob
         self.app_list.clear()
         self._apps = {}
-        data_dir = os.path.join(os.getcwd(), 'data', 'automations')
+        data_dir = os.path.join(get_app_root(), 'data', 'automations')
         for f in glob.glob(os.path.join(data_dir, "*.json")):
             name = os.path.splitext(os.path.basename(f))[0]
             if name != "state" and name not in self._exclude_names:
@@ -1302,13 +1303,13 @@ class AutomationListDialog(QDialog):
 
         # â”€â”€ Theming â”€â”€
         try:
-            config_path = os.path.join(os.getcwd(), 'data', 'user_config.json')
+            config_path = os.path.join(get_app_root(), 'data', 'user_config.json')
             with open(config_path, 'r') as f:
                 theme = json.load(f).get("theme", "Neon Green")
         except: theme = "Neon Green"
         self.setStyleSheet(get_stylesheet(theme))
         self.accent  = THEME_COLORS.get(theme, "#39FF14")
-        self.data_dir   = os.path.join(os.getcwd(), 'data', 'automations')
+        self.data_dir   = os.path.join(get_app_root(), 'data', 'automations')
         self.state_file = os.path.join(self.data_dir, 'state.json')
         self.current_primary = None
         self.selected_name   = None

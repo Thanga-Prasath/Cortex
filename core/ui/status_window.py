@@ -8,6 +8,7 @@ import json
 import math
 import random
 import re
+from core.runtime_path import get_app_root
 
 class StatusWindow(QMainWindow):
 
@@ -23,8 +24,8 @@ class StatusWindow(QMainWindow):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         
         # Config Paths
-        self.config_path = os.path.join(os.getcwd(), 'data', 'user_config.json')
-        self.widget_config_path = os.path.join(os.getcwd(), 'data', 'widget_config.json')
+        self.config_path = os.path.join(get_app_root(), 'data', 'user_config.json')
+        self.widget_config_path = os.path.join(get_app_root(), 'data', 'widget_config.json')
         
         # Load Configs
         self.theme_accent = "#39FF14"

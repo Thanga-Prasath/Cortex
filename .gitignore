@@ -9,3 +9,15 @@ __pycache__/
 
 # Large Piper TTS voice model files (too large for GitHub)
 *.onnx
+
+# PyInstaller build artifacts
+dist/
+build/
+*.spec.bak
+
+# Generated icon files
+icon.ico
+icon.icns
+
+# Temp files
+temp_cmd.bat

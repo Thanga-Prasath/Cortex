@@ -3,6 +3,7 @@ import time
 import subprocess
 import shutil
 import os
+from core.runtime_path import get_app_root
 
 # --- Linux X11 Display Fix ---
 # pyautogui and pywinctl depend on python-xlib which needs DISPLAY and XAUTHORITY.
@@ -107,7 +108,7 @@ class AutomationEngine:
     def _get_sorted_automation_names(self):
         """Returns automations sorted with primary first, then alphabetically."""
         import json, glob, os
-        data_dir = os.path.join(os.getcwd(), 'data', 'automations')
+        data_dir = os.path.join(get_app_root(), 'data', 'automations')
 
         primary = None
         state_file = os.path.join(data_dir, 'state.json')
@@ -1046,7 +1047,7 @@ class AutomationEngine:
             _visited = set()
 
 
-        data_dir = os.path.join(os.getcwd(), 'data', 'automations')
+        data_dir = os.path.join(get_app_root(), 'data', 'automations')
         
         # Determine which workflow to run
         if not workflow_name:
@@ -1070,7 +1071,7 @@ class AutomationEngine:
         
 
         # Backwards compatibility check
-        legacy_path = os.path.join(os.getcwd(), 'data', 'workflow.json')
+        legacy_path = os.path.join(get_app_root(), 'data', 'workflow.json')
         if not os.path.exists(workflow_path) and os.path.exists(legacy_path):
             workflow_path = legacy_path
             
@@ -1258,7 +1259,7 @@ class AutomationEngine:
                         if val.startswith("automations://"):
                             sub_name = val[len("automations://"):]
                             sub_file = os.path.join(
-                                os.getcwd(), 'data', 'automations', f"{sub_name}.json"
+                                get_app_root(), 'data', 'automations', f"{sub_name}.json"
                             )
                             if os.path.exists(sub_file):
                                 print(f"[Automation] Running sub-automation: {sub_name}")

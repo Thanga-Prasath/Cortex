@@ -1,6 +1,7 @@
 import subprocess
 import os
 import platform
+from core.runtime_path import get_app_root
 
 def get_os_type():
     return platform.system()
@@ -47,7 +48,7 @@ def run_in_separate_terminal(command, title="System Info", os_type=None, speaker
                 
         elif os_type == 'Windows':
             # Create a temporary batch file to mitigate quoting hell
-            batch_file = os.path.join(os.getcwd(), "temp_cmd.bat")
+            batch_file = os.path.join(get_app_root(), "temp_cmd.bat")
             with open(batch_file, "w") as f:
                 f.write("@echo off\n")
                 f.write(f"title {title}\n")

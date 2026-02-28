@@ -5,12 +5,13 @@ except (ImportError, Exception):
 import os
 import datetime
 import platform
+from core.runtime_path import get_app_root
 
 def take_screenshot(speaker):
     try:
         # Load custom path from config
         import json
-        config_path = os.path.join(os.getcwd(), 'data', 'user_config.json')
+        config_path = os.path.join(get_app_root(), 'data', 'user_config.json')
         custom_save_dir = ""
         try:
             if os.path.exists(config_path):
@@ -44,7 +45,7 @@ def take_screenshot(speaker):
                      save_msg = "Desktop"
                 else:
                      # 4. Final Fallback: Current Working Directory
-                     save_dir = os.path.join(os.getcwd(), "screenshots")
+                     save_dir = os.path.join(get_app_root(), "screenshots")
                      save_msg = "local screenshots folder"
                      if not os.path.exists(save_dir):
                          os.makedirs(save_dir)

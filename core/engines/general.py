@@ -4,6 +4,7 @@ import random
 import os
 import platform
 import subprocess
+from core.runtime_path import get_app_root
 try:
     import pyautogui
 except (ImportError, Exception):
@@ -19,7 +20,7 @@ class GeneralEngine:
         self.data = {"intents": []}
         try:
             import glob
-            path = os.path.join(os.getcwd(), 'data', 'intents', '*.json')
+            path = os.path.join(get_app_root(), 'data', 'intents', '*.json')
             files = glob.glob(path)
             
             for file_path in files:

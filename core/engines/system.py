@@ -2,6 +2,7 @@ import platform
 import os
 import subprocess
 import sys
+from core.runtime_path import get_app_root
 
 # Import new system components
 from components.system import (
@@ -149,7 +150,7 @@ class SystemEngine:
         # Round 2 Features
         elif tag == 'wifi_password':
             self.speaker.speak("Retrieving Wi-Fi info.")
-            gui_script = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "core", "ui", "wifi_password_gui.py")
+            gui_script = os.path.join(get_app_root(), "core", "ui", "wifi_password_gui.py")
             
             try:
                 if platform.system() == 'Windows':
@@ -266,7 +267,7 @@ class SystemEngine:
         elif tag == 'repair_permissions':
             self.speaker.speak("Starting permission repair script. This will open in a separate terminal.")
             from components.system.custom_utils import run_in_separate_terminal
-            run_in_separate_terminal(f"sudo {os.path.join(os.getcwd(), 'scripts', 'sunday-permissions.sh')}", "PERMISSION REPAIR", self.os_type, self.speaker)
+            run_in_separate_terminal(f"sudo {os.path.join(get_app_root(), 'scripts', 'sunday-permissions.sh')}", "PERMISSION REPAIR", self.os_type, self.speaker)
             return True
             
         return False

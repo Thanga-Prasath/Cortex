@@ -1,5 +1,6 @@
 import subprocess
 import os
+from core.runtime_path import get_app_root
 import platform
 import multiprocessing
 import time
@@ -19,7 +20,7 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
     piper_available = False
     
     # Try local discovery if piper exists
-    voices_dir = os.path.join(os.getcwd(), 'piper_engine', 'voices')
+    voices_dir = os.path.join(get_app_root(), 'piper_engine', 'voices')
     
     def resolve_model(requested_pack):
         """Find the best available model following the cascading fallback plan."""
@@ -38,7 +39,7 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
 
     print("[OK] TTS Worker Started Ready")
 
-    config_path = os.path.join(os.getcwd(), 'data', 'user_config.json')
+    config_path = os.path.join(get_app_root(), 'data', 'user_config.json')
     
     # Pre-check piper bin
     if not os.path.exists(piper_path):

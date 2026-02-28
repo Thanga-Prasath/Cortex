@@ -1,0 +1,200 @@
+name: Build & Release Cortex
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  # ─── Linux Build ───
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y portaudio19-dev libasound2-dev
+
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-linux.txt
+          pip install pyinstaller pillow
+
+      - name: Convert icons
+        run: python convert_icon.py
+
+      - name: Build with PyInstaller
+        run: pyinstaller cortex.spec --noconfirm
+
+      - name: Set permissions
+        run: |
+          chmod +x dist/Cortex/Cortex
+          if [ -f "dist/Cortex/piper_engine/piper/piper" ]; then
+            chmod +x dist/Cortex/piper_engine/piper/piper
+          fi
+
+      - name: Build .deb package
+        run: bash installer/linux/build_deb.sh
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: setup-linux
+          path: dist/setup.deb
+
+  # ─── Windows Build ───
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-windows.txt
+          pip install pyinstaller pillow
+
+      - name: Convert icons
+        run: python convert_icon.py
+
+      - name: Build with PyInstaller
+        run: pyinstaller cortex.spec --noconfirm
+
+      - name: Create installer with Inno Setup
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.4
+        with:
+          path: installer/windows/cortex_setup.iss
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: setup-windows
+          path: dist/installer/setup.exe
+
+  # ─── macOS Build ───
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies
+        run: brew install portaudio
+
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-macos.txt
+          pip install pyinstaller pillow
+
+      - name: Convert icons
+        run: python convert_icon.py
+
+      - name: Build with PyInstaller
+        run: pyinstaller cortex.spec --noconfirm
+
+      - name: Build .dmg
+        run: bash installer/macos/build_dmg.sh
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: setup-macos
+          path: dist/setup.dmg
+
+  # ─── Create GitHub Release ───
+  release:
+    needs: [build-linux, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Rename artifacts for release
+        run: |
+          mkdir -p release-assets
+          cp artifacts/setup-windows/setup.exe release-assets/Cortex-Setup-Windows.exe
+          cp artifacts/setup-linux/setup.deb   release-assets/Cortex-Setup-Linux.deb
+          cp artifacts/setup-macos/setup.dmg   release-assets/Cortex-Setup-macOS.dmg
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Cortex ${{ github.ref_name }}"
+          body: |
+            # Cortex ${{ github.ref_name }}
+
+            AI Voice Assistant — Standalone Desktop Application
+
+            ## 📥 Downloads
+
+            | Platform | Download | Auto-Startup |
+            |----------|----------|--------------|
+            | 🪟 **Windows** | [Cortex-Setup-Windows.exe](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Cortex-Setup-Windows.exe) | ✅ Optional during install |
+            | 🐧 **Linux** | [Cortex-Setup-Linux.deb](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Cortex-Setup-Linux.deb) | ✅ Enabled by default |
+            | 🍎 **macOS** | [Cortex-Setup-macOS.dmg](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/Cortex-Setup-macOS.dmg) | ✅ Via included script |
+
+            ## Installation
+
+            ### Windows
+            1. Download `Cortex-Setup-Windows.exe`
+            2. Run the installer
+            3. Cortex will auto-start on boot (can be toggled during install)
+
+            ### Linux (Debian/Ubuntu)
+            ```bash
+            sudo dpkg -i Cortex-Setup-Linux.deb
+            ```
+            Cortex will auto-start on login. To disable:
+            ```bash
+            sudo rm /etc/xdg/autostart/cortex-autostart.desktop
+            ```
+
+            ### macOS
+            1. Open `Cortex-Setup-macOS.dmg`
+            2. Drag **Cortex** to **Applications**
+            3. Double-click **"Enable Auto-Start.command"** for auto-startup
+
+            ## Requirements
+            - **Microphone** required for voice input
+            - ~500 MB disk space
+            - No Python installation needed — everything is bundled!
+          draft: false
+          prerelease: true
+          files: |
+            release-assets/Cortex-Setup-Windows.exe
+            release-assets/Cortex-Setup-Linux.deb
+            release-assets/Cortex-Setup-macOS.dmg

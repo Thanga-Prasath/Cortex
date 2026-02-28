@@ -6,6 +6,7 @@ from PyQt6.QtGui import QColor, QFont, QIcon, QPalette
 from .styles import get_stylesheet, THEME_COLORS
 import json
 import os
+from core.runtime_path import get_app_root
 
 # --- 1. Custom UI Components ---
 
@@ -193,7 +194,7 @@ class KnowledgeWindow(QMainWindow):
         
         # Theme
         try:
-            config_path = os.path.join(os.getcwd(), 'data', 'user_config.json')
+            config_path = os.path.join(get_app_root(), 'data', 'user_config.json')
             with open(config_path, 'r') as f:
                 theme = json.load(f).get("theme", "Neon Green")
         except: theme = "Neon Green"
@@ -272,8 +273,8 @@ class KnowledgeWindow(QMainWindow):
         self.load_data()
 
     def load_data(self):
-        intents_dir = os.path.join(os.getcwd(), 'data', 'intents')
-        terminal_file = os.path.join(os.getcwd(), 'data', 'terminal_commands.json')
+        intents_dir = os.path.join(get_app_root(), 'data', 'intents')
+        terminal_file = os.path.join(get_app_root(), 'data', 'terminal_commands.json')
         
         # 1. Load Intent Files
         if os.path.exists(intents_dir):

@@ -325,8 +325,68 @@ def print_next_steps(os_type):
     print("  - INSTALL.md (detailed installation guide)")
     print(f"  - docs/{os_type.lower()}-setup.md (platform-specific setup)")
 
+def package_app(os_type):
+    """Build standalone executable using PyInstaller."""
+    print_header("Packaging Cortex as Desktop App")
+
+    # 1. Convert icons
+    print_info("Converting icons...")
+    python_exe = get_python_executable()
+    try:
+        subprocess.run([str(python_exe), "convert_icon.py"], check=True)
+        print_success("Icons converted")
+    except subprocess.CalledProcessError:
+        print_warning("Icon conversion failed (Pillow may be missing). Continuing without custom icons.")
+
+    # 2. Install PyInstaller
+    pip_exe = get_pip_executable()
+    print_info("Ensuring PyInstaller is installed...")
+    subprocess.run([str(pip_exe), "install", "pyinstaller"], check=True)
+
+    # 3. Run PyInstaller
+    print_info("Building with PyInstaller (this may take several minutes)...")
+    try:
+        subprocess.run([str(python_exe), "-m", "PyInstaller", "cortex.spec", "--noconfirm"], check=True)
+        print_success("PyInstaller build complete")
+    except subprocess.CalledProcessError as e:
+        print_error(f"PyInstaller build failed: {e}")
+        return 1
+
+    # 4. Platform-specific post-build
+    if os_type == 'Linux':
+        # Make executable
+        cortex_bin = Path("dist/Cortex/Cortex")
+        if cortex_bin.exists():
+            cortex_bin.chmod(0o755)
+            print_success("Set executable permissions on dist/Cortex/Cortex")
+        piper_bin = Path("dist/Cortex/piper_engine/piper/piper")
+        if piper_bin.exists():
+            piper_bin.chmod(0o755)
+            print_success("Set executable permissions on piper binary")
+
+    print_header("Packaging Complete! 🎉")
+    if os_type == 'Windows':
+        print("Output: dist\\Cortex\\Cortex.exe")
+        print("\nTo create installer: Compile installer\\windows\\cortex_setup.iss with Inno Setup")
+    elif os_type == 'Linux':
+        print("Output: dist/Cortex/Cortex")
+        print("\nTo create .deb package: bash installer/linux/build_deb.sh")
+    elif os_type == 'Darwin':
+        print("Output: dist/Cortex.app")
+        print("\nTo create .dmg: bash installer/macos/build_dmg.sh")
+    return 0
+
+
 def main():
     """Main setup function"""
+    # Check for --package flag
+    if "--package" in sys.argv:
+        os_type = detect_os()
+        if not Path("venv").exists():
+            print_error("Virtual environment not found. Run setup.py without --package first.")
+            return 1
+        return package_app(os_type)
+
     print_header("Sunday Voice Assistant - Setup")
     
     # Check Python version first
@@ -382,3 +442,4 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
         sys.exit(1)
+

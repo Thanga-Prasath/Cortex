@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Cortex
+Comment=AI Voice Assistant
+Exec=/opt/cortex/Cortex
+Icon=cortex
+Type=Application
+Categories=Utility;Audio;
+Terminal=false
+StartupNotify=true

@@ -5,10 +5,11 @@ import glob
 import platform
 import shlex
 import signal
+from core.runtime_path import get_app_root
 
 class WorkspaceManager:
     def __init__(self):
-        self.data_dir = os.path.join(os.getcwd(), 'data')
+        self.data_dir = os.path.join(get_app_root(), 'data')
         self.workspace_file = os.path.join(self.data_dir, 'workspaces.json')
         self.workspaces = {}
         self.load_workspaces()
