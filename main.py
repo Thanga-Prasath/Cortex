@@ -78,6 +78,20 @@ def ui_process_target(status_queue, action_queue, reset_event, shutdown_event):
 if __name__ == "__main__":
     multiprocessing.freeze_support()
     
+    # Setup auto-start on first run
+    try:
+        from core.runtime_path import get_app_root
+        autostart_flag = os.path.join(get_app_root(), 'data', '.autostart_configured')
+        if not os.path.exists(autostart_flag):
+            from scripts.setup_autostart import setup_autostart
+            setup_autostart()
+            # Mark as configured so it doesn't run every time
+            os.makedirs(os.path.dirname(autostart_flag), exist_ok=True)
+            with open(autostart_flag, 'w') as f:
+                f.write('configured')
+    except Exception as e:
+        print(f"[Info] Auto-start setup skipped: {e}")
+    
     # Create communication queues
     status_queue = multiprocessing.Queue()
     action_queue = multiprocessing.Queue()
