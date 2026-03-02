@@ -1,0 +1,190 @@
+name: Cortex Release — Build Windows & Linux
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  # ─────────────────────────────────────────────────────────────
+  # Create the GitHub Release first (shared by both build jobs)
+  # ─────────────────────────────────────────────────────────────
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+    steps:
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name:    ${{ github.ref_name }}
+          release_name: "Cortex ${{ github.ref_name }}"
+          body: |
+            ## 🧠 Cortex ${{ github.ref_name }} — Beta Release
+
+            ### Downloads
+            | Platform | File |
+            |----------|------|
+            | Windows  | `Cortex-Setup-${{ github.ref_name }}-Windows.exe` |
+            | Linux    | `cortex_${{ github.ref_name }}_amd64.deb` |
+
+            ### What's Included
+            - Cortex source + launcher (~50-60 MB)
+            - AI models (Whisper + Piper TTS) downloaded automatically on first launch
+
+            ### Install Instructions
+            **Windows:** Run the `.exe` installer → launch Cortex from Start Menu
+            **Linux:**
+            ```bash
+            sudo dpkg -i cortex_${{ github.ref_name }}_amd64.deb
+            sudo apt-get install -f
+            cortex
+            ```
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
+
+  # ─────────────────────────────────────────────────────────────
+  # Build Linux .deb
+  # ─────────────────────────────────────────────────────────────
+  build-linux:
+    name: Build Linux .deb
+    needs: create-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y rsync dpkg-dev
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-linux.txt
+
+      - name: Build .deb package
+        run: |
+          chmod +x build_linux.sh
+          chmod +x installer/linux/build_deb.sh
+          bash build_linux.sh
+
+      - name: Get package name
+        id: pkg
+        run: |
+          DEB=$(ls cortex_*.deb | head -1)
+          echo "deb_path=$DEB" >> $GITHUB_OUTPUT
+          echo "deb_name=$(basename $DEB)" >> $GITHUB_OUTPUT
+
+      - name: Show package size
+        run: du -sh ${{ steps.pkg.outputs.deb_path }}
+
+      - name: Upload Linux .deb to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ${{ steps.pkg.outputs.deb_path }}
+          asset_name: ${{ steps.pkg.outputs.deb_name }}
+          asset_content_type: application/vnd.debian.binary-package
+
+  # ─────────────────────────────────────────────────────────────
+  # Build Windows .exe
+  # ─────────────────────────────────────────────────────────────
+  build-windows:
+    name: Build Windows .exe
+    needs: create-release
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          pip install -r requirements-windows.txt
+
+      - name: Convert icon.png to icon.ico
+        shell: pwsh
+        run: |
+          # Download ImageMagick for Windows if needed
+          if (-not (Get-Command magick -ErrorAction SilentlyContinue)) {
+            choco install imagemagick --no-progress -y
+          }
+          magick convert icon.png -define icon:auto-resize=256,128,64,48,32,16 icon.ico
+
+      - name: Build with PyInstaller
+        run: |
+          pyinstaller `
+            --onedir `
+            --windowed `
+            --name Cortex `
+            --icon=icon.ico `
+            --add-data "icon.png;." `
+            --add-data "icon.ico;." `
+            --add-data "version.txt;." `
+            --add-data "components;components" `
+            --add-data "core;core" `
+            --add-data "data;data" `
+            --add-data "scripts;scripts" `
+            main.py
+
+      - name: Copy launcher files into dist
+        shell: pwsh
+        run: |
+          Copy-Item launcher.py  dist\Cortex\launcher.py
+          Copy-Item version.txt  dist\Cortex\version.txt
+          Copy-Item icon.png     dist\Cortex\icon.png
+          Copy-Item icon.ico     dist\Cortex\icon.ico
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build .exe with Inno Setup
+        shell: cmd
+        run: |
+          "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\windows\cortex_setup.iss
+
+      - name: Get installer name
+        id: installer
+        shell: pwsh
+        run: |
+          $f = Get-ChildItem "installer\windows\Output\*.exe" | Select-Object -First 1
+          echo "exe_path=$($f.FullName)" >> $env:GITHUB_OUTPUT
+          echo "exe_name=$($f.Name)" >> $env:GITHUB_OUTPUT
+
+      - name: Show installer size
+        shell: pwsh
+        run: |
+          $size = (Get-Item "${{ steps.installer.outputs.exe_path }}").Length / 1MB
+          Write-Host ("Installer size: {0:N1} MB" -f $size)
+
+      - name: Upload Windows .exe to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ${{ steps.installer.outputs.exe_path }}
+          asset_name: ${{ steps.installer.outputs.exe_name }}
+          asset_content_type: application/octet-stream

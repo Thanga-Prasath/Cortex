@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Cortex
+GenericName=Voice Assistant
+Comment=Cortex AI Voice Assistant
+Exec=/opt/cortex/launcher.py
+Icon=/opt/cortex/icon.png
+Terminal=false
+StartupNotify=true
+Categories=Utility;Accessibility;
+Keywords=voice;assistant;AI;cortex;

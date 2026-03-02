@@ -1,11 +1,43 @@
-.vscode
-venv
-.venv
-.venv_backup*
-vosk-model*
-.venv_old
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
 
-# Large Piper TTS voice model files (too large for GitHub)
+# Virtual environments
+venv/
+.venv/
+.venv_old/
+.venv_backup*/
+
+# Vosk models (legacy)
+vosk-model*/
+
+# ---- LARGE AI MODEL FILES (downloaded at first run via launcher) ----
+# Piper TTS engine + voice models
+piper_engine/
+
+# Whisper model cache
+data/whisper_model/
+
+# ONNX model files
 *.onnx
+*.pt
+*.bin
+
+# ---- BUILD OUTPUTS ----
+dist/
+build/
+*.spec
+installer/windows/Output/
+*.deb
+*.exe
+
+# IDE
+.vscode/
+.idea/
+
+# Temp
+temp_cmd.bat
