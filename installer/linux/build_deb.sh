@@ -69,7 +69,7 @@ Section: utils
 Priority: optional
 Architecture: amd64
 Installed-Size: $INSTALLED_SIZE
-Depends: python3 (>= 3.9), python3-pyqt6, python3-pip, python3-requests, portaudio19-dev
+Depends: python3 (>= 3.9), python3-pip, python3-venv, portaudio19-dev, libportaudio2
 Maintainer: Thanga-Prasath <thangaprasath@github.com>
 Homepage: https://github.com/Thanga-Prasath/Cortex
 Description: Cortex AI Voice Assistant
@@ -80,22 +80,39 @@ Description: Cortex AI Voice Assistant
  on first launch.
 EOF
 
-# Post-install script: setup venv
+# Post-install script: setup venv + install all Python deps via pip
 cat > "$BUILD_DIR/DEBIAN/postinst" << 'EOF'
 #!/bin/bash
 set -e
-echo "Setting up Cortex virtual environment..."
+echo "============================================"
+echo "  Setting up Cortex — please wait..."
+echo "============================================"
 cd /opt/cortex
-if [ ! -d "venv" ]; then
-    python3 -m venv venv
-    venv/bin/pip install --upgrade pip -q
-    if [ -f requirements-linux.txt ]; then
-        venv/bin/pip install -r requirements-linux.txt -q
-    fi
-    echo "✅ Cortex setup complete."
+
+# Install system audio library if missing
+if ! ldconfig -p | grep -q libportaudio; then
+    apt-get install -y portaudio19-dev libportaudio2 2>/dev/null || true
 fi
+
+# Create venv and install Python packages
+if [ ! -d "venv" ]; then
+    echo "[1/3] Creating Python virtual environment..."
+    python3 -m venv venv
+
+    echo "[2/3] Installing Python dependencies (this may take 2-3 minutes)..."
+    venv/bin/pip install --upgrade pip --quiet
+
+    if [ -f requirements-linux.txt ]; then
+        venv/bin/pip install -r requirements-linux.txt
+    fi
+    echo "[3/3] Done!"
+fi
+
 chmod +x /opt/cortex/launcher.py
 update-desktop-database /usr/share/applications/ 2>/dev/null || true
+echo "============================================"
+echo "  ✅ Cortex is ready! Run: cortex"
+echo "============================================"
 EOF
 chmod 755 "$BUILD_DIR/DEBIAN/postinst"
 
