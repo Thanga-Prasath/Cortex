@@ -69,11 +69,20 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y rsync dpkg-dev
+          sudo apt-get install -y \
+            rsync dpkg-dev \
+            portaudio19-dev libportaudio2 libportaudiocpp0 \
+            espeak espeak-ng libespeak-ng-dev \
+            libxcb-xinerama0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+            libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xkb1 \
+            libxkbcommon-x11-0 libegl1 libgl1 libopengl0 \
+            libglib2.0-0 libdbus-1-3 libxkbcommon-dev \
+            python3-dev gcc
 
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install pyinstaller
           pip install -r requirements-linux.txt
 
       - name: Build .deb package
