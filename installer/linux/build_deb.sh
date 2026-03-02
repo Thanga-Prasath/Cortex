@@ -51,7 +51,7 @@ echo "[3/6] Creating /usr/bin/cortex launcher..."
 cat > "$BUILD_DIR/usr/bin/cortex" << 'EOF'
 #!/bin/bash
 cd /opt/cortex
-exec python3 /opt/cortex/launcher.py "$@"
+exec /opt/cortex/venv/bin/python /opt/cortex/launcher.py "$@"
 EOF
 chmod +x "$BUILD_DIR/usr/bin/cortex"
 
