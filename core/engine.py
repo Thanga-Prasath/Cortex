@@ -10,6 +10,7 @@ from .nlu import NeuralIntentModel
 import platform
 import sys
 import os
+from core.utils.path_utils import get_base_path, get_data_path, get_user_data_path
 import datetime
 import random
 import json
@@ -20,17 +21,36 @@ except (ImportError, Exception):
     pyautogui = None
 
 class CortexEngine:
-    def __init__(self, status_queue=None, action_queue=None, reset_event=None, shutdown_event=None):
+    def __init__(self, status_queue=None, action_queue=None, reset_event=None, shutdown_event=None, whisper_model=None):
+        # ── Diagnostic logger (shared with main.py) ──────────────────────────
+        import sys as _sys, os as _os
+        try:
+            from __main__ import _log
+        except Exception:
+            def _log(m): print(f"[DBG] {m}", flush=True)
+        # ─────────────────────────────────────────────────────────────────────
+
         self.status_queue = status_queue
         self.action_queue = action_queue
         self.reset_event = reset_event
         self.shutdown_event = shutdown_event
+
+        _log("CortexEngine.__init__: creating Speaker...")
         self.speaker = Speaker(status_queue)
-        self.listener = Listener(status_queue, is_speaking_flag=self.speaker.is_speaking_flag, reset_event=reset_event, shutdown_event=shutdown_event)
+        _log("Speaker OK. Creating Listener...")
+        self.listener = Listener(
+            status_queue,
+            is_speaking_flag=self.speaker.is_speaking_flag,
+            reset_event=reset_event,
+            shutdown_event=shutdown_event,
+            preloaded_model=whisper_model   # ← pass pre-loaded model
+        )
+        _log("Listener OK.")
         
         # Load User Config
         self.user_config = self._load_user_config()
         
+        _log("Loading Sub-Engines...")
         # Sub-Engines
         self.general_engine = GeneralEngine(self.speaker, self.user_config)
         self.system_engine = SystemEngine(self.speaker, self.listener, self.status_queue)
@@ -38,6 +58,7 @@ class CortexEngine:
         self.application_engine = ApplicationEngine(self.speaker)
         self.workspace_engine = WorkspaceEngine(self.speaker, self.status_queue)
         self.automation_engine = AutomationEngine(self.speaker, self.status_queue)
+        _log("Sub-Engines OK.")
         
         # Static Engine (Database-Driven)
         from .engines.static import StaticCommandEngine
@@ -45,25 +66,30 @@ class CortexEngine:
         
         # Internal State
         self.dictation_active = False
-        self.is_on_hold = False  # [NEW] Hold/Wake state
+        self.is_on_hold = False
         
+        _log("Loading NLU model...")
         # NLU Model
         self.nlu = NeuralIntentModel()
+        _log("NLU OK.")
         
-        # [NEW] Inject NLU Vocabulary into Hearing (Context Injection)
+        # Inject NLU Vocabulary into Hearing (Context Injection)
         vocab_str = self.nlu.get_vocabulary_phrase()
         self.listener.update_keywords(vocab_str)
 
-        # ── [NEW] Start Action Queue Listener ──
+        # Start Action Queue Listener
         self.running = True
         if self.action_queue:
             import threading
             threading.Thread(target=self._action_queue_listener, daemon=True).start()
             
-        # ── Start Audio Device Monitor ──
+        _log("Starting AudioDeviceMonitor...")
+        # Start Audio Device Monitor
         from .audio_monitor import AudioDeviceMonitor
         self.audio_monitor = AudioDeviceMonitor(self.speaker.tts_queue, self.status_queue)
         self.audio_monitor.start()
+        _log("AudioDeviceMonitor started. CortexEngine.__init__ COMPLETE.")
+
         
         # Tag to Human Readable Name Mapping for Confirmations
         self.intent_names = {
@@ -155,7 +181,7 @@ class CortexEngine:
 
     def _load_user_config(self):
         """Loads user configuration from JSON file."""
-        config_path = os.path.join(os.getcwd(), 'data', 'user_config.json')
+        config_path = os.path.join(get_user_data_path(), "user_config.json")
         if os.path.exists(config_path):
             try:
                 with open(config_path, 'r') as f:
@@ -166,7 +192,7 @@ class CortexEngine:
 
     def _save_user_config(self):
         """Saves current user configuration to JSON file."""
-        config_path = os.path.join(os.getcwd(), 'data', 'user_config.json')
+        config_path = os.path.join(get_user_data_path(), "user_config.json")
         try:
             with open(config_path, 'w') as f:
                 json.dump(self.user_config, f, indent=4)

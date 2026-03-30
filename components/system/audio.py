@@ -65,6 +65,7 @@ def restart_audio_service(speaker):
 def _toggle_device(speaker, device_type="input", system_wide=False):
     """Toggles between System Default and the first found non-default PyAudio device."""
     import os
+    from core.utils.path_utils import get_base_path, get_data_path, get_user_data_path
     import json
     try:
         import pyaudio
@@ -73,7 +74,7 @@ def _toggle_device(speaker, device_type="input", system_wide=False):
         speaker.speak("PyAudio is not installed.")
         return
 
-    config_path = os.path.join(os.getcwd(), 'data', 'user_config.json')
+    config_path = os.path.join(get_user_data_path(), "user_config.json")
     data = {}
     if os.path.exists(config_path):
         try:

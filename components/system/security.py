@@ -1,5 +1,6 @@
 import platform
 import os
+from core.utils.path_utils import get_base_path, get_data_path, get_user_data_path
 from components.system.custom_utils import run_in_separate_terminal, get_cmd_with_auto_install
 
 import subprocess
@@ -170,7 +171,7 @@ def run_security_scan(speaker=None):
                          
                          if os.path.exists(gui_script):
                              # Run detached to not block
-                             subprocess.Popen([sys.executable, gui_script], cwd=os.getcwd())
+                             subprocess.Popen([sys.executable, gui_script], cwd=get_base_path())
                          else:
                              speaker.speak("Scan GUI not found. Falling back to dashboard.")
                              subprocess.Popen("start windowsdefender:", shell=True)

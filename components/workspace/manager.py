@@ -1,4 +1,5 @@
 import os
+from core.utils.path_utils import get_base_path, get_data_path, get_user_data_path
 import json
 import subprocess
 import glob
@@ -8,7 +9,7 @@ import signal
 
 class WorkspaceManager:
     def __init__(self):
-        self.data_dir = os.path.join(os.getcwd(), 'data')
+        self.data_dir = os.path.join(get_data_path())
         self.workspace_file = os.path.join(self.data_dir, 'workspaces.json')
         self.workspaces = {}
         self.load_workspaces()

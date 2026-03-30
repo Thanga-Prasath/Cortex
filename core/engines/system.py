@@ -1,5 +1,6 @@
 import platform
 import os
+from core.utils.path_utils import get_base_path, get_data_path, get_user_data_path
 import subprocess
 import sys
 
@@ -266,7 +267,7 @@ class SystemEngine:
         elif tag == 'repair_permissions':
             self.speaker.speak("Starting permission repair script. This will open in a separate terminal.")
             from components.system.custom_utils import run_in_separate_terminal
-            run_in_separate_terminal(f"sudo {os.path.join(os.getcwd(), 'scripts', 'sunday-permissions.sh')}", "PERMISSION REPAIR", self.os_type, self.speaker)
+            run_in_separate_terminal(f"sudo {os.path.join(get_base_path(), 'scripts', 'sunday-permissions.sh')}", "PERMISSION REPAIR", self.os_type, self.speaker)
             return True
             
         return False

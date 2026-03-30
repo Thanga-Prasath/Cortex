@@ -2,6 +2,7 @@ import datetime
 import json
 import random
 import os
+from core.utils.path_utils import get_base_path, get_data_path, get_user_data_path
 import platform
 import subprocess
 try:
@@ -19,7 +20,7 @@ class GeneralEngine:
         self.data = {"intents": []}
         try:
             import glob
-            path = os.path.join(os.getcwd(), 'data', 'intents', '*.json')
+            path = os.path.join(get_data_path(), 'intents', '*.json')
             files = glob.glob(path)
             
             for file_path in files:

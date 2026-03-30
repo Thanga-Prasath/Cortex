@@ -15,6 +15,22 @@ def ui_process_target(status_queue, action_queue, reset_event=None, shutdown_eve
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     
+    # [NEW] Set global application icon
+    from PyQt6.QtGui import QIcon
+    import os
+    icon_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "icon1.ico")
+    if os.path.exists(icon_path):
+        app.setWindowIcon(QIcon(icon_path))
+    
+    # [NEW] Set Windows AppUserModelID for Taskbar Grouping
+    if platform.system() == "Windows":
+        import ctypes
+        myappid = 'cortex.ai.assistant.1'
+        try:
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+        except Exception as e:
+            print(f"[UI] Error setting AppUserModelID: {e}")
+    
     # Linux/macOS: Prevent dock/taskbar icon from appearing
     if platform.system() != "Windows":
         app.setDesktopFileName("")

@@ -1,5 +1,6 @@
 import subprocess
 import os
+from core.utils.path_utils import get_base_path, get_data_path, get_user_data_path
 import platform
 import multiprocessing
 import time
@@ -18,9 +19,17 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
     current_model_path = None
     piper_available = False
     
+    # Guard: PyInstaller --noconsole sets sys.stdout/stderr to None in child
+    # processes, which causes AttributeError when any print()/traceback runs.
+    import sys
+    if sys.stdout is None:
+        sys.stdout = open(os.devnull, 'w')
+    if sys.stderr is None:
+        sys.stderr = open(os.devnull, 'w')
+
     # Try local discovery if piper exists
-    voices_dir = os.path.join(os.getcwd(), 'piper_engine', 'voices')
-    
+    voices_dir = os.path.join(get_base_path(), 'piper_engine', 'voices')
+
     def resolve_model(requested_pack):
         """Find the best available model following the cascading fallback plan."""
         # 0. System Default -> Force Pyttsx3
@@ -38,10 +47,10 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
 
     print("[OK] TTS Worker Started Ready")
 
-    config_path = os.path.join(os.getcwd(), 'data', 'user_config.json')
+    config_path = os.path.join(get_user_data_path(), "user_config.json")
     
-    # Pre-check piper bin
-    if not os.path.exists(piper_path):
+    # Pre-check piper bin — guard against None before calling os.path.exists
+    if piper_path and not os.path.exists(piper_path):
         piper_path = None
 
     while True:
@@ -70,7 +79,21 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
             
             # Resolve Model Path live
             model_path = resolve_model(voice_pack)
-            use_piper = bool(piper_path and model_path)
+            
+            # Resolve Engine live
+            current_piper = None
+            if os_type == 'Windows':
+                 for cand in ["piper_engine/piper/piper.exe", "piper_engine/piper_windows/piper/piper.exe"]:
+                     cand_abs = os.path.abspath(cand)
+                     if os.path.exists(cand_abs):
+                         current_piper = cand_abs
+                         break
+            else:
+                 cand_abs = os.path.abspath("piper_engine/piper/piper")
+                 if os.path.exists(cand_abs):
+                     current_piper = cand_abs
+                     
+            use_piper = bool(current_piper and model_path)
             
             # SIGNAL START
             if is_speaking_flag:
@@ -95,7 +118,7 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
 
                         # Start Piper Process
                         piper_proc = subprocess.Popen(
-                            [piper_path, '--model', model_path, '--output_raw', '--length_scale', str(length_scale)], 
+                            [current_piper, '--model', model_path, '--output_raw', '--length_scale', str(length_scale)], 
                             stdin=subprocess.PIPE, 
                             stdout=subprocess.PIPE,
                             stderr=subprocess.DEVNULL
@@ -250,17 +273,26 @@ class Speaker:
     def _check_piper(self):
         """Check Piper availability and binary path."""
         try:
+            self.piper_path = None
             if self.os_type == 'Windows':
-                 self.piper_path = os.path.abspath("piper_engine/piper_windows/piper/piper.exe")
+                 base = get_base_path()
+                 paths = [
+                     os.path.join(base, "piper_engine", "piper", "piper.exe"),
+                     os.path.join(base, "piper_engine", "piper_windows", "piper", "piper.exe")
+                 ]
+                 for path in paths:
+                     if os.path.exists(path):
+                         self.piper_path = path
+                         break
             else:
-                 self.piper_path = os.path.abspath("piper_engine/piper/piper")
+                 self.piper_path = os.path.join(get_base_path(), "piper_engine", "piper", "piper")
             
-            if os.path.exists(self.piper_path) and os.access(self.piper_path, os.X_OK):
+            if self.piper_path and os.path.exists(self.piper_path) and os.access(self.piper_path, os.X_OK):
                 self.piper_available = True
-                print(f"[OK] Piper TTS Binary available")
+                print(f"[OK] Piper TTS Binary available at {self.piper_path}")
             else:
                 self.piper_available = False
-                print(f"[!] Piper binary not found at {self.piper_path}")
+                print(f"[!] Piper binary not found.")
         except Exception as e:
             print(f"[!] Error checking Piper: {e}")
             self.piper_available = False

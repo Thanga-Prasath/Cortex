@@ -3,6 +3,7 @@ try:
 except (ImportError, Exception):
     pyautogui = None
 import os
+from core.utils.path_utils import get_base_path, get_data_path, get_user_data_path
 import datetime
 import platform
 
@@ -10,7 +11,7 @@ def take_screenshot(speaker):
     try:
         # Load custom path from config
         import json
-        config_path = os.path.join(os.getcwd(), 'data', 'user_config.json')
+        config_path = os.path.join(get_user_data_path(), "user_config.json")
         custom_save_dir = ""
         try:
             if os.path.exists(config_path):
@@ -44,7 +45,7 @@ def take_screenshot(speaker):
                      save_msg = "Desktop"
                 else:
                      # 4. Final Fallback: Current Working Directory
-                     save_dir = os.path.join(os.getcwd(), "screenshots")
+                     save_dir = os.path.join(get_base_path(), "screenshots")
                      save_msg = "local screenshots folder"
                      if not os.path.exists(save_dir):
                          os.makedirs(save_dir)

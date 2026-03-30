@@ -1,5 +1,6 @@
 import json
 import os
+from core.utils.path_utils import get_base_path, get_data_path, get_user_data_path
 import platform
 import difflib
 import subprocess
@@ -13,7 +14,7 @@ class StaticCommandEngine:
         
     def _load_commands(self):
         """Loads the JSON database."""
-        json_path = os.path.join(os.getcwd(), 'data', 'terminal_commands.json')
+        json_path = os.path.join(get_data_path(), 'terminal_commands.json')
         if not os.path.exists(json_path):
             print(f"[Static] Error: Database not found at {json_path}")
             return {}

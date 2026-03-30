@@ -1,7 +1,6 @@
 try:
     import json
     import pyaudio
-
     import os
     import wave
     import time
@@ -14,74 +13,158 @@ except ImportError as e:
     print(f"Please run: pip install -r requirements.txt\n")
     raise e
 
+
 class Listener:
-    def __init__(self, status_queue=None, is_speaking_flag=None, reset_event=None, shutdown_event=None):
+    def __init__(self, status_queue=None, is_speaking_flag=None, reset_event=None,
+                 shutdown_event=None, preloaded_model=None):
         self.status_queue = status_queue
         self.is_speaking_flag = is_speaking_flag
         self.reset_event = reset_event
         self.shutdown_event = shutdown_event
-        # Use base.en for faster speed (trade-off: slightly less accurate than small)
-        # small.en is ~461MB, base.en is ~142MB
         self.model_size = "base.en"
-        self.model = None
-        self.p = None
-        
-        print(f"[System] Loading Whisper Model ({self.model_size})...")
-        print("[System] This should take just a few seconds...")
-        
-        # Try to load the model with better error handling
-        try:
-            with no_alsa_error():
-                # Run on CPU with INT8 quantization for speed/compatibility
-                # num_workers=1 to avoid threading issues
-                
-                print("[System] Checking for local Whisper model...")
-                try:
-                    # 1. Try to load from local cache first (FAST)
-                    self.model = WhisperModel(
-                        self.model_size, 
-                        device="cpu", 
-                        compute_type="int8",
-                        num_workers=1,
-                        local_files_only=True 
-                    )
-                    print("[✓] Found local model cache.")
-                except Exception:
-                    # 2. If not found, download it (SLOW but necessary once)
-                    print(f"[!] Local model not found. Downloading {self.model_size} (approx 140MB)...")
-                    print("[!] This happens only once. Please wait...")
-                    self.model = WhisperModel(
-                        self.model_size, 
-                        device="cpu", 
-                        compute_type="int8",
-                        num_workers=1,
-                        local_files_only=False
-                    )
-                
-                self.p = pyaudio.PyAudio()
-            
-            print("[✓] Whisper Model loaded successfully!")
-            
-        except Exception as e:
-            print(f"\n[ERROR] Failed to load Whisper model: {e}")
-            print("[SOLUTION] Try these fixes:")
-            print("  1. Download the model first: python -c 'from faster_whisper import WhisperModel; WhisperModel(\"tiny.en\")'")
-            print("  2. Clear the model cache: rm -rf ~/.cache/huggingface/hub/models--Systran--faster-whisper-*")
-            print("  3. Reinstall faster-whisper: pip install --upgrade --force-reinstall faster-whisper")
-            raise RuntimeError("Whisper model loading failed")
+        self.model = None          # set when using in-process model
+        self._whisper_proc = None  # set when using subprocess model
 
-
-        self.THRESHOLD = 1000  # Default, adjusted by calibration
+        self.THRESHOLD = 1000
         self.CHUNK = 1024
         self.FORMAT = pyaudio.paInt16
         self.CHANNELS = 1
         self.RATE = 16000
-        self.SILENCE_LIMIT = 1.2 # Seconds of silence to stop recording
+        self.SILENCE_LIMIT = 1.2
 
-        self.calibrate_noise()
-        
         # Default keywords (Safety net)
         self.dynamic_keywords = "system, computer, cortana, siri, google, alexa, time, date, exit, stop"
+
+        # Event to signal when either path is ready
+        self._model_ready = threading.Event()
+
+        # Start PyAudio (lightweight — no C++ thread pool)
+        try:
+            self.p = pyaudio.PyAudio()
+        except Exception as e:
+            print(f"[Listener] PyAudio init error: {e}")
+
+        # Calibrate noise (doesn't need Whisper)
+        self.calibrate_noise()
+
+        if preloaded_model is not None:
+            # ── Fast path: Python mode — model pre-loaded in main() before
+            # any child processes were spawned, passed directly here.
+            self.model = preloaded_model
+            self._model_ready.set()
+            print("[✓] Whisper Model received from pre-loader.")
+
+        elif getattr(__import__('sys'), 'frozen', False):
+            # ── Frozen (PyInstaller) mode: ctranslate2 causes an access
+            # violation when loaded in a thread of this process (because the
+            # main process already has 4+ competing threads from the UI/TTS
+            # subprocesses and the audio monitor).
+            # Fix: spawn a dedicated subprocess with a clean thread state.
+            import threading as _th
+            _th.Thread(target=self._start_whisper_subprocess, daemon=True).start()
+
+        else:
+            # ── Python dev-mode fallback: background thread (preloaded_model
+            # should always be set in this path, but keep as safety net).
+            import threading as _th
+            _th.Thread(target=self._load_model_inprocess, daemon=True).start()
+
+    # ── Subprocess path (frozen / PyInstaller) ─────────────────────────────
+
+    def _start_whisper_subprocess(self):
+        """Spawn a dedicated Whisper process.  Called from a short-lived thread
+        so __init__ returns immediately and the greeting can be spoken."""
+        try:
+            from __main__ import _log
+            def _tlog(m): _log(f"[WhisperSubproc] {m}")
+        except Exception:
+            def _tlog(m): print(f"[WhisperSubproc] {m}", flush=True)
+
+        try:
+            from .whisper_subprocess import WhisperProcess
+            _tlog("Spawning Whisper subprocess...")
+            
+            # Resolve the target function aggressively from the root __main__ 
+            # to survive PyInstaller's multiprocessing unpickling bugs
+            try:
+                from __main__ import whisper_worker_target
+            except ImportError:
+                # Fallback for when running listening.py directly in tests
+                from .whisper_subprocess import _whisper_worker as whisper_worker_target
+
+            wp = WhisperProcess(model_size=self.model_size, startup_timeout=180, worker_func=whisper_worker_target)
+            ok = wp.start()
+            if ok:
+                self._whisper_proc = wp
+                _tlog("Whisper subprocess ready.")
+            else:
+                _tlog("[ERROR] Whisper subprocess failed to start.")
+        except Exception as e:
+            import traceback
+            _tlog(f"[ERROR] {e}\n{traceback.format_exc()}")
+
+        finally:
+            self._model_ready.set()  # always unblock waiters
+
+    # ── In-process path (Python / dev mode) ───────────────────────────────
+
+    def _load_model_inprocess(self):
+        """Background thread: load WhisperModel directly (Python mode only)."""
+        try:
+            from __main__ import _log
+            def _tlog(m): _log(f"[BG-Whisper] {m}")
+        except Exception:
+            def _tlog(m): print(f"[BG-Whisper] {m}", flush=True)
+
+        try:
+            _tlog(f"Loading WhisperModel ({self.model_size})...")
+            try:
+                self.model = WhisperModel(
+                    self.model_size, device="cpu", compute_type="float32",
+                    num_workers=1, local_files_only=True, cpu_threads=1,
+                )
+                _tlog("Local cache found OK.")
+            except Exception as _e1:
+                _tlog(f"Cache miss ({_e1}). Downloading...")
+                self.model = WhisperModel(
+                    self.model_size, device="cpu", compute_type="float32",
+                    num_workers=1, local_files_only=False, cpu_threads=1,
+                )
+            _tlog("WhisperModel loaded.")
+        except Exception as e:
+            import traceback
+            _tlog(f"[ERROR] {e}\n{traceback.format_exc()}")
+            self.model = None
+        finally:
+            self._model_ready.set()
+
+    # ── Shared transcription interface ────────────────────────────────────
+
+    def _ensure_model(self, timeout=180):
+        """Block until Whisper (subprocess or in-process) is ready."""
+        if not self._model_ready.wait(timeout=timeout):
+            print("[Listener] WARNING: Whisper did not load within timeout!")
+        if self._whisper_proc is None and self.model is None:
+            raise RuntimeError("Whisper model / subprocess failed to start. Cannot transcribe.")
+
+    def _transcribe(self, audio_np, prompt_text):
+        """Route to subprocess or in-process model and return (segments, info)."""
+        self._ensure_model()
+        if self._whisper_proc and self._whisper_proc.is_ready:
+            # Subprocess path: returns a plain string
+            text = self._whisper_proc.transcribe(audio_np, prompt_text)
+            # Wrap in an iterable of fake segments so callers work unchanged
+            class _Seg:
+                def __init__(self, t): self.text = t
+            class _Info: pass
+            return [_Seg(text)], _Info()
+        else:
+            # In-process path: direct WhisperModel call
+            return self.model.transcribe(
+                audio_np, beam_size=5, temperature=0,
+                language="en", initial_prompt=prompt_text,
+            )
+
 
     def update_keywords(self, keywords_str):
         """Updates the command vocabulary prompt for Whisper."""
@@ -289,13 +372,7 @@ class Listener:
             # IMPORTANT: Add common app names for better app launch recognition
             prompt_text = f"Commands: {self.dynamic_keywords}, left, right, up, down, snap left, snap right, move left, move right, window left, window right, WhatsApp, Chrome, Firefox, Notepad, Discord, Spotify, Visual Studio Code, Excel, Word, PowerPoint, system monitor, assistant, open, close, minimize, maximize"
             
-            segments, info = self.model.transcribe(
-                audio_np, 
-                beam_size=5, # Accuracy > Speed
-                temperature=0, 
-                language="en",
-                initial_prompt=prompt_text
-            )
+            segments, info = self._transcribe(audio_np, prompt_text)
             
             full_text = ""
             for segment in segments:

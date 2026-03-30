@@ -1,0 +1,7 @@
+{
+    "timestamp": "2026-03-10 16:58:38",
+    "total_samples": 20,
+    "correct": 17,
+    "accuracy": 85.0,
+    "avg_latency_ms": 632.5469851493835
+}

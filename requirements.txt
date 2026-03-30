@@ -11,7 +11,9 @@ Pillow
 requests
 plyer
 glob2
-
-# Windows-only dependencies
-# Install manually on Windows:
-# pip install uiautomation pywinctl pywin32
+winshell
+pywinctl
+pywin32
+uiautomation
+# evdev  # (Only for Linux, not needed for Windows build)
+setuptools

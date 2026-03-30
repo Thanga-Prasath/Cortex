@@ -8,6 +8,7 @@ from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 import json
 import os
+from core.utils.path_utils import get_base_path, get_data_path, get_user_data_path
 from .styles import get_stylesheet
 import requests
 import pyaudio
@@ -19,24 +20,65 @@ class VoiceDownloadThread(QThread):
     def __init__(self, voice_data):
         super().__init__()
         self.voice_data = voice_data
-        self.voices_dir = os.path.join(os.getcwd(), 'piper_engine', 'voices')
+        self.voices_dir = os.path.join(get_base_path(), 'piper_engine', 'voices')
 
     def run(self):
         try:
+            import platform
+            from pathlib import Path
+
+            os_type = platform.system()
+            engine_url = None
+            extract_dir = os.path.join(get_base_path(), 'piper_engine')
+            
+            if os_type == 'Windows':
+                 engine_url = "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_windows_amd64.zip"
+                 temp_dl = os.path.join(extract_dir, "piper_engine.zip")
+            elif os_type == 'Darwin':
+                 import platform as plat
+                 if plat.machine() == 'arm64':
+                     engine_url = "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_macos_aarch64.tar.gz"
+                 else:
+                     engine_url = "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_macos_x64.tar.gz"
+                 temp_dl = os.path.join(extract_dir, "piper_engine.tar.gz")
+            else: # Linux
+                 engine_url = "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz"
+                 temp_dl = os.path.join(extract_dir, "piper_engine.tar.gz")
+
+            engine_missing = True
+            if os_type == 'Windows':
+                 if os.path.exists(os.path.join(extract_dir, "piper_windows", "piper", "piper.exe")):
+                     engine_missing = False
+                 elif os.path.exists(os.path.join(extract_dir, "piper", "piper.exe")):
+                     engine_missing = False
+            else:
+                 if os.path.exists(os.path.join(extract_dir, "piper", "piper")):
+                     engine_missing = False
+
+            if not os.path.exists(extract_dir):
+                os.makedirs(extract_dir)
+
             if not os.path.exists(self.voices_dir):
                 os.makedirs(self.voices_dir)
+
+            paths = []
+            
+            if engine_missing and engine_url:
+                paths.append((engine_url, temp_dl, "engine"))
 
             v_id = self.voice_data["id"]
             url_onnx = self.voice_data["url"]
             url_json = url_onnx + ".json"
 
-            paths = [
-                (url_onnx, os.path.join(self.voices_dir, f"{v_id}.onnx")),
-                (url_json, os.path.join(self.voices_dir, f"{v_id}.onnx.json"))
-            ]
+            paths.extend([
+                (url_onnx, os.path.join(self.voices_dir, f"{v_id}.onnx"), "voice"),
+                (url_json, os.path.join(self.voices_dir, f"{v_id}.onnx.json"), "voice")
+            ])
 
             total_files = len(paths)
-            for idx, (url, dest) in enumerate(paths):
+            weight = 100.0 / total_files
+
+            for idx, (url, dest, p_type) in enumerate(paths):
                 response = requests.get(url, stream=True)
                 response.raise_for_status()
                 
@@ -49,12 +91,33 @@ class VoiceDownloadThread(QThread):
                             f.write(chunk)
                             downloaded += len(chunk)
                             if total_size > 0:
-                                # Simple weighted progress: file1 is 0-50%, file2 is 50-100%
-                                p = int((downloaded / total_size) * 50) + (idx * 50)
+                                p = int((downloaded / total_size) * weight) + int(idx * weight)
                                 self.progress.emit(p)
+                                
+                if p_type == "engine":
+                    try:
+                        self.progress.emit(int((idx + 1) * weight))
+                        if dest.endswith(".zip"):
+                            import zipfile
+                            with zipfile.ZipFile(dest, 'r') as zip_ref:
+                                 zip_ref.extractall(extract_dir)
+                        elif dest.endswith(".tar.gz"):
+                            import tarfile
+                            with tarfile.open(dest, 'r:gz') as tar_ref:
+                                 tar_ref.extractall(extract_dir)
+                                 piper_bin = os.path.join(extract_dir, "piper", "piper")
+                                 if os.path.exists(piper_bin):
+                                     os.chmod(piper_bin, 0o755)
+                    except Exception as e:
+                        print(f"Extraction failed: {e}")
+                    finally:
+                        try:
+                            if os.path.exists(dest):
+                                os.remove(dest)
+                        except: pass
             
             self.progress.emit(100)
-            self.finished.emit(True, "Download Complete")
+            self.finished.emit(True, "Voice pack and engine configured successfully.")
         except Exception as e:
             self.finished.emit(False, str(e))
 
@@ -68,8 +131,8 @@ class SettingsWindow(QMainWindow):
         self.setGeometry(100, 100, 700, 500)
         
         # Data Setup
-        self.config_path = os.path.join(os.getcwd(), 'data', 'user_config.json')
-        self.widget_config_path = os.path.join(os.getcwd(), 'data', 'widget_config.json')
+        self.config_path = os.path.join(get_user_data_path(), "user_config.json")
+        self.widget_config_path = os.path.join(get_user_data_path(), "widget_config.json")
         self.config_data = self.load_config(self.config_path)
         self.widget_config = self.load_config(self.widget_config_path)
         
@@ -356,8 +419,8 @@ class SettingsWindow(QMainWindow):
 
     def refresh_voice_table(self):
         """Populate voices from manifest and check local existence."""
-        manifest_path = os.path.join(os.getcwd(), 'data', 'voices_manifest.json')
-        voices_dir = os.path.join(os.getcwd(), 'piper_engine', 'voices')
+        manifest_path = os.path.join(get_data_path(), 'voices_manifest.json')
+        voices_dir = os.path.join(get_base_path(), 'piper_engine', 'voices')
         current_pack = self.config_data.get("voice_pack", "system_default")
         
         if not os.path.exists(manifest_path):
@@ -428,8 +491,8 @@ class SettingsWindow(QMainWindow):
         if not label_item: return
         
         label = label_item.text()
-        manifest_path = os.path.join(os.getcwd(), 'data', 'voices_manifest.json')
-        voices_dir = os.path.join(os.getcwd(), 'piper_engine', 'voices')
+        manifest_path = os.path.join(get_data_path(), 'voices_manifest.json')
+        voices_dir = os.path.join(get_base_path(), 'piper_engine', 'voices')
         
         with open(manifest_path, 'r') as f:
             manifest = json.load(f)
@@ -450,7 +513,7 @@ class SettingsWindow(QMainWindow):
         print(f"[UI] Voice pack changed to: {voice['label']}")
 
     def delete_voice(self, voice):
-        voices_dir = os.path.join(os.getcwd(), 'piper_engine', 'voices')
+        voices_dir = os.path.join(get_base_path(), 'piper_engine', 'voices')
         onnx_path = os.path.join(voices_dir, f"{voice['id']}.onnx")
         json_path = os.path.join(voices_dir, f"{voice['id']}.onnx.json")
         
@@ -546,18 +609,25 @@ class SettingsWindow(QMainWindow):
         os_type = platform.system()
         
         # Determine Piper binary path
+        piper_bin = None
         if os_type == 'Windows':
-             piper_bin = os.path.abspath("piper_engine/piper_windows/piper/piper.exe")
+             for cand in ["piper_engine/piper/piper.exe", "piper_engine/piper_windows/piper/piper.exe"]:
+                 cand_abs = os.path.abspath(cand)
+                 if os.path.exists(cand_abs):
+                     piper_bin = cand_abs
+                     break
         else:
-             piper_bin = os.path.abspath("piper_engine/piper/piper")
+             cand_abs = os.path.abspath("piper_engine/piper/piper")
+             if os.path.exists(cand_abs):
+                 piper_bin = cand_abs
         
         # Determine Voice Model path
         current_pack = self.config_data.get("voice_pack", "system_default")
-        voices_dir = os.path.join(os.getcwd(), 'piper_engine', 'voices')
+        voices_dir = os.path.join(get_base_path(), 'piper_engine', 'voices')
         model_path = os.path.join(voices_dir, f"{current_pack}.onnx")
         
         use_piper = False
-        if os.path.exists(piper_bin) and os.path.exists(model_path):
+        if piper_bin and os.path.exists(model_path):
              use_piper = True
              
         try:

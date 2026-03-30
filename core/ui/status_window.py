@@ -4,6 +4,7 @@ from PyQt6.QtGui import QColor, QPainter, QBrush, QPen, QRadialGradient, QAction
 import ctypes
 import platform
 import os
+from core.utils.path_utils import get_base_path, get_data_path, get_user_data_path
 import json
 import math
 import random
@@ -23,8 +24,8 @@ class StatusWindow(QMainWindow):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         
         # Config Paths
-        self.config_path = os.path.join(os.getcwd(), 'data', 'user_config.json')
-        self.widget_config_path = os.path.join(os.getcwd(), 'data', 'widget_config.json')
+        self.config_path = os.path.join(get_user_data_path(), "user_config.json")
+        self.widget_config_path = os.path.join(get_user_data_path(), "widget_config.json")
         
         # Load Configs
         self.theme_accent = "#39FF14"
