@@ -5,7 +5,7 @@ import psutil
 import json
 import os
 from core.utils.path_utils import get_base_path, get_data_path, get_user_data_path
-from .styles import get_stylesheet
+from .styles import get_stylesheet, apply_glow_effect
 
 class HubWindow(QMainWindow):
     def __init__(self):
@@ -35,6 +35,8 @@ class HubWindow(QMainWindow):
         # 1. Header Section
         header = QLabel("Cortex Hub")
         header.setObjectName("Header")
+        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        apply_glow_effect(header, theme)
         main_layout.addWidget(header)
         
         # 2. System Vitals Grid
@@ -87,7 +89,8 @@ class HubWindow(QMainWindow):
         from PyQt6.QtWidgets import QPlainTextEdit
         self.log_text = QPlainTextEdit()
         self.log_text.setReadOnly(True)
-        self.log_text.setStyleSheet("background-color: #252526; color: #00ff00; border: none; font-family: Consolas;")
+        accent_hex = "#39FF14" if theme == "Neon Green" else "#00FFFF" # fallback
+        self.log_text.setStyleSheet(f"background-color: #1A1A1A; color: {accent_hex}; border: none; font-family: Consolas; font-size: 13px;")
         log_layout.addWidget(self.log_text)
         
         main_layout.addWidget(self.log_frame)

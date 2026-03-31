@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QGridLayout, QPushButton, QStackedWidget, QSizePolicy)
 from PyQt6.QtCore import Qt, QSize, QPropertyAnimation, QEasingCurve, QRect
 from PyQt6.QtGui import QColor, QFont, QIcon, QPalette
-from .styles import get_stylesheet, THEME_COLORS
+from .styles import get_stylesheet, THEME_COLORS, apply_glow_effect, get_theme_color
 import json
 import os
 from core.utils.path_utils import get_base_path, get_data_path, get_user_data_path
@@ -22,12 +22,12 @@ class ClickableCard(QFrame):
         
         self.setStyleSheet(f"""
             QFrame#BentoCard {{
-                background-color: #1e1e1e;
-                border: 1px solid #333;
-                border-radius: 15px;
+                background-color: #1A1A1A;
+                border: 1px solid #282828;
+                border-radius: 12px;
             }}
             QFrame#BentoCard:hover {{
-                background-color: #252526;
+                background-color: #222222;
                 border: 1.5px solid {accent};
             }}
             QLabel {{ color: white; background: transparent; }}
@@ -70,14 +70,14 @@ class FunctionCard(QFrame):
         
         self.setStyleSheet(f"""
             QFrame {{
-                background-color: #2a2a2a;
-                border: 1px solid #444;
-                border-radius: 10px;
+                background-color: #1A1A1A;
+                border: 1px solid #282828;
+                border-radius: 8px;
                 padding: 5px;
             }}
             QFrame:hover {{
                 border: 1px solid {accent};
-                background-color: #333;
+                background-color: #222222;
             }}
         """)
         
@@ -179,9 +179,9 @@ class FunctionCard(QFrame):
         self.arrow.setText("▼" if self.expanded else "▶")
         # Update styling to highlight expanded state
         if self.expanded:
-            self.setStyleSheet(f"QFrame {{ background-color: #333; border: 1.5px solid {self.accent}; border-radius: 10px; padding: 5px; }}")
+            self.setStyleSheet(f"QFrame {{ background-color: #222222; border: 1.5px solid {self.accent}; border-radius: 8px; padding: 5px; }}")
         else:
-            self.setStyleSheet(f"QFrame {{ background-color: #2a2a2a; border: 1px solid #444; border-radius: 10px; padding: 5px; }}")
+            self.setStyleSheet(f"QFrame {{ background-color: #1A1A1A; border: 1px solid #282828; border-radius: 8px; padding: 5px; }}")
 
 
 # --- 2. Main Window ---
@@ -190,7 +190,7 @@ class KnowledgeWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Cortex Intelligence - Knowledge Hub")
-        self.setGeometry(150, 150, 1000, 750)
+        self.setGeometry(150, 150, 850, 600)
         
         # Theme
         try:
@@ -213,7 +213,9 @@ class KnowledgeWindow(QMainWindow):
         h_layout = QHBoxLayout(header)
         
         self.breadcrumb = QLabel("<b>KNOWLEDGE HUB</b>")
-        self.breadcrumb.setStyleSheet(f"font-size: 18px; color: {self.accent_color}; margin-left: 10px;")
+        self.breadcrumb.setObjectName("Header")
+        self.breadcrumb.setStyleSheet(f"font-size: 20px; font-weight: bold; color: {self.accent_color}; margin-left: 10px; border: none;")
+        apply_glow_effect(self.breadcrumb, theme, blur_radius=15)
         h_layout.addWidget(self.breadcrumb)
         
         h_layout.addStretch()

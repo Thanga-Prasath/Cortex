@@ -9,6 +9,9 @@ import os
 import platform
 
 # Import backend
+import json
+from core.utils.path_utils import get_user_data_path
+from .styles import get_stylesheet, apply_glow_effect, get_theme_color
 from core.system.drivers import DriverManager
 
 class LoadingButton(QPushButton):
@@ -120,16 +123,16 @@ class DriverWindow(QWidget):
     def initUI(self):
         self.setWindowTitle("System Component & Driver Manager")
         self.setGeometry(100, 100, 1000, 650)
-        self.setStyleSheet("""
-            QWidget { background-color: #1e1e1e; color: #ffffff; font-family: 'Segoe UI', sans-serif; }
-            QTableWidget { background-color: #252526; gridline-color: #3e3e42; border: none; border-radius: 8px; }
-            QTableWidget::item { padding: 5px; }
-            QHeaderView::section { background-color: #333337; padding: 5px; border: none; color: #cccccc; font-weight: bold; }
-            QPushButton { background-color: #0078d4; color: white; border: none; padding: 4px 10px; min-height: 25px; border-radius: 4px; font-weight: bold; }
-            QPushButton:hover { background-color: #1084d9; }
-            QPushButton:disabled { background-color: #333333; color: #888888; }
-            QLabel { font-size: 14px; }
-        """)
+        
+        # Load Theme
+        config_path = os.path.join(get_user_data_path(), "user_config.json")
+        theme = "Neon Green"
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, 'r') as f:
+                    theme = json.load(f).get("theme", "Neon Green")
+            except: pass
+        self.setStyleSheet(get_stylesheet(theme))
 
         layout = QVBoxLayout()
         layout.setContentsMargins(20, 20, 20, 20)
@@ -138,7 +141,8 @@ class DriverWindow(QWidget):
         # Header
         header_layout = QHBoxLayout()
         title_label = QLabel("Drivers & System Components")
-        title_label.setStyleSheet("font-size: 24px; font-weight: bold; color: #0078d4;")
+        title_label.setObjectName("Header")
+        apply_glow_effect(title_label, theme)
         header_layout.addWidget(title_label)
         
         header_layout.addStretch()
@@ -179,7 +183,12 @@ class DriverWindow(QWidget):
         self.table.verticalHeader().setVisible(False)
         self.table.setShowGrid(False)
         self.table.setAlternatingRowColors(True)
-        self.table.setStyleSheet("alternate-background-color: #2d2d30;")
+        # Apply dark theme explicitly due to table specifics
+        self.table.setStyleSheet("""
+            QTableWidget { background-color: #1A1A1A; border: 1px solid #282828; border-radius: 8px; color: #e0e0e0; alternate-background-color: #151515; }
+            QTableWidget::item:selected { background-color: #222222; }
+            QHeaderView::section { background-color: #222222; color: #e0e0e0; padding: 5px; border: 1px solid #282828; }
+        """)
         
         layout.addWidget(self.table)
         self.setLayout(layout)

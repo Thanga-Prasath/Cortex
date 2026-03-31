@@ -138,7 +138,7 @@ class SettingsWindow(QMainWindow):
         
         # Apply Theme
         current_theme = self.config_data.get("theme", "Neon Green")
-        from .styles import THEME_COLORS
+        from .styles import THEME_COLORS, get_stylesheet, apply_glow_effect, get_theme_color
         accent = THEME_COLORS.get(current_theme, "#39FF14")
         self.setStyleSheet(get_stylesheet(current_theme))
         
@@ -152,14 +152,15 @@ class SettingsWindow(QMainWindow):
         # Header
         header = QLabel("Cortex Control Center")
         header.setObjectName("Header")
+        apply_glow_effect(header, current_theme)
         main_layout.addWidget(header)
         
         # Tabs - Dynamic Styling
         self.tabs = QTabWidget()
         self.tabs.setStyleSheet(f"""
-            QTabWidget::pane {{ border: 1px solid {accent}; background: #1e1e1e; }}
-            QTabBar::tab {{ background: #2d2d30; color: #fff; padding: 10px; min-width: 100px; }}
-            QTabBar::tab:selected {{ background: {accent}; color: #000; font-weight: bold; }}
+            QTabWidget::pane {{ border: 1px solid #282828; background: #151515; border-radius: 8px; }}
+            QTabBar::tab {{ background: #1A1A1A; border: 1px solid #282828; color: #fff; padding: 10px; min-width: 100px; margin-right: 2px; border-top-left-radius: 6px; border-top-right-radius: 6px; }}
+            QTabBar::tab:selected {{ background: #222222; border-bottom: 2px solid {accent}; color: {accent}; font-weight: bold; border-top-left-radius: 6px; border-top-right-radius: 6px; }}
         """)
         
         self.tab_general = QWidget()
@@ -221,7 +222,7 @@ class SettingsWindow(QMainWindow):
         self.input_name = QLineEdit()
         self.input_name.setText(self.config_data.get("name", "Sir"))
         self.input_name.setPlaceholderText("What should I call you?")
-        self.input_name.setStyleSheet("padding: 8px; background: #252526; border: 1px solid #555; color: #fff;")
+        self.input_name.setStyleSheet("padding: 8px; background: #1A1A1A; border: 1px solid #333; border-radius: 4px; color: #fff;")
         
         lbl_name = QLabel("Your Name:")
         self.input_name.textChanged.connect(self.on_name_changed)
@@ -237,7 +238,7 @@ class SettingsWindow(QMainWindow):
         if index >= 0:
             self.combo_theme.setCurrentIndex(index)
             
-        self.combo_theme.setStyleSheet("padding: 8px; background: #252526; border: 1px solid #555; color: #fff;")
+        self.combo_theme.setStyleSheet("padding: 8px; background: #1A1A1A; border: 1px solid #333; border-radius: 4px; color: #fff;")
         
         lbl_theme = QLabel("Accent Theme:")
         self.combo_theme.currentTextChanged.connect(self.on_theme_changed)
@@ -295,7 +296,7 @@ class SettingsWindow(QMainWindow):
         self.input_screenshot.setReadOnly(True)
         self.input_screenshot.setText(self.config_data.get("screenshot_path", ""))
         self.input_screenshot.setPlaceholderText("Default: Pictures/Screenshots")
-        self.input_screenshot.setStyleSheet("padding: 8px; background: #252526; border: 1px solid #555; color: #fff;")
+        self.input_screenshot.setStyleSheet("padding: 8px; background: #1A1A1A; border: 1px solid #333; border-radius: 4px; color: #fff;")
         
         btn_browse = QPushButton("Browse")
         btn_browse.clicked.connect(self.browse_screenshot_path)
@@ -321,6 +322,58 @@ class SettingsWindow(QMainWindow):
     def on_theme_changed(self, theme_name):
         self.config_data["theme"] = theme_name
         self.save_settings(silent=True)
+        
+        # Apply theme locally dynamically
+        from .styles import get_stylesheet, apply_glow_effect, get_theme_color
+        try:
+            accent = get_theme_color(theme_name)
+            self.setStyleSheet(get_stylesheet(theme_name))
+            
+            # Re-apply glow to Header
+            header = self.findChild(QLabel, "Header")
+            if header:
+                apply_glow_effect(header, theme_name)
+                
+            # Re-apply Tab Stylesheet
+            self.tabs.setStyleSheet(f"""
+                QTabWidget::pane {{ border: 1px solid #282828; background: #151515; border-radius: 8px; }}
+                QTabBar::tab {{ background: #1A1A1A; border: 1px solid #282828; color: #fff; padding: 10px; min-width: 100px; margin-right: 2px; border-top-left-radius: 6px; border-top-right-radius: 6px; }}
+                QTabBar::tab:selected {{ background: #222222; border-bottom: 2px solid {accent}; color: {accent}; font-weight: bold; border-top-left-radius: 6px; border-top-right-radius: 6px; }}
+            """)
+            
+            # Re-apply Voice Table Stylesheet
+            self.voice_table.setStyleSheet(f"""
+                QTableWidget {{ background-color: #1A1A1A; border: 1px solid #282828; color: white; border-radius: 8px; }}
+                QTableWidget::item:selected {{ background-color: #222222; color: {accent}; }}
+                QHeaderView::section {{ background-color: #1A1A1A; color: white; padding: 5px; border: 1px solid #282828; }}
+            """)
+            
+            # Re-apply slider styles
+            slider_style = f"""
+                QSlider::groove:horizontal {{
+                    border: none;
+                    height: 6px;
+                    background: #2A2A2A;
+                    margin: 2px 0;
+                    border-radius: 3px;
+                }}
+                QSlider::handle:horizontal {{
+                    background: {accent};
+                    border: 1px solid {accent};
+                    width: 14px;
+                    height: 14px;
+                    margin: -4px 0;
+                    border-radius: 7px;
+                }}
+            """
+            if hasattr(self, 'slider_rate'): self.slider_rate.setStyleSheet(slider_style)
+            if hasattr(self, 'slider_vol'): self.slider_vol.setStyleSheet(slider_style)
+            if hasattr(self, 'slider_gui_opacity'): self.slider_gui_opacity.setStyleSheet(slider_style)
+            if hasattr(self, 'slider_bg_opacity'): self.slider_bg_opacity.setStyleSheet(slider_style)
+            
+        except Exception as e:
+            print(f"[Settings] Error updating theme locally: {e}")
+            
         if self.status_window:
             self.status_window.set_theme(theme_name)
 
@@ -386,9 +439,9 @@ class SettingsWindow(QMainWindow):
         accent = THEME_COLORS.get(current_theme, "#39FF14")
         
         self.voice_table.setStyleSheet(f"""
-            QTableWidget {{ background-color: #1a1a1a; border: 1px solid {accent}; color: white; border-radius: 5px; }}
-            QTableWidget::item:selected {{ background-color: #333333; color: {accent}; }}
-            QHeaderView::section {{ background-color: #2d2d30; color: white; padding: 5px; border: 1px solid #444; }}
+            QTableWidget {{ background-color: #1A1A1A; border: 1px solid #282828; color: white; border-radius: 8px; }}
+            QTableWidget::item:selected {{ background-color: #222222; color: {accent}; }}
+            QHeaderView::section {{ background-color: #1A1A1A; color: white; padding: 5px; border: 1px solid #282828; }}
         """)
         
         layout.addWidget(self.voice_table)
@@ -396,7 +449,7 @@ class SettingsWindow(QMainWindow):
         
         # 2. Controls Area
         controls_frame = QFrame()
-        controls_frame.setStyleSheet("background: #252526; border-radius: 8px; padding: 10px;")
+        controls_frame.setStyleSheet("background: #1A1A1A; border: 1px solid #282828; border-radius: 8px; padding: 10px;")
         controls_layout = QFormLayout(controls_frame)
         
         # Rate Slider
@@ -580,19 +633,19 @@ class SettingsWindow(QMainWindow):
         
         slider.setStyleSheet(f"""
             QSlider::groove:horizontal {{
-                border: 1px solid #444;
-                height: 8px;
-                background: #1e1e1e;
+                border: none;
+                height: 6px;
+                background: #2A2A2A;
                 margin: 2px 0;
-                border-radius: 4px;
+                border-radius: 3px;
             }}
             QSlider::handle:horizontal {{
                 background: {accent};
                 border: 1px solid {accent};
-                width: 18px;
-                height: 18px;
-                margin: -7px 0;
-                border-radius: 9px;
+                width: 14px;
+                height: 14px;
+                margin: -4px 0;
+                border-radius: 7px;
             }}
         """)
         return slider

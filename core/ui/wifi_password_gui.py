@@ -11,50 +11,59 @@ project_root = os.path.dirname(os.path.dirname(current_dir))
 sys.path.append(project_root)
 
 from components.system import wifi_password
+import json
+from .styles import get_stylesheet, apply_glow_effect, get_theme_color
+from core.utils.path_utils import get_user_data_path
 
 class WifiPasswordWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Wi-Fi Password")
         self.setGeometry(300, 300, 350, 200)
+        # Load Theme
+        config_path = os.path.join(get_user_data_path(), "user_config.json")
+        theme = "Neon Green"
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, 'r') as f:
+                    theme = json.load(f).get("theme", "Neon Green")
+            except: pass
+        accent = get_theme_color(theme)
         
         # Stylesheet for a modern dark look
-        self.setStyleSheet("""
-            QWidget {
-                background-color: #1a1a1a;
-                color: #ffffff;
-                font-family: 'Segoe UI', sans-serif;
-            }
-            QLabel#Title {
+        self.setStyleSheet(get_stylesheet(theme) + f"""
+            QLabel#Title {{
                 font-size: 14px;
                 color: #aaaaaa;
                 margin-top: 5px;
-            }
-            QLabel#Value {
+            }}
+            QLabel#Value {{
                 font-size: 20px;
                 font-weight: bold;
-                color: #ffffff;
+                color: {accent};
                 margin-bottom: 10px;
-            }
-            QLabel#Error {
+            }}
+            QLabel#Error {{
                 font-size: 14px;
-                color: #ff6b6b;
-            }
-            QPushButton {
-                background-color: #3a3a3a;
+                color: #ff3333;
+            }}
+            QPushButton {{
+                background-color: #222;
                 color: white;
-                border: 1px solid #555555;
+                border: 1px solid #333;
                 padding: 4px 10px;
                 min-height: 25px;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #4a4a4a;
-            }
-            QFrame {
-                background-color: #2b2b2b;
+                border-radius: 6px;
+            }}
+            QPushButton:hover {{
+                background-color: #1A1A1A;
+                border: 1px solid {accent};
+                color: {accent};
+            }}
+            QFrame {{
+                background-color: #1A1A1A;
                 border-radius: 8px;
-            }
+            }}
         """)
         
         layout = QVBoxLayout()

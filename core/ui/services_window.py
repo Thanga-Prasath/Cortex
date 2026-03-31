@@ -6,27 +6,46 @@ from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
                              QTableWidget, QTableWidgetItem, QPushButton, 
                              QLineEdit, QLabel, QMessageBox, QHeaderView)
 from PyQt6.QtCore import Qt, QTimer
+import json
+from core.utils.path_utils import get_user_data_path
+from .styles import get_stylesheet, apply_glow_effect, get_theme_color
 
 class ServicesWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("System Services Manager")
         self.setGeometry(200, 200, 1000, 600)
-        self.setStyleSheet("""
-            QWidget { background-color: #1a1a1a; color: white; font-family: 'Segoe UI', sans-serif; }
-            QTableWidget { background-color: #2b2b2b; gridline-color: #444; border: none; }
-            QTableWidget::item { padding: 5px; }
-            QHeaderView::section { background-color: #333; color: white; border: 1px solid #444; padding: 5px; }
-            QLineEdit { background-color: #333; border: 1px solid #555; padding: 8px; border-radius: 4px; color: white; }
-            QPushButton { background-color: #444; border: 1px solid #666; padding: 4px 10px; border-radius: 4px; min-height: 25px; }
-            QPushButton:hover { background-color: #555; }
-            QPushButton#ActionBtn { background-color: #0078d4; border: none; font-weight: bold; }
-            QPushButton#ActionBtn:hover { background-color: #0086f0; }
-            QPushButton#StopBtn { background-color: #d83b01; border: none; font-weight: bold; }
-            QPushButton#StopBtn:hover { background-color: #ea4a1f; }
+        # Load Theme
+        config_path = os.path.join(get_user_data_path(), "user_config.json")
+        theme = "Neon Green"
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, 'r') as f:
+                    theme = json.load(f).get("theme", "Neon Green")
+            except: pass
+        accent = get_theme_color(theme)
+        
+        self.setStyleSheet(get_stylesheet(theme) + f"""
+            QTableWidget {{ background-color: #1A1A1A; border: 1px solid #282828; border-radius: 8px; color: #e0e0e0; }}
+            QTableWidget::item:selected {{ background-color: #222222; }}
+            QHeaderView::section {{ background-color: #222222; color: #e0e0e0; border: 1px solid #282828; padding: 5px; }}
+            QLineEdit {{ background-color: #1A1A1A; border: 1px solid #333; padding: 8px; border-radius: 4px; color: white; }}
+            QPushButton#ActionBtn {{ background-color: {accent}; color: #000; border: none; font-weight: bold; border-radius: 4px; padding: 5px 10px; }}
+            QPushButton#ActionBtn:hover {{ background-color: #151515; color: {accent}; border: 1px solid {accent}; }}
+            QPushButton#StopBtn {{ background-color: #ff3333; color: white; border: none; font-weight: bold; border-radius: 4px; padding: 5px 10px; }}
+            QPushButton#StopBtn:hover {{ background-color: #151515; color: #ff3333; border: 1px solid #ff3333; }}
         """)
 
         layout = QVBoxLayout()
+        
+        # Header
+        header_layout = QHBoxLayout()
+        title_label = QLabel("System Services")
+        title_label.setObjectName("Header")
+        apply_glow_effect(title_label, theme)
+        header_layout.addWidget(title_label)
+        header_layout.addStretch()
+        layout.addLayout(header_layout)
         
         # Search & Controls
         top_layout = QHBoxLayout()

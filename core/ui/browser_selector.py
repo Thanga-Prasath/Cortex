@@ -2,6 +2,10 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QListWidget, QListWidgetItem, QSizePolicy)
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QIcon, QFont
+import os
+import json
+from core.utils.path_utils import get_user_data_path
+from .styles import get_stylesheet, apply_glow_effect, get_theme_color
 
 class BrowserSelectionDialog(QDialog):
     def __init__(self, browsers, parent=None):
@@ -15,53 +19,55 @@ class BrowserSelectionDialog(QDialog):
         self.setFixedWidth(400)
         self.setMinimumHeight(300)
         
-        # Dark theme styling to match Cortex
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #1e1e1e;
-                color: white;
-            }
-            QLabel {
-                color: #aaaaaa;
-                font-size: 14px;
-                margin-bottom: 10px;
-            }
-            QListWidget {
-                background-color: #252526;
-                border: 1px solid #333;
+        # Fetch Theme
+        config_path = os.path.join(get_user_data_path(), "user_config.json")
+        theme = "Neon Green"
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, 'r') as f:
+                    theme = json.load(f).get("theme", "Neon Green")
+            except: pass
+        accent = get_theme_color(theme)
+        
+        # Base Application Stylesheet
+        self.setStyleSheet(get_stylesheet(theme) + f"""
+            QListWidget {{
+                background-color: #1A1A1A;
+                border: 1px solid #282828;
                 border-radius: 8px;
                 padding: 5px;
-                color: white;
+                color: #D4D4D4;
                 font-size: 16px;
-            }
-            QListWidget::item {
+            }}
+            QListWidget::item {{
                 padding: 10px;
-                border-bottom: 1px solid #2d2d30;
-            }
-            QListWidget::item:selected {
-                background-color: #37373d;
-                color: #39FF14;
-                border-radius: 5px;
-            }
-            QPushButton#OpenBtn {
-                background-color: #39FF14;
+                border-bottom: 1px solid #151515;
+            }}
+            QListWidget::item:selected {{
+                background-color: #222;
+                color: {accent};
+                border-left: 3px solid {accent};
+                border-radius: 4px;
+            }}
+            QPushButton#OpenBtn {{
+                background-color: {accent};
                 color: black;
                 border: none;
                 border-radius: 5px;
                 padding: 10px;
                 font-weight: bold;
                 font-size: 14px;
-            }
-            QPushButton#OpenBtn:hover {
-                background-color: #32e612;
-            }
-            QPushButton#CancelBtn {
+            }}
+            QPushButton#OpenBtn:hover {{
+                box-shadow: 0 0 10px {accent};
+            }}
+            QPushButton#CancelBtn {{
                 background-color: #333;
                 color: white;
                 border: none;
                 border-radius: 5px;
                 padding: 10px;
-            }
+            }}
         """)
 
         layout = QVBoxLayout(self)

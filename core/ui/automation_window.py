@@ -1,4 +1,4 @@
-﻿from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
+from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QLabel, QPushButton, QFrame, QSplitter, QListWidget,
                              QGraphicsView, QGraphicsScene, QGraphicsItem, QGraphicsPathItem,
                              QInputDialog, QMenu, QMessageBox, QComboBox, QDialog)
@@ -11,6 +11,34 @@ import json
 
 # --- 0. Custom List Widget to ensure clean Mime Data ---
 class NodeList(QListWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setSpacing(4)
+        self.setStyleSheet("""
+            QListWidget {
+                background: #151515;
+                border: none;
+                outline: none;
+            }
+            QListWidget::item {
+                background: #252525;
+                border-radius: 6px;
+                padding: 6px 10px;
+                margin: 0px 8px;
+                color: #D4D4D4;
+                font-family: 'Segoe UI', sans-serif;
+                font-size: 13px;
+                border: 1px solid #333;
+            }
+            QListWidget::item:hover {
+                background: #2A2A2A;
+                border: 1px solid #444;
+            }
+            QListWidget::item:selected {
+                border: 1px solid #39FF14;
+            }
+        """)
+
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self.drag_start_pos = event.pos()
@@ -26,7 +54,8 @@ class NodeList(QListWidget):
         if item:
             drag = QDrag(self)
             mime_data = QMimeData()
-            mime_data.setText(item.text())
+            clean_text = item.text().split(" ", 1)[-1].strip() if " " in item.text() else item.text()
+            mime_data.setText(clean_text)
             drag.setMimeData(mime_data)
             drag.exec(Qt.DropAction.CopyAction)
 
@@ -44,7 +73,7 @@ class ConnectionPath(QGraphicsPathItem):
         if self.end_port:
             self.end_port.add_connection(self)
         
-        pen = QPen(QColor("#39FF14"), 3)
+        pen = QPen(QColor("#39FF14"), 2)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         self.setPen(pen)
         self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
@@ -149,7 +178,7 @@ class NodeItem(QGraphicsItem):
         # Determine Color
         if text == "Start": self.color = QColor("#39FF14")
         elif text == "End": self.color = QColor("#FF3131")
-        else: self.color = QColor("#00FFFF")
+        else: self.color = QColor("#00E5FF")
         
         # Add Ports
         self.in_port = None
@@ -229,7 +258,7 @@ class NodeItem(QGraphicsItem):
         
         # Shadow
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor(0, 0, 0, 50))
+        painter.setBrush(QColor(0, 0, 0, 70))
         if self.text == "If Condition":
             path = QPainterPath()
             path.moveTo(75, 0)
@@ -237,13 +266,13 @@ class NodeItem(QGraphicsItem):
             path.lineTo(75, 80)
             path.lineTo(0, 40)
             path.closeSubpath()
-            painter.drawPath(path.translated(2, 2))
+            painter.drawPath(path.translated(4, 4))
         else:
-            painter.drawRoundedRect(rect.adjusted(2, 2, 2, 2), 8, 8)
+            painter.drawRoundedRect(rect.adjusted(2, 2, 2, 2), 12, 12)
         
         # Body
-        painter.setPen(QPen(self.color, 2))
-        painter.setBrush(QColor(30, 30, 30, 220))
+        painter.setPen(QPen(self.color, 1.5))
+        painter.setBrush(QColor(18, 20, 22, 240))
         
         if self.text == "If Condition":
             path = QPainterPath()
@@ -258,25 +287,29 @@ class NodeItem(QGraphicsItem):
             painter.setPen(self.color)
             painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "IF")
         else:
-            painter.drawRoundedRect(rect, 8, 8)
-            
-            # Header
-            painter.setBrush(self.color)
-            painter.drawRoundedRect(0, 0, 150, 20, 8, 8)
-            painter.drawRect(0, 10, 150, 10)
+            painter.drawRoundedRect(rect, 12, 12)
             
             # Label
-            painter.setPen(Qt.GlobalColor.black)
-            painter.drawText(QRectF(0, 0, 150, 20), Qt.AlignmentFlag.AlignCenter, self.text)
+            painter.setPen(self.color)
+            font = painter.font()
+            font.setBold(True)
+            painter.setFont(font)
+            
+            label_rect = QRectF(0, 5, 150, 20)
+            if not self.properties.get("value") and self.text in ["Start", "End"]:
+                label_rect = rect # Center vertically if no subtext
+                
+            painter.drawText(label_rect, Qt.AlignmentFlag.AlignCenter, self.text)
 
         # Property Preview
         if self.properties.get("value"):
             painter.setPen(Qt.GlobalColor.white)
             font = painter.font()
-            font.setPointSize(8)
+            font.setBold(False)
+            font.setPointSize(9)
             painter.setFont(font)
             y_off = 25 if self.text != "If Condition" else 45
-            painter.drawText(QRectF(10, y_off, 130, 30), Qt.AlignmentFlag.AlignCenter, 
+            painter.drawText(QRectF(5, y_off, 140, 30), Qt.AlignmentFlag.AlignCenter, 
                              self.properties["value"])
         
     def itemChange(self, change, value):
@@ -403,7 +436,7 @@ class AutomationWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Neural Sync - Automation Editor")
-        self.setGeometry(100, 100, 1000, 700)
+        self.setGeometry(100, 100, 850, 600)
         
         # Apply Theme
         try:
@@ -416,10 +449,10 @@ class AutomationWindow(QMainWindow):
         
         # Layout
         central = QWidget()
+        central.setStyleSheet("background-color: #0F0F0F;")
         self.setCentralWidget(central)
         layout = QVBoxLayout(central)
-        
-        layout.addWidget(QLabel("Neural Sync: Automation Logic"))
+        # Removed header label to match sleek look
         
         # Determine Automation Directory and State
         self.data_dir = os.path.join(get_user_data_path(), 'automations')
@@ -438,8 +471,22 @@ class AutomationWindow(QMainWindow):
             
         # Top Bar for Automation Management
         top_bar = QWidget()
+        top_bar.setStyleSheet("""
+            QWidget { background: #151515; }
+            QLabel { color: #DDD; font-family: 'Segoe UI'; font-size: 13px; }
+            QComboBox { 
+                background: #1A1A1A; color: #DDD; border: 1px solid #333; 
+                border-radius: 6px; padding: 4px; font-family: 'Segoe UI';
+            }
+            QComboBox::drop-down { border: none; }
+            QPushButton {
+                background: #252528; color: #DDD; border: 1px solid #333;
+                border-radius: 6px; padding: 5px 12px; font-family: 'Segoe UI';
+            }
+            QPushButton:hover { background: #333; }
+        """)
         tb_layout = QHBoxLayout(top_bar)
-        tb_layout.setContentsMargins(0, 0, 0, 0)
+        tb_layout.setContentsMargins(15, 12, 15, 12)
         
         self.combo_workflows = QComboBox()
         self.combo_workflows.setMinimumWidth(200)
@@ -451,11 +498,11 @@ class AutomationWindow(QMainWindow):
         btn_rename = QPushButton("✎ Rename")
         btn_rename.clicked.connect(self.on_rename_clicked)
         
-        self.btn_primary = QPushButton("Set as Primary")
+        self.btn_primary = QPushButton("✓ Set as Primary")
         self.btn_primary.clicked.connect(self.on_primary_clicked)
         
         self.lbl_primary = QLabel("Primary: Default")
-        self.lbl_primary.setStyleSheet("color: #888; font-style: italic;")
+        self.lbl_primary.setStyleSheet("color: #777; font-style: italic;")
         
         tb_layout.addWidget(QLabel("Automations:"))
         tb_layout.addWidget(self.combo_workflows)
@@ -463,61 +510,49 @@ class AutomationWindow(QMainWindow):
         tb_layout.addWidget(btn_rename)
         tb_layout.addWidget(self.btn_primary)
         tb_layout.addStretch()
-        tb_layout.addWidget(self.lbl_primary)
         
         layout.addWidget(top_bar)
         
         splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.setStyleSheet("QSplitter::handle { background-color: #222; width: 2px; }")
         
         # Toolbox
         tools = NodeList() # Using our custom NodeList
-        tools.addItems(["Start", "Delay", "Speak", "System Command", "Press Hotkey", "Type Text", "Notify", "Play Sound", "Open Target", "If Condition", "End"])
+        tools.addItems(["▶ Start", "🕒 Delay", "🔊 Speak", ">_ System Command", "⌨ Press Hotkey", "≡ Type Text", "🔔 Notify", "🔉 Play Sound", "🎯 Open Target", "⑂ If Condition", "❌ End"])
         splitter.addWidget(tools)
         
         # Canvas
         self.scene = QGraphicsScene()
         self.scene.setSceneRect(0, 0, 5000, 5000)
+        self.scene.setBackgroundBrush(QBrush(QColor('#0f0f0f')))
         self.view = FlowView(self.scene)
         splitter.addWidget(self.view)
-        splitter.setSizes([200, 800])
+        splitter.setSizes([220, 800])
         
         layout.addWidget(splitter)
         
         # Footer
         footer = QWidget()
+        footer.setStyleSheet("""
+            QWidget { background: #151515; }
+            QPushButton {
+                background: #2E6A4B; color: #FFF; border: none; border-radius: 6px;
+                padding: 8px 20px; font-weight: bold; font-family: 'Segoe UI';
+            }
+            QPushButton:hover { background: #398860; }
+        """)
         f_layout = QHBoxLayout(footer)
-        f_layout.setContentsMargins(0, 0, 0, 0)
+        f_layout.setContentsMargins(15, 15, 15, 15)
         
         self.btn_apply = QPushButton("Apply Workflow")
         self.btn_apply.clicked.connect(self.save_workflow)
         
-        btn_help = QPushButton("?")
-        btn_help.setFixedSize(30, 30)
-        accent = THEME_COLORS.get(theme, "#39FF14")
-        btn_help.setStyleSheet(f"""
-            QPushButton {{
-                background-color: #333;
-                color: {accent};
-                border: 2px solid {accent};
-                border-radius: 15px;
-                font-size: 20px;
-                font-weight: bold;
-                padding: 0px;
-            }}
-            QPushButton:hover {{
-                background-color: {accent};
-                color: black;
-            }}
-        """)
-        btn_help.clicked.connect(self.show_help)
-
         self.lbl_validation = QLabel("")
-        self.lbl_validation.setStyleSheet("color: #FF4444; font-weight: bold; font-size: 11px;")
+        self.lbl_validation.setStyleSheet("color: #FF5555; font-weight: bold; font-size: 11px;")
         
-        f_layout.addWidget(self.btn_apply)
         f_layout.addWidget(self.lbl_validation)
         f_layout.addStretch()
-        f_layout.addWidget(btn_help)
+        f_layout.addWidget(self.btn_apply)
         
         layout.addWidget(footer)
         

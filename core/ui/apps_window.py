@@ -7,6 +7,10 @@ from PyQt6.QtGui import QIcon, QFont, QColor, QBrush
 import sys
 
 # Import backend
+import os
+import json
+from core.utils.path_utils import get_user_data_path
+from .styles import get_stylesheet, apply_glow_effect
 from core.system.apps_manager import AppsManager
 
 class AppScanWorker(QThread):
@@ -49,67 +53,16 @@ class AppsWindow(QWidget):
     def initUI(self):
         self.setWindowTitle("Installed Applications Manager")
         self.setGeometry(100, 100, 1000, 700)
-        self.setStyleSheet("""
-            QWidget {
-                background-color: #1e1e1e;
-                color: #ffffff;
-                font-family: 'Segoe UI', sans-serif;
-            }
-            QTableWidget {
-                background-color: #252526;
-                gridline-color: #3e3e42;
-                border: none;
-                border-radius: 8px;
-            }
-            QTableWidget::item {
-                padding: 5px;
-            }
-            QHeaderView::section {
-                background-color: #333337;
-                padding: 5px;
-                border: none;
-                color: #cccccc;
-                font-weight: bold;
-            }
-            QLineEdit {
-                background-color: #333337;
-                color: #ffffff;
-                border: 1px solid #3e3e42;
-                border-radius: 4px;
-                padding: 6px;
-                font-size: 14px;
-            }
-            QPushButton {
-                background-color: #0078d4;
-                color: white;
-                border: none;
-                padding: 4px 10px;
-                min-height: 25px;
-                border-radius: 4px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #1084d9;
-            }
-            QPushButton:disabled {
-                background-color: #333333;
-                color: #888888;
-            }
-            QLabel {
-                font-size: 14px;
-            }
-            QScrollBar:vertical {
-                border: none;
-                background: #1e1e1e;
-                width: 10px;
-                margin: 0px 0px 0px 0px;
-            }
-            QScrollBar::handle:vertical {
-                background: #424242;
-                min-height: 20px;
-                border-radius: 5px;
-            }
-        """)
+        
+        # Load Theme
+        config_path = os.path.join(get_user_data_path(), "user_config.json")
+        theme = "Neon Green"
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, 'r') as f:
+                    theme = json.load(f).get("theme", "Neon Green")
+            except: pass
+        self.setStyleSheet(get_stylesheet(theme))
 
         layout = QVBoxLayout()
         layout.setContentsMargins(20, 20, 20, 20)
@@ -118,7 +71,8 @@ class AppsWindow(QWidget):
         # Header
         header_layout = QHBoxLayout()
         title_label = QLabel("Installed Applications")
-        title_label.setStyleSheet("font-size: 24px; font-weight: bold; color: #0078d4;")
+        title_label.setObjectName("Header")
+        apply_glow_effect(title_label, theme)
         header_layout.addWidget(title_label)
         
         header_layout.addStretch()
@@ -143,7 +97,7 @@ class AppsWindow(QWidget):
 
         # Status Label
         self.status_label = QLabel("Ready")
-        self.status_label.setStyleSheet("color: #aaaaaa; font-style: italic;")
+        self.status_label.setStyleSheet("color: #777; font-style: italic;")
         layout.addWidget(self.status_label)
 
         # Table
@@ -160,12 +114,18 @@ class AppsWindow(QWidget):
         
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.verticalHeader().setDefaultSectionSize(45)
         self.table.verticalHeader().setVisible(False)
         self.table.setShowGrid(False)
         self.table.setAlternatingRowColors(True)
-        self.table.setStyleSheet("alternate-background-color: #2d2d30;")
+        # Apply dark theme styling explicitly to table since it wasn't captured in global stylesheet
+        self.table.setStyleSheet("""
+            QTableWidget { background-color: #1A1A1A; border: 1px solid #282828; border-radius: 8px; color: #D4D4D4; }
+            QTableWidget::item:selected { background-color: #333; }
+            QHeaderView::section { background-color: #222; color: #D4D4D4; padding: 5px; border: 1px solid #282828; }
+            QLineEdit { background-color: #222; color: #fff; border: 1px solid #333; border-radius: 4px; padding: 4px; }
+            QTableWidget { alternate-background-color: #151515; }
+        """)
         
         layout.addWidget(self.table)
         self.setLayout(layout)

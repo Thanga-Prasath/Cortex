@@ -15,6 +15,9 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QSize
 from PyQt6.QtGui import QFont, QIcon, QColor
+import json
+from core.utils.path_utils import get_user_data_path
+from .styles import get_stylesheet, apply_glow_effect, get_theme_color
 
 
 # ── Result Card Widget ───────────────────────────────────────────────────────
@@ -22,14 +25,15 @@ from PyQt6.QtGui import QFont, QIcon, QColor
 class ResultCard(QFrame):
     """A single card representing a search result with actions."""
     
-    def __init__(self, result, parent=None):
+    def __init__(self, result, accent_color="#39FF14", parent=None):
         super().__init__(parent)
         self.result = result
+        self.accent_color = accent_color
         self._setup_ui()
 
     def _setup_ui(self):
         self.setObjectName("ResultCard")
-        accent = "#39FF14"
+        accent = self.accent_color
         self.setStyleSheet(f"""
             QFrame#ResultCard {{
                 background-color: #2b2b2b;
@@ -145,12 +149,21 @@ class FileSearchDialog(QWidget):
     - Results: Scrollable list of matches.
     """
 
-    ACCENT = "#39FF14"
-
     def __init__(self, initial_query="", status_window=None):
         super().__init__()
         self.initial_query = initial_query
         self.status_window = status_window
+        
+        # Load Theme
+        config_path = os.path.join(get_user_data_path(), "user_config.json")
+        self.theme = "Neon Green"
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, 'r') as f:
+                    self.theme = json.load(f).get("theme", "Neon Green")
+            except: pass
+        self.ACCENT = get_theme_color(self.theme)
+        
         self._setup_ui(initial_query)
 
     def _setup_ui(self, initial_query):
@@ -173,7 +186,7 @@ class FileSearchDialog(QWidget):
         self.setMinimumHeight(400)
         
         # Background color for the whole widget
-        self.setStyleSheet("background-color: #1e1e1e; color: #ffffff;")
+        self.setStyleSheet(get_stylesheet(self.theme))
         
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(20, 20, 20, 20)
@@ -181,8 +194,9 @@ class FileSearchDialog(QWidget):
 
         # ── Header ──
         self.title_lbl = QLabel("File Search Results")
-        self.title_lbl.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
+        self.title_lbl.setObjectName("Header")
         self.title_lbl.setStyleSheet(f"color: {self.ACCENT};")
+        apply_glow_effect(self.title_lbl, self.theme)
         self.layout.addWidget(self.title_lbl)
 
         # ── Search Input (Always visible) ──
@@ -311,7 +325,7 @@ class FileSearchDialog(QWidget):
 
         self.scroll.show()
         for r in results:
-            card = ResultCard(r)
+            card = ResultCard(r, self.ACCENT)
             self.results_layout.insertWidget(self.results_layout.count()-1, card)
 
         self.status_lbl.setText(f"Successfully identified {len(results)} items matching your query.")
