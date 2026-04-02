@@ -306,3 +306,36 @@ class NeuralIntentModel:
         
         unique_phrases = list(set(all_phrases))
         return ", ".join(unique_phrases)
+
+    def get_hotword_string(self):
+        """
+        Returns a compact, curated string of the highest-signal single keywords
+        to inject into Whisper's 'hotwords' beam-search biasing parameter.
+
+        DESIGN RULES:
+        - Only single words that are acoustically ambiguous (Whisper commonly
+          confuses them with similar-sounding words).
+        - Hard capped at ~40 terms to stay safely within Whisper's token budget.
+        - Multi-word phrases like "create folder" are excluded; Whisper handles
+          those correctly via the richer initial_prompt context already.
+        - Curated directly from the 'keywords' fields in all 9 JSON intent files.
+        """
+        CURATED_HOTWORDS = [
+            # general.json — most commonly misheard control words
+            "listen", "hold", "resume", "pause", "standby",
+            "stop", "quiet", "silence", "exit", "quit",
+            "time", "date", "today", "hello", "hey",
+            # system.json — short system command triggers
+            "volume", "mute", "unmute", "lock", "screenshot",
+            "battery", "firewall", "network", "uptime", "temperature",
+            "cpu", "disk", "memory", "wifi", "dns",
+            "processes", "services", "connections", "registry",
+            # window.json — directional words Whisper often mangles
+            "minimize", "maximize", "restore", "desktop",
+            # files.json
+            "compress", "extract", "search",
+            # media.json
+            "music", "play",
+        ]
+        return ", ".join(CURATED_HOTWORDS)
+

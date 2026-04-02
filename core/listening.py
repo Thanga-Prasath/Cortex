@@ -147,7 +147,7 @@ class Listener:
         if self._whisper_proc is None and self.model is None:
             raise RuntimeError("Whisper model / subprocess failed to start. Cannot transcribe.")
 
-    def _transcribe(self, audio_np, prompt_text):
+    def _transcribe(self, audio_np, prompt_text, hotwords=None):
         """Route to subprocess or in-process model and return (segments, info)."""
         self._ensure_model()
         if self._whisper_proc and self._whisper_proc.is_ready:
@@ -160,15 +160,16 @@ class Listener:
             return [_Seg(text)], _Info()
         else:
             # In-process path: direct WhisperModel call
-            return self.model.transcribe(
-                audio_np, beam_size=5, temperature=0,
-                language="en", initial_prompt=prompt_text,
-            )
+            kwargs = dict(beam_size=5, temperature=0, language="en", initial_prompt=prompt_text)
+            if hotwords:
+                kwargs["hotwords"] = hotwords
+            return self.model.transcribe(audio_np, **kwargs)
 
 
-    def update_keywords(self, keywords_str):
-        """Updates the command vocabulary prompt for Whisper."""
+    def update_keywords(self, keywords_str, hotwords_str=""):
+        """Updates the command vocabulary prompt and hotword bias list for Whisper."""
         self.dynamic_keywords = keywords_str
+        self.dynamic_hotwords = hotwords_str
         print(f"[System] Speech Recognition Vocabulary Updated ({len(keywords_str)} chars).")
 
     def _get_input_stream_kwargs(self):
@@ -372,7 +373,10 @@ class Listener:
             # IMPORTANT: Add common app names for better app launch recognition
             prompt_text = f"Commands: {self.dynamic_keywords}, left, right, up, down, snap left, snap right, move left, move right, window left, window right, WhatsApp, Chrome, Firefox, Notepad, Discord, Spotify, Visual Studio Code, Excel, Word, PowerPoint, system monitor, assistant, open, close, minimize, maximize"
             
-            segments, info = self._transcribe(audio_np, prompt_text)
+            segments, info = self._transcribe(
+                audio_np, prompt_text,
+                hotwords=getattr(self, 'dynamic_hotwords', None) or None
+            )
             
             full_text = ""
             for segment in segments:
@@ -387,7 +391,26 @@ class Listener:
 
             # Remove punctuation (Whisper adds it)
             full_text = full_text.replace(".", "").replace("?", "").replace(",", "").replace("!", "")
-            
+
+            # --- ANTI-HALLUCINATION FILTER ---
+            # If the same word repeats 3+ times consecutively, it is noise or a
+            # model hallucination (e.g. "bot bot bot bot"). Discard silently.
+            words = full_text.split()
+            if len(words) >= 3:
+                consecutive_count = 1
+                is_hallucination = False
+                for i in range(1, len(words)):
+                    if words[i] == words[i - 1]:
+                        consecutive_count += 1
+                        if consecutive_count >= 3:
+                            is_hallucination = True
+                            break
+                    else:
+                        consecutive_count = 1
+                if is_hallucination:
+                    print(f"\rListening... (Ignored hallucination: '{full_text[:40]}...')", end="", flush=True)
+                    return ""
+
             # --- SMART CORRECTIONS FOR COMMON MISRECOGNITIONS ---
             # Fix "snap list" → "snap left" (common Whisper error)
             if "snap list" in full_text:

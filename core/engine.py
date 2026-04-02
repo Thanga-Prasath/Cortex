@@ -77,7 +77,8 @@ class CortexEngine:
         
         # Inject NLU Vocabulary into Hearing (Context Injection)
         vocab_str = self.nlu.get_vocabulary_phrase()
-        self.listener.update_keywords(vocab_str)
+        hotword_str = self.nlu.get_hotword_string()
+        self.listener.update_keywords(vocab_str, hotword_str)
 
         # Start Action Queue Listener
         self.running = True
