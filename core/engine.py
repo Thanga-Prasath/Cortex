@@ -6,6 +6,7 @@ from .engines.file_manager import FileManagerEngine
 from .engines.application import ApplicationEngine
 from .engines.workspace import WorkspaceEngine
 from .engines.automation import AutomationEngine
+from .engines.system_automation import SystemAutomationEngine
 from .nlu import NeuralIntentModel
 import platform
 import sys
@@ -58,6 +59,7 @@ class CortexEngine:
         self.application_engine = ApplicationEngine(self.speaker)
         self.workspace_engine = WorkspaceEngine(self.speaker, self.status_queue)
         self.automation_engine = AutomationEngine(self.speaker, self.status_queue)
+        self.system_automation = SystemAutomationEngine(self.speaker, self.status_queue)
         _log("Sub-Engines OK.")
         
         # Static Engine (Database-Driven)
@@ -290,6 +292,11 @@ class CortexEngine:
     def execute_intent(self, tag, command):
         """Helper to route intent to the correct engine."""
         self._log(f"Executing: {tag}")
+        
+        # Give context to the speech formatter for emotional intelligence
+        if hasattr(self.speaker, 'formatter'):
+            self.speaker.formatter.set_context(tag)
+
 
         # Check Global/System exits first
         if tag == 'exit':
@@ -591,4 +598,6 @@ class CortexEngine:
             self.speaker.terminate()
         if self.listener:
             self.listener.terminate()
+        if hasattr(self, 'system_automation'):
+            self.system_automation.shutdown()
 

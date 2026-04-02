@@ -230,10 +230,87 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
             if is_speaking_flag:
                  is_speaking_flag.value = False
 
+import random
+
+class NaturalSpeechFormatter:
+    def __init__(self):
+        # 40% chance to apply a natural prefix for conversational feel
+        self.apply_chance = 0.40
+        self.current_intent = None
+        
+        # Emotionally categorized prefixes
+        self.prefix_action = ["On it", "Alright", "Right away", "Okay", "I can handle that"]
+        self.prefix_info = ["Sure", "Let me check", "Okay", "Checking now"]
+        self.prefix_confirm = ["Got it", "Done", "Understood", "Yep"]
+        self.prefix_generic = ["Alright", "Sure", "Okay", "Yep"]
+        
+        # Categorize intents for emotional mapping
+        self.action_tags = ["app_open", "file_create_folder", "file_create_file", "file_move", "file_move_here", "workspace_create", "workspace_launch", "run_workflow", "run_automation_by_number", "window_snap_left", "window_snap_right", "window_minimize", "window_maximize", "window_restore", "scan_drivers", "system_scan", "dictation_mode"]
+        self.info_tags = ["time", "date", "system_ip", "system_memory", "system_disk", "list_curr_dir", "system_info", "check_ports", "check_firewall", "check_connections", "system_processes", "login_history", "network_traffic", "internet_speed", "file_search", "list_automations", "clipboard_view", "list_apps", "cpu_info", "system_temp", "current_user", "system_uptime", "check_battery", "wifi_list"]
+        self.confirm_tags = ["app_close", "workspace_close", "workspace_edit", "workspace_remove", "console_clear", "system_cleanup", "kill_process", "media_control", "system_power_advanced", "window_close", "window_show_desktop", "clipboard_clear", "note_take", "timer_set", "system_lock", "system_sleep", "system_restart", "system_shutdown", "volume_mute", "volume_unmute", "volume_set", "empty_bin", "take_screenshot"]
+        
+        # Phrases we NEVER want to prefix (e.g. self-referential or error messages)
+        self.forbidden_starts = [
+            "i ", "i'm ", "im ", "could not", "failed", "error", 
+            "sorry", "unfortunately", "please", "what", "which",
+            "who", "how", "when", "why", "are you", "do you", "is "
+        ]
+        
+        # Hard swaps for overly robotic default lines
+        self.dynamic_swaps = {
+            "opening requested tool.": "Firing that up.",
+            "scanning for available wi-fi networks.": "Looking for nearby networks."
+        }
+        
+    def set_context(self, intent_tag):
+        """Allow the brain to tell the formatter what kind of action is happening."""
+        self.current_intent = intent_tag
+
+    def format(self, text):
+        if not text:
+            return text
+            
+        original_lower = text.strip().lower()
+        
+        # 1. Exact sentence overrides
+        if original_lower in self.dynamic_swaps:
+            text = self.dynamic_swaps[original_lower]
+            original_lower = text.strip().lower() # Update for next steps
+            
+        # 2. Skip if it's already a question
+        if text.strip().endswith('?'):
+            return text
+            
+        # 3. Check forbidden starters
+        for f in self.forbidden_starts:
+            if original_lower.startswith(f):
+                return text
+                
+        # 4. Filter short system announcements like "Internet connection lost." 
+        # from getting "On it, internet connection lost"
+        if "connection" in original_lower or "battery" in original_lower:
+             return text
+                
+        # 5. Probabilistic prefixing based on Context Emotion
+        if random.random() <= self.apply_chance:
+            prefix = random.choice(self.prefix_generic)
+            
+            if self.current_intent in self.action_tags:
+                prefix = random.choice(self.prefix_action)
+            elif self.current_intent in self.info_tags:
+                prefix = random.choice(self.prefix_info)
+            elif self.current_intent in self.confirm_tags:
+                prefix = random.choice(self.prefix_confirm)
+                
+            return f"{prefix}, {text}"
+            
+        return text
+
 class Speaker:
     def __init__(self, status_queue=None):
         """Initialize TTS engine based on the operating system."""
         self.status_queue = status_queue
+        self.formatter = NaturalSpeechFormatter()
         self.os_type = platform.system()  # 'Linux', 'Windows', 'Darwin' (macOS)
         self.piper_available = False
         self.pyttsx3_available = False
@@ -312,13 +389,16 @@ class Speaker:
         'blocking' is ignored for the sake of speed, as per user request. 
         We rely on the queue to handle operations sequentially.
         """
-        print(f"Cortex: {text}")
+        # Apply the NaturalSpeechFormatter to inject human timing and fillers wisely
+        formatted_text = self.formatter.format(text)
+        
+        print(f"Cortex: {formatted_text}")
         
         # Log to Hub UI
         if self.status_queue:
-            self.status_queue.put(("LOG", f"Cortex: {text}"))
+            self.status_queue.put(("LOG", f"Cortex: {formatted_text}"))
         
-        if not text:
+        if not formatted_text:
             return
         
         # Main process just triggers the flag to prevent race conditions
@@ -331,7 +411,7 @@ class Speaker:
         self.is_speaking_flag.value = True
              
         # Put in queue
-        self.tts_queue.put(text)
+        self.tts_queue.put(formatted_text)
         
         # REMOVED: Immediate IDLE update. 
         # We rely on the worker process to set IDLE when done.
