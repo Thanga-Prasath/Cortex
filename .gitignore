@@ -41,3 +41,8 @@ installer/windows/Output/
 
 # Temp
 temp_cmd.bat
+
+# ---- USER SETTINGS (personal overrides — never commit these) ----
+# Generated at runtime in %LOCALAPPDATA%/Cortex/ and in data/ (legacy)
+user_config.json
+data/user_config.json

@@ -9,6 +9,7 @@ from PyQt6.QtCore import Qt, QThread, pyqtSignal
 import json
 import os
 from core.utils.path_utils import get_base_path, get_data_path, get_user_data_path
+from core.utils.config_manager import load_config, save_user_config, reset_user_config
 from .styles import get_stylesheet
 import requests
 import pyaudio
@@ -131,10 +132,9 @@ class SettingsWindow(QMainWindow):
         self.setGeometry(100, 100, 700, 500)
         
         # Data Setup
-        self.config_path = os.path.join(get_user_data_path(), "user_config.json")
         self.widget_config_path = os.path.join(get_user_data_path(), "widget_config.json")
-        self.config_data = self.load_config(self.config_path)
-        self.widget_config = self.load_config(self.widget_config_path)
+        self.config_data = load_config()   # deep-merge: defaults ← user overrides
+        self.widget_config = self._load_widget_config(self.widget_config_path)
         
         # Apply Theme
         current_theme = self.config_data.get("theme", "Neon Green")
@@ -202,7 +202,8 @@ class SettingsWindow(QMainWindow):
         
         main_layout.addLayout(footer_layout)
 
-    def load_config(self, path):
+    def _load_widget_config(self, path):
+        """Loads widget_config.json (not subject to the deep-merge system)."""
         if os.path.exists(path):
             try:
                 with open(path, 'r') as f:
@@ -839,24 +840,29 @@ class SettingsWindow(QMainWindow):
         )
         
         if reply == QMessageBox.StandardButton.Yes:
-            self.input_name.setText("Sir")
-            index = self.combo_theme.findText("Neon Green")
-            if index >= 0: self.combo_theme.setCurrentIndex(index)
-            self.slider_rate.setValue(175)
-            self.slider_vol.setValue(100)
+            # Delete user_config.json so defaults take full effect
+            reset_user_config()
             
-            # Reset new GUI settings
-            self.chk_gui_enable.setChecked(True)
-            self.slider_gui_opacity.setValue(100)
-            self.slider_bg_opacity.setValue(180)
-            self.curr_bg_color = "#000000"
+            # Reload pure defaults from default_settings.json
+            self.config_data = load_config()
+            
+            # Sync UI widgets from the newly-loaded defaults
+            self.input_name.setText(self.config_data.get("name", "Sir"))
+            index = self.combo_theme.findText(self.config_data.get("theme", "Neon Green"))
+            if index >= 0: self.combo_theme.setCurrentIndex(index)
+            self.slider_rate.setValue(self.config_data.get("voice_rate", 175))
+            self.slider_vol.setValue(int(self.config_data.get("voice_volume", 1.0) * 100))
+            self.chk_gui_enable.setChecked(self.config_data.get("status_gui_enabled", True))
+            self.slider_gui_opacity.setValue(int(self.config_data.get("status_gui_opacity", 1.0) * 100))
+            self.slider_bg_opacity.setValue(self.config_data.get("status_gui_bg_opacity", 180))
+            self.curr_bg_color = self.config_data.get("status_gui_color", "#000000")
             self.btn_bg_color.setStyleSheet(f"background: {self.curr_bg_color}; color: #fff; border: 1px solid #555;")
-            self.chk_transparency.setChecked(True)
-            self.chk_lock_widget.setChecked(False)
-            self.input_screenshot.setText("")
-            self.slider_noise.setValue(450)
-
-            self.save_settings(silent=True)
+            self.chk_transparency.setChecked(self.config_data.get("status_gui_transparency", True))
+            self.chk_lock_widget.setChecked(self.widget_config.get("locked", False))
+            self.input_screenshot.setText(self.config_data.get("screenshot_path", ""))
+            self.slider_noise.setValue(self.config_data.get("noise_threshold", 450))
+            
+            QMessageBox.information(self, "Reset Complete", "Settings have been reset to factory defaults.")
 
     def save_settings(self, silent=False):
         # Update config data
@@ -886,10 +892,9 @@ class SettingsWindow(QMainWindow):
         except Exception as e:
             print(f"[Settings] Error saving widget config: {e}")
 
-        # Save to file
+        # Save to user_config.json only (never touches default_settings.json)
         try:
-            with open(self.config_path, 'w') as f:
-                json.dump(self.config_data, f, indent=4)
+            save_user_config(self.config_data)
             
             if not silent:
                 QMessageBox.information(self, "Success", "Settings saved successfully.")

@@ -63,7 +63,9 @@ def init_user_data():
     user_data = get_user_data_path()
     base_data = get_data_path()
     
-    files_to_copy = ["user_config.json", "widget_config.json", "workflow.json"]
+    # user_config.json is intentionally excluded here.
+    # config_manager.py handles the merge of default_settings.json + user_config.json at runtime.
+    files_to_copy = ["widget_config.json", "workflow.json"]
     for file in files_to_copy:
         src = os.path.join(base_data, file)
         dst = os.path.join(user_data, file)

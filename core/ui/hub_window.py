@@ -2,9 +2,8 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QLabel, QProgressBar, QFrame, QGridLayout)
 from PyQt6.QtCore import QTimer, Qt
 import psutil
-import json
 import os
-from core.utils.path_utils import get_base_path, get_data_path, get_user_data_path
+from core.utils.config_manager import load_config
 from .styles import get_stylesheet, apply_glow_effect
 
 class HubWindow(QMainWindow):
@@ -14,14 +13,7 @@ class HubWindow(QMainWindow):
         self.setGeometry(100, 100, 900, 600)
         
         # Load Config for Theme
-        config_path = os.path.join(get_user_data_path(), "user_config.json")
-        theme = "Neon Green"
-        if os.path.exists(config_path):
-            try:
-                with open(config_path, 'r') as f:
-                    data = json.load(f)
-                    theme = data.get("theme", "Neon Green")
-            except: pass
+        theme = load_config().get("theme", "Neon Green")
             
         self.setStyleSheet(get_stylesheet(theme))
         

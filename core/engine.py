@@ -12,6 +12,7 @@ import platform
 import sys
 import os
 from core.utils.path_utils import get_base_path, get_data_path, get_user_data_path
+from core.utils.config_manager import load_config, save_user_config
 import datetime
 import random
 import json
@@ -183,24 +184,12 @@ class CortexEngine:
         return " ".join(filtered).strip().title()
 
     def _load_user_config(self):
-        """Loads user configuration from JSON file."""
-        config_path = os.path.join(get_user_data_path(), "user_config.json")
-        if os.path.exists(config_path):
-            try:
-                with open(config_path, 'r') as f:
-                    return json.load(f)
-            except Exception as e:
-                print(f"Error loading config: {e}")
-        return {"name": "Sir"}
+        """Loads user configuration via deep-merge (defaults + user overrides)."""
+        return load_config()
 
     def _save_user_config(self):
-        """Saves current user configuration to JSON file."""
-        config_path = os.path.join(get_user_data_path(), "user_config.json")
-        try:
-            with open(config_path, 'w') as f:
-                json.dump(self.user_config, f, indent=4)
-        except Exception as e:
-            print(f"Error saving config: {e}")
+        """Saves current user configuration to user_config.json."""
+        save_user_config(self.user_config)
 
     def _extract_name(self, command):
         """Extracts name from change_name commands."""

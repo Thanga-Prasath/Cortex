@@ -5,6 +5,7 @@ import ctypes
 import platform
 import os
 from core.utils.path_utils import get_base_path, get_data_path, get_user_data_path
+from core.utils.config_manager import load_config, save_user_config
 import json
 import math
 import random
@@ -24,7 +25,6 @@ class StatusWindow(QMainWindow):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         
         # Config Paths
-        self.config_path = os.path.join(get_user_data_path(), "user_config.json")
         self.widget_config_path = os.path.join(get_user_data_path(), "widget_config.json")
         
         # Load Configs
@@ -117,17 +117,15 @@ class StatusWindow(QMainWindow):
 
     def load_live_settings(self):
         try:
-            if os.path.exists(self.config_path):
-                with open(self.config_path, 'r') as f:
-                    data = json.load(f)
-                    self.live_bg_color = QColor(data.get("status_gui_color", "#000000"))
-                    self.live_bg_opacity = data.get("status_gui_bg_opacity", 180)
-                    self.live_transparency = data.get("status_gui_transparency", True)
-                    self.live_invisible = data.get("status_gui_invisible", False)
-                    self.setWindowOpacity(data.get("status_gui_opacity", 1.0))
-                    
-                    if not data.get("status_gui_enabled", True):
-                        self.hide()
+            data = load_config()
+            self.live_bg_color = QColor(data.get("status_gui_color", "#000000"))
+            self.live_bg_opacity = data.get("status_gui_bg_opacity", 180)
+            self.live_transparency = data.get("status_gui_transparency", True)
+            self.live_invisible = data.get("status_gui_invisible", False)
+            self.setWindowOpacity(data.get("status_gui_opacity", 1.0))
+            
+            if not data.get("status_gui_enabled", True):
+                self.hide()
         except:
             pass
     
@@ -135,11 +133,9 @@ class StatusWindow(QMainWindow):
         from .styles import THEME_COLORS
         
         try:
-            if os.path.exists(self.config_path):
-                with open(self.config_path, 'r') as f:
-                    data = json.load(f)
-                    theme_name = data.get("theme", "Neon Green")
-                    self.theme_accent = THEME_COLORS.get(theme_name, "#39FF14")
+            data = load_config()
+            theme_name = data.get("theme", "Neon Green")
+            self.theme_accent = THEME_COLORS.get(theme_name, "#39FF14")
         except:
             self.theme_accent = "#39FF14"
             
@@ -202,14 +198,11 @@ class StatusWindow(QMainWindow):
         else:
             self.hide()
             
-        # [NEW] Persist visibility state
+        # Persist visibility state via config_manager
         try:
-            if os.path.exists(self.config_path):
-                with open(self.config_path, 'r') as f:
-                    config = json.load(f)
-                config["status_gui_enabled"] = visible
-                with open(self.config_path, 'w') as f:
-                    json.dump(config, f, indent=4)
+            config = load_config()
+            config["status_gui_enabled"] = visible
+            save_user_config(config)
         except Exception as e:
             print(f"[UI] Error saving visibility state: {e}")
 

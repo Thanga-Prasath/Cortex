@@ -15,8 +15,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QSize
 from PyQt6.QtGui import QFont, QIcon, QColor
-import json
-from core.utils.path_utils import get_user_data_path
+from core.utils.config_manager import load_config
 from .styles import get_stylesheet, apply_glow_effect, get_theme_color
 
 
@@ -155,13 +154,7 @@ class FileSearchDialog(QWidget):
         self.status_window = status_window
         
         # Load Theme
-        config_path = os.path.join(get_user_data_path(), "user_config.json")
-        self.theme = "Neon Green"
-        if os.path.exists(config_path):
-            try:
-                with open(config_path, 'r') as f:
-                    self.theme = json.load(f).get("theme", "Neon Green")
-            except: pass
+        self.theme = load_config().get("theme", "Neon Green")
         self.ACCENT = get_theme_color(self.theme)
         
         self._setup_ui(initial_query)

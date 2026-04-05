@@ -11,9 +11,8 @@ project_root = os.path.dirname(os.path.dirname(current_dir))
 sys.path.append(project_root)
 
 from components.system import wifi_password
-import json
+from core.utils.config_manager import load_config
 from .styles import get_stylesheet, apply_glow_effect, get_theme_color
-from core.utils.path_utils import get_user_data_path
 
 class WifiPasswordWindow(QWidget):
     def __init__(self):
@@ -21,13 +20,7 @@ class WifiPasswordWindow(QWidget):
         self.setWindowTitle("Wi-Fi Password")
         self.setGeometry(300, 300, 350, 200)
         # Load Theme
-        config_path = os.path.join(get_user_data_path(), "user_config.json")
-        theme = "Neon Green"
-        if os.path.exists(config_path):
-            try:
-                with open(config_path, 'r') as f:
-                    theme = json.load(f).get("theme", "Neon Green")
-            except: pass
+        theme = load_config().get("theme", "Neon Green")
         accent = get_theme_color(theme)
         
         # Stylesheet for a modern dark look

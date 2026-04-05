@@ -1,6 +1,7 @@
 import subprocess
 import os
 from core.utils.path_utils import get_base_path, get_data_path, get_user_data_path
+from core.utils.config_manager import load_config
 import platform
 import multiprocessing
 import time
@@ -47,8 +48,6 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
 
     print("[OK] TTS Worker Started Ready")
 
-    config_path = os.path.join(get_user_data_path(), "user_config.json")
-    
     # Pre-check piper bin — guard against None before calling os.path.exists
     if piper_path and not os.path.exists(piper_path):
         piper_path = None
@@ -63,18 +62,16 @@ def run_tts_loop(tts_queue, os_type, piper_path=None, model_path=None, is_speaki
                 
             text = item
             
-            # Load Config PER UTTERANCE
+            # Load Config PER UTTERANCE via deep-merge (defaults + user overrides)
             voice_rate = 175
             voice_volume = 1.0
             voice_pack = "system_default"
             # Output device relies purely on OS default via PyAudio's `output=True`
             try:
-                if os.path.exists(config_path):
-                    with open(config_path, 'r') as f:
-                        data = json.load(f)
-                        voice_rate = data.get("voice_rate", 175)
-                        voice_volume = data.get("voice_volume", 1.0)
-                        voice_pack = data.get("voice_pack", "system_default")
+                cfg = load_config()
+                voice_rate   = cfg.get("voice_rate", 175)
+                voice_volume = cfg.get("voice_volume", 1.0)
+                voice_pack   = cfg.get("voice_pack", "system_default")
             except: pass
             
             # Resolve Model Path live

@@ -9,8 +9,7 @@ import os
 import platform
 
 # Import backend
-import json
-from core.utils.path_utils import get_user_data_path
+from core.utils.config_manager import load_config
 from .styles import get_stylesheet, apply_glow_effect, get_theme_color
 from core.system.drivers import DriverManager
 
@@ -125,13 +124,7 @@ class DriverWindow(QWidget):
         self.setGeometry(100, 100, 1000, 650)
         
         # Load Theme
-        config_path = os.path.join(get_user_data_path(), "user_config.json")
-        theme = "Neon Green"
-        if os.path.exists(config_path):
-            try:
-                with open(config_path, 'r') as f:
-                    theme = json.load(f).get("theme", "Neon Green")
-            except: pass
+        theme = load_config().get("theme", "Neon Green")
         self.setStyleSheet(get_stylesheet(theme))
 
         layout = QVBoxLayout()

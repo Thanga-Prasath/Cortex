@@ -6,8 +6,7 @@ from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
                              QTableWidget, QTableWidgetItem, QPushButton, 
                              QLineEdit, QLabel, QMessageBox, QHeaderView)
 from PyQt6.QtCore import Qt, QTimer
-import json
-from core.utils.path_utils import get_user_data_path
+from core.utils.config_manager import load_config
 from .styles import get_stylesheet, apply_glow_effect, get_theme_color
 
 class ServicesWindow(QWidget):
@@ -16,13 +15,7 @@ class ServicesWindow(QWidget):
         self.setWindowTitle("System Services Manager")
         self.setGeometry(200, 200, 1000, 600)
         # Load Theme
-        config_path = os.path.join(get_user_data_path(), "user_config.json")
-        theme = "Neon Green"
-        if os.path.exists(config_path):
-            try:
-                with open(config_path, 'r') as f:
-                    theme = json.load(f).get("theme", "Neon Green")
-            except: pass
+        theme = load_config().get("theme", "Neon Green")
         accent = get_theme_color(theme)
         
         self.setStyleSheet(get_stylesheet(theme) + f"""
