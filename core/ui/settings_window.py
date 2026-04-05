@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                               QMessageBox, QFrame, QFormLayout, QCheckBox,
                               QSlider, QColorDialog, QFileDialog, QComboBox,
                               QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
-                              QProgressBar, QStyle)
+                              QProgressBar, QStyle, QGroupBox)
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 import json
@@ -212,68 +212,98 @@ class SettingsWindow(QMainWindow):
         return {}
 
     def init_general_tab(self):
-        layout = QFormLayout()
-        layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
-        layout.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
-        layout.setSpacing(20)
-        self.tab_general.setLayout(layout)
+        main_layout = QVBoxLayout()
+        main_layout.setSpacing(15)
+        main_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.tab_general.setLayout(main_layout)
         
-        # Name Field
+        group_style = """
+            QGroupBox {
+                color: white;
+                font-size: 13px;
+                font-weight: bold;
+                border: 1px solid #333;
+                border-radius: 6px;
+                margin-top: 15px;
+                padding-top: 15px;
+                padding-bottom: 5px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px;
+            }
+        """
+
+        # --- Personalization ---
+        group_pers = QGroupBox("Personalization")
+        group_pers.setStyleSheet(group_style)
+        layout_pers = QFormLayout()
+        layout_pers.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        layout_pers.setSpacing(15)
+        group_pers.setLayout(layout_pers)
+        
         self.input_name = QLineEdit()
         self.input_name.setText(self.config_data.get("name", "Sir"))
         self.input_name.setPlaceholderText("What should I call you?")
         self.input_name.setStyleSheet("padding: 8px; background: #1A1A1A; border: 1px solid #333; border-radius: 4px; color: #fff;")
-        
-        lbl_name = QLabel("Your Name:")
         self.input_name.textChanged.connect(self.on_name_changed)
-        layout.addRow(lbl_name, self.input_name)
+        layout_pers.addRow(QLabel("Your Name:"), self.input_name)
         
-        # Theme Selector
-        from PyQt6.QtWidgets import QComboBox
         self.combo_theme = QComboBox()
         self.combo_theme.addItems(["Neon Green", "Cyber Blue", "Plasma Purple", "Fiery Red"])
-        
         current_theme = self.config_data.get("theme", "Neon Green")
         index = self.combo_theme.findText(current_theme)
-        if index >= 0:
-            self.combo_theme.setCurrentIndex(index)
-            
+        if index >= 0: self.combo_theme.setCurrentIndex(index)
         self.combo_theme.setStyleSheet("padding: 8px; background: #1A1A1A; border: 1px solid #333; border-radius: 4px; color: #fff;")
-        
-        lbl_theme = QLabel("Accent Theme:")
         self.combo_theme.currentTextChanged.connect(self.on_theme_changed)
-        layout.addRow(lbl_theme, self.combo_theme)
-
-        # Status GUI Enable
-        self.chk_gui_enable = QCheckBox("Enable Status GUI (Pill Widget)")
-        self.chk_gui_enable.setChecked(self.config_data.get("status_gui_enabled", True))
-        self.chk_gui_enable.setStyleSheet("color: white;")
-        self.chk_gui_enable.toggled.connect(self.on_gui_enable_toggled)
-        layout.addRow("", self.chk_gui_enable)
+        layout_pers.addRow(QLabel("Accent Theme:"), self.combo_theme)
         
-        # Window Opacity
+        main_layout.addWidget(group_pers)
+
+        # --- Status Widget ---
+        group_widget = QGroupBox("Status Widget (Pill)")
+        group_widget.setStyleSheet(group_style)
+        layout_widget = QFormLayout()
+        layout_widget.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        layout_widget.setSpacing(15)
+        group_widget.setLayout(layout_widget)
+        
+        self.chk_gui_enable = QCheckBox("Enable Status GUI")
+        is_gui_enabled = self.config_data.get("status_gui_enabled", True)
+        self.chk_gui_enable.setChecked(is_gui_enabled)
+        self.chk_gui_enable.setStyleSheet("color: white; font-weight: bold;")
+        self.chk_gui_enable.toggled.connect(self.on_gui_enable_toggled)
+        layout_widget.addRow(QLabel("Visibility:"), self.chk_gui_enable)
+        
+        # Dependent Settings Container
+        self.widget_deps = QWidget()
+        dep_layout = QFormLayout(self.widget_deps)
+        dep_layout.setContentsMargins(0, 0, 0, 0)
+        dep_layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        dep_layout.setSpacing(15)
+        
         self.slider_gui_opacity = self._create_slider(10, 100, self.config_data.get("status_gui_opacity", 1.0)*100)
         self.slider_gui_opacity.valueChanged.connect(self.on_gui_opacity_changed)
-        layout.addRow(QLabel("Window Opacity:"), self.slider_gui_opacity)
+        dep_layout.addRow(QLabel("Window Opacity:"), self.slider_gui_opacity)
         
-        # Background Opacity (Alpha)
         self.slider_bg_opacity = self._create_slider(0, 255, self.config_data.get("status_gui_bg_opacity", 180))
         self.slider_bg_opacity.valueChanged.connect(self.on_bg_opacity_changed)
-        layout.addRow(QLabel("Background Opacity:"), self.slider_bg_opacity)
+        dep_layout.addRow(QLabel("Background Opacity:"), self.slider_bg_opacity)
         
-        # Background Color & Transparency
         color_layout = QHBoxLayout()
+        color_layout.setSpacing(10)
         self.btn_bg_color = QPushButton("Choose Color")
         self.curr_bg_color = self.config_data.get("status_gui_color", "#000000")
-        self.btn_bg_color.setStyleSheet(f"background: {self.curr_bg_color}; color: {'#fff' if self.curr_bg_color == '#000000' else '#000'}; border: 1px solid #555;")
+        self.btn_bg_color.setStyleSheet(f"background: {self.curr_bg_color}; color: {'#fff' if self.curr_bg_color == '#000000' else '#000'}; border: 1px solid #555; padding: 4px 8px; border-radius: 4px;")
         self.btn_bg_color.clicked.connect(self.pick_bg_color)
         
-        self.chk_transparency = QCheckBox("Enable Transparency")
+        self.chk_transparency = QCheckBox("Transparent")
         self.chk_transparency.setChecked(self.config_data.get("status_gui_transparency", True))
         self.chk_transparency.setStyleSheet("color: white;")
         self.chk_transparency.toggled.connect(self.on_style_changed)
         
-        self.chk_invisible = QCheckBox("Invisible Background")
+        self.chk_invisible = QCheckBox("Invisible")
         self.chk_invisible.setChecked(self.config_data.get("status_gui_invisible", False))
         self.chk_invisible.setStyleSheet("color: white;")
         self.chk_invisible.toggled.connect(self.on_invisible_toggled)
@@ -281,31 +311,59 @@ class SettingsWindow(QMainWindow):
         color_layout.addWidget(self.btn_bg_color)
         color_layout.addWidget(self.chk_transparency)
         color_layout.addWidget(self.chk_invisible)
-        layout.addRow("Widget Style:", color_layout)
-
-        # Widget Lock Checkbox
-        self.chk_lock_widget = QCheckBox("Lock Taskbar Widget Position")
+        color_layout.addStretch()
+        dep_layout.addRow(QLabel("Widget Style:"), color_layout)
+        
+        self.chk_lock_widget = QCheckBox("Lock Position on Screen")
         self.chk_lock_widget.setChecked(self.widget_config.get("locked", False))
         self.chk_lock_widget.setStyleSheet("color: white;")
         self.chk_lock_widget.toggled.connect(self.on_lock_toggled)
-        layout.addRow("", self.chk_lock_widget)
+        dep_layout.addRow(QLabel("Placement:"), self.chk_lock_widget)
         
-        # Screenshot Location
+        self.widget_deps.setEnabled(is_gui_enabled)
+        layout_widget.addRow("", self.widget_deps)
+        
+        main_layout.addWidget(group_widget)
+
+        # --- System & Audio ---
+        group_system = QGroupBox("System & Audio")
+        group_system.setStyleSheet(group_style)
+        layout_system = QFormLayout()
+        layout_system.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        layout_system.setSpacing(15)
+        group_system.setLayout(layout_system)
+        
         screenshot_layout = QHBoxLayout()
         self.input_screenshot = QLineEdit()
         self.input_screenshot.setReadOnly(True)
         self.input_screenshot.setText(self.config_data.get("screenshot_path", ""))
         self.input_screenshot.setPlaceholderText("Default: Pictures/Screenshots")
         self.input_screenshot.setStyleSheet("padding: 8px; background: #1A1A1A; border: 1px solid #333; border-radius: 4px; color: #fff;")
-        
         btn_browse = QPushButton("Browse")
+        btn_browse.setStyleSheet("padding: 8px 15px; background: #2A2A2A; border: 1px solid #555; border-radius: 4px; color: #fff;")
         btn_browse.clicked.connect(self.browse_screenshot_path)
-        
         screenshot_layout.addWidget(self.input_screenshot)
         screenshot_layout.addWidget(btn_browse)
-        layout.addRow("Screenshot Path:", screenshot_layout)
+        layout_system.addRow(QLabel("Screenshot Path:"), screenshot_layout)
+        
+        noise_row_layout = QHBoxLayout()
+        current_noise = self.config_data.get("noise_threshold", 450)
+        self.slider_noise = self._create_slider(450, 5000, current_noise)
+        self.lbl_noise_val = QLabel(str(current_noise))
+        self.lbl_noise_val.setStyleSheet("color: #aaa; min-width: 40px; text-align: right;")
+        self.slider_noise.valueChanged.connect(self.on_noise_threshold_changed)
+        noise_row_layout.addWidget(self.slider_noise)
+        noise_row_layout.addWidget(self.lbl_noise_val)
+        lbl_noise = QLabel("Noise Threshold:")
+        lbl_noise.setToolTip("Minimum RMS amplitude required to trigger voice detection.\nLower = sensitive, Higher = ignore background noise.")
+        layout_system.addRow(lbl_noise, noise_row_layout)
+        
+        main_layout.addWidget(group_system)
+        main_layout.addStretch()
 
     def on_gui_enable_toggled(self, checked):
+        if hasattr(self, 'widget_deps'):
+            self.widget_deps.setEnabled(checked)
         if self.status_window:
             self.status_window.set_gui_visible(checked)
 
@@ -370,6 +428,7 @@ class SettingsWindow(QMainWindow):
             if hasattr(self, 'slider_vol'): self.slider_vol.setStyleSheet(slider_style)
             if hasattr(self, 'slider_gui_opacity'): self.slider_gui_opacity.setStyleSheet(slider_style)
             if hasattr(self, 'slider_bg_opacity'): self.slider_bg_opacity.setStyleSheet(slider_style)
+            if hasattr(self, 'slider_noise'): self.slider_noise.setStyleSheet(slider_style)
             
         except Exception as e:
             print(f"[Settings] Error updating theme locally: {e}")
@@ -407,6 +466,15 @@ class SettingsWindow(QMainWindow):
             self.status_window.update_lock_state(checked)
         
         # Note: We can add immediate theme preview if desired, but restart is safer for now.
+
+    def on_noise_threshold_changed(self, value):
+        """Update the noise label live and persist the change silently."""
+        self.lbl_noise_val.setText(str(value))
+        self.config_data["noise_threshold"] = value
+        self.save_settings(silent=True)
+        # Propagate to listener via action queue if StatusWindow is available
+        if self.status_window and hasattr(self.status_window, 'action_queue') and self.status_window.action_queue:
+            self.status_window.action_queue.put(("SET_NOISE_THRESHOLD", value))
 
     def init_voice_tab(self):
         layout = QVBoxLayout()
@@ -786,6 +854,7 @@ class SettingsWindow(QMainWindow):
             self.chk_transparency.setChecked(True)
             self.chk_lock_widget.setChecked(False)
             self.input_screenshot.setText("")
+            self.slider_noise.setValue(450)
 
             self.save_settings(silent=True)
 
@@ -804,6 +873,7 @@ class SettingsWindow(QMainWindow):
         self.config_data["status_gui_transparency"] = self.chk_transparency.isChecked()
         self.config_data["status_gui_invisible"] = self.chk_invisible.isChecked()
         self.config_data["screenshot_path"] = self.input_screenshot.text()
+        self.config_data["noise_threshold"] = self.slider_noise.value()
         
         # Save Taskbar Widget Config
         self.widget_config["locked"] = self.chk_lock_widget.isChecked()

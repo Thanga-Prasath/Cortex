@@ -249,6 +249,10 @@ class CortexEngine:
                     elif cmd == "AUTOMATION_DIALOG_STATE":
                         self.automation_dialog_active = data
                         print(f"[Engine] Automation Dialog Active: {self.automation_dialog_active}")
+                    elif cmd == "SET_NOISE_THRESHOLD":
+                        if hasattr(self, 'listener') and self.listener:
+                            self.listener.THRESHOLD = int(data)
+                            print(f"[Engine] Noise threshold updated live: {data}")
             except queue.Empty:
                 continue
             except Exception as e:

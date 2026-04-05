@@ -233,7 +233,7 @@ class Listener:
             avg_noise = np.mean(noise_levels)
             self.THRESHOLD = avg_noise * 1.5 # Set threshold 50% above noise floor
             # Clamp minimum threshold to avoid super sensitivity
-            if self.THRESHOLD < 400: self.THRESHOLD = 400 # Increased from 300
+            if self.THRESHOLD < 450: self.THRESHOLD = 450 # Increased from 400
             
             print(f"Calibration Complete. Threshold set to: {self.THRESHOLD:.2f} (Avg Noise: {avg_noise:.2f})")
             
@@ -477,14 +477,30 @@ class Listener:
 
     def listen_for_interrupt(self, timeout=30):
         """
-        A SEPARATE lightweight listener used exclusively by the interrupt thread.
-        KEY DIFFERENCES from listen():
-          - Opens its OWN PyAudio instance so it doesn't conflict with self.p
-          - Does NOT wait for is_speaking_flag (that's exactly the point)
-          - Hard timeout so it doesn't block forever
-          - Only transcribes short bursts, not full commands
-        Returns the transcript string, or empty string on timeout/no speech.
+        Sliding-window interrupt listener.
+
+        Instead of recording everything until silence and then transcribing,
+        this continuously transcribes short 1.5-second rolling windows of audio.
+        The MOMENT a stop word is detected in any window, it returns immediately
+        — achieving near-instant speech interruption without waiting for silence.
+
+        HALLUCINATION PREVENTION: No initial_prompt is used. This stops Whisper
+        from force-mapping the assistant's own voice bleedthrough into stop words.
+        A genuine "shut up" from the user will still appear in the transcript
+        because it is acoustically dominant over the assistant's voice.
         """
+        # --------------- tuneable constants ---------------
+        # How many audio chunks form one transcription window (~1.5 seconds)
+        WINDOW_CHUNKS = int(1.5 * self.RATE / self.CHUNK)   # ~23 chunks
+        # How many NEW chunks to collect before sliding and re-transcribing (~0.64s)
+        SLIDE_CHUNKS  = int(0.64 * self.RATE / self.CHUNK)  # ~10 chunks
+        STOP_KEYWORDS = {
+            "stop", "stop talking", "stop speaking",
+            "shut up", "be quiet", "enough",
+            "silence", "quiet", "zip it",
+        }
+        # --------------------------------------------------
+
         p_int = None
         stream_int = None
         try:
@@ -496,69 +512,82 @@ class Listener:
                         channels=self.CHANNELS,
                         rate=self.RATE,
                         input=True,
-                        frames_per_buffer=self.CHUNK
+                        frames_per_buffer=self.CHUNK,
                     )
                 except Exception as e:
                     print(f"[Interrupt Listener] Could not open audio stream: {e}")
                     return ""
 
-            frames = []
-            started = False
-            start_time = time.time()
-            last_speech_time = time.time()
+            ring_buffer = []   # rolling window of raw audio chunks
+            new_chunks  = 0    # how many NEW chunks arrived since last transcription
+            start_time  = time.time()
 
             while True:
-                # Global hard timeout
+                # Hard timeout
                 if time.time() - start_time > timeout:
                     break
 
-                # If speaking already finished with no speech detected, bail out
-                if not started and self.is_speaking_flag and not self.is_speaking_flag.value:
-                    # Speaking ended; no point listening further
-                    if time.time() - start_time > 1.0:  # Give at least 1s
+                # Exit early when speaking is finished
+                if self.is_speaking_flag and not self.is_speaking_flag.value:
+                    if time.time() - start_time > 1.0:
                         break
 
+                # Read one chunk from the mic
                 try:
                     data = stream_int.read(self.CHUNK, exception_on_overflow=False)
                 except Exception:
                     break
 
-                samples = np.frombuffer(data, dtype=np.int16).astype(np.float32)
-                samples = samples - np.mean(samples)
-                rms = np.sqrt(np.mean(samples**2))
+                ring_buffer.append(data)
+                new_chunks += 1
 
-                if not started:
-                    if rms > self.THRESHOLD:
-                        started = True
-                        frames.append(data)
-                        last_speech_time = time.time()
-                else:
-                    frames.append(data)
-                    if rms > self.THRESHOLD:
-                        last_speech_time = time.time()
-                    # Silence = done speaking
-                    if time.time() - last_speech_time > 0.8:
-                        break
-                    # Hard cap: 5 seconds max for an interrupt phrase
-                    if len(frames) * self.CHUNK / self.RATE > 5:
-                        break
+                # Keep the ring buffer at exactly WINDOW_CHUNKS size
+                if len(ring_buffer) > WINDOW_CHUNKS:
+                    ring_buffer.pop(0)
 
-            if not frames:
-                return ""
+                # Only transcribe every SLIDE_CHUNKS new chunks
+                if new_chunks < SLIDE_CHUNKS or len(ring_buffer) < WINDOW_CHUNKS:
+                    continue
+                new_chunks = 0
 
-            # Transcribe captured audio
-            audio_data = b''.join(frames)
-            audio_np = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
-            segments, _ = self.model.transcribe(
-                audio_np,
-                beam_size=1,        # Fast — we only need coarse recognition
-                temperature=0,
-                language="en",
-                initial_prompt="stop talking, stop speaking, be quiet, shut up, enough, silence, quiet"
-            )
-            text = "".join(seg.text for seg in segments).strip().lower()
-            text = text.replace(".", "").replace("?", "").replace(",", "").replace("!", "")
-            return text
+                # Build numpy array from the current window
+                window_bytes = b"".join(ring_buffer)
+                audio_np = (
+                    np.frombuffer(window_bytes, dtype=np.int16)
+                    .astype(np.float32) / 32768.0
+                )
+
+                # Skip windows that are pure silence — no need to call Whisper
+                rms = np.sqrt(np.mean(audio_np ** 2))
+                if rms < (self.THRESHOLD / 32768.0):
+                    continue
+
+                # Transcribe the 1.5-second window
+                # NO initial_prompt — prevents Whisper hallucinating stop words
+                # from the assistant's own voice bleedthrough.
+                try:
+                    segs, _ = self.model.transcribe(
+                        audio_np,
+                        beam_size=1,
+                        temperature=0,
+                        language="en",
+                    )
+                    text = "".join(s.text for s in segs).strip().lower()
+                    text = text.replace(".", "").replace("?", "").replace(",", "").replace("!", "")
+                except Exception:
+                    continue
+
+                if not text:
+                    continue
+
+                print(f"\r[Interrupt Thread] Heard: '{text}'", flush=True)
+
+                # Check for any stop keyword — return IMMEDIATELY on first hit
+                for kw in STOP_KEYWORDS:
+                    if kw in text:
+                        return text
+
+            return ""
 
         except Exception as e:
             print(f"[Interrupt Listener] Error: {e}")
@@ -568,11 +597,15 @@ class Listener:
                 if stream_int and stream_int.is_active():
                     stream_int.stop_stream()
                     stream_int.close()
-            except: pass
+            except Exception:
+                pass
             try:
                 if p_int:
                     p_int.terminate()
-            except: pass
+            except Exception:
+                pass
+
+
 
     def terminate(self):
         """Clean resource release."""
