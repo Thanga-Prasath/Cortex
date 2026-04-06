@@ -206,20 +206,62 @@ class CortexEngine:
         name = self.user_config.get('name', 'Sir')
         
         if 0 <= hour < 12:
-            greeting = f"Good Morning, {name}."
-        elif 12 <= hour < 18:
-            greeting = f"Good Afternoon, {name}."
+            greetings = [
+                f"Good Morning, {name}.",
+                f"Welcome {name}, what are we going to do today?",
+                f"Good Morning, {name}. What are we going to do today?",
+                f"Welcome back, {name}. How can I help you this morning?"
+            ]
+        elif 12 <= hour < 17:
+            greetings = [
+                f"Good Afternoon, {name}.",
+                f"Welcome {name}, I hope your day is going well.",
+                f"Good Afternoon, {name}. How may I assist you?",
+                f"Welcome back, {name}. What is on the agenda for this afternoon?"
+            ]
         else:
-            greeting = f"Good Evening, {name}."
+            greetings = [
+                f"Good Evening, {name}.",
+                f"Welcome {name}, how is your day, {name}?",
+                f"Good Evening, {name}. How was your day?",
+                f"Welcome back, {name}. How did your day go?"
+            ]
             
         suffixes = [
-            "I am ready to help you.",
-            "It is lovely to see you again.",
-            "How can I be of service?",
-            "I hope you are having a wonderful day."
+            "I am ready and at your service.",
+            "Please let me know how I can be of assistance.",
+            "I am here whenever you need me.",
+            "" # Sometimes just say the time-based greeting naturally
         ]
         
-        self.speaker.speak(f"{greeting} {random.choice(suffixes)}")
+        chosen_greeting = random.choice(greetings)
+        
+        # Only append a suffix if the greeting doesn't end with a question mark
+        # to avoid double questions or awkward phrasing
+        if "?" not in chosen_greeting:
+            chosen_suffix = random.choice(suffixes)
+            if chosen_suffix:
+                final_speech = f"{chosen_greeting} {chosen_suffix}"
+            else:
+                final_speech = chosen_greeting
+        else:
+            final_speech = chosen_greeting
+            
+        self.speaker.speak(final_speech)
+        
+        # If the generated greeting had a question, wait for user reply
+        if "?" in final_speech:
+            reply = self.listener.listen(timeout=6)
+            if reply:
+                reply = reply.lower()
+                if any(w in reply for w in ["good", "great", "fine", "well", "awesome", "perfect", "okay"]):
+                    self.speaker.speak("I am very glad to hear that. I am ready when you are.")
+                elif any(w in reply for w in ["bad", "terrible", "not good", "awful", "tired", "exhausted"]):
+                    self.speaker.speak("I am sorry to hear that. I will try my best to help make it better.")
+                elif any(w in reply for w in ["work", "code", "project", "study", "nothing", "relax", "chill"]):
+                    self.speaker.speak("Sounds like a plan. Let me know what you need.")
+                else:
+                    self.speaker.speak("Understood. Just tell me when you need something.")
 
     def _action_queue_listener(self):
         """Listens for actions from the UI process and delegates them."""
@@ -407,8 +449,24 @@ class CortexEngine:
                     self.status_queue.put(("IDLE", None))
                 continue
 
+            # --- WAKE WORD CHECK ---
+            wake_word = "cortex"
+            
+            if wake_word not in command:
+                # Still allow critical safety exits without wake word for convenience
+                if command not in ["stop", "exit", "bye", "shutdown", "quit"]:
+                    print(f"Ignored (no wake word): {command}")
+                    continue
+            else:
+                # Strip the wake word so the NLU model gets the pure command
+                command = command.replace(wake_word, "").strip()
+                if not command:
+                    # They just said "Cortex"
+                    self.speaker.speak("I am listening.")
+                    continue
+
             # --- SAFETY OVERRIDE ---
-            if command in ["stop", "exit", "bye", "shutdown", "quit", "cortex stop"]:
+            if command in ["stop", "exit", "bye", "shutdown", "quit"]:
                 self.execute_intent('exit', command)
                 break
 

@@ -231,15 +231,15 @@ import random
 
 class NaturalSpeechFormatter:
     def __init__(self):
-        # 40% chance to apply a natural prefix for conversational feel
-        self.apply_chance = 0.40
+        # 100% chance to apply a natural prefix for conversational feel
+        self.apply_chance = 1.0
         self.current_intent = None
         
         # Emotionally categorized prefixes
-        self.prefix_action = ["On it", "Alright", "Right away", "Okay", "I can handle that"]
-        self.prefix_info = ["Sure", "Let me check", "Okay", "Checking now"]
-        self.prefix_confirm = ["Got it", "Done", "Understood", "Yep"]
-        self.prefix_generic = ["Alright", "Sure", "Okay", "Yep"]
+        self.prefix_action = ["On it", "Alright", "Right away", "Okay, I'll get that started", "I'll take care of it", "Consider it done"]
+        self.prefix_info = ["Sure thing", "Let me check on that", "Here you go", "Here is what I found", "Yes, sir"]
+        self.prefix_confirm = ["Got it", "Done", "Understood", "All set", "I've handled that"]
+        self.prefix_generic = ["Alright", "Of course", "Okay", "Yes, sir", "Certainly"]
         
         # Categorize intents for emotional mapping
         self.action_tags = ["app_open", "file_create_folder", "file_create_file", "file_move", "file_move_here", "workspace_create", "workspace_launch", "run_workflow", "run_automation_by_number", "window_snap_left", "window_snap_right", "window_minimize", "window_maximize", "window_restore", "scan_drivers", "system_scan", "dictation_mode"]
