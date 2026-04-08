@@ -270,6 +270,17 @@ class KnowledgeWindow(QMainWindow):
         self.detail_scroll.setWidget(self.detail_content)
         self.stack.addWidget(self.detail_scroll)
 
+        # Page: Search Results (global, cross-category)
+        self.search_scroll = QScrollArea()
+        self.search_scroll.setWidgetResizable(True)
+        self.search_scroll.setStyleSheet("background: transparent; border: none;")
+        self.search_content = QWidget()
+        self.search_layout = QVBoxLayout(self.search_content)
+        self.search_layout.setContentsMargins(40, 20, 40, 40)
+        self.search_layout.setSpacing(8)
+        self.search_scroll.setWidget(self.search_content)
+        self.stack.addWidget(self.search_scroll)  # index 2
+
         # Metadata Cache
         self.all_intents = {} # {category: [intents]}
         self.load_data()
@@ -313,22 +324,54 @@ class KnowledgeWindow(QMainWindow):
 
         # 3. Create Hub Tiles
         icon_map = {
-            "automation": "⚡", "system": "🖥️", "media": "🎵", "general": "💬",
-            "files": "📁", "apps": "🚀", "browser": "🌐", "window": "🪟", "workspace": "🏢",
-            "developer": "👨‍💻", "network_advanced": "📡", "power_user": "🛠️", "file_ops": "🗄️",
-            "voice_control": "🎙️"
+            "automation":       "⚡",
+            "system":           "🖥️",
+            "media":            "🎵",
+            "general":          "💬",
+            "files":            "📁",
+            "apps":             "🚀",
+            "browser":          "🌐",
+            "window":           "🪟",
+            "workspaces":       "🏢",   # matches workspaces.json → key 'workspaces'
+            "workspace":        "🏢",   # fallback alias
+            "productivity":     "✏️",
+            "conversational":   "🗣️",
+            "developer":        "👨\u200d💻",
+            "network_advanced": "📡",
+            "power_user":       "🛠️",
+            "file_ops":         "🗄️",
+            "voice_control":    "🎙️",
+        }
+
+        # Human-readable display names per category key
+        name_map = {
+            "apps":             "Applications",
+            "automation":       "Automation",
+            "conversational":   "Conversational AI",
+            "files":            "File Manager",
+            "general":          "General",
+            "media":            "Media",
+            "productivity":     "Productivity",
+            "system":           "System",
+            "window":           "Window Control",
+            "workspaces":       "Workspaces",
+            "workspace":        "Workspaces",
         }
         
         row, col = 0, 0
-        categories = sorted(self.all_intents.keys())
-        for cat_key in categories:
+        # Sort with a priority order so important categories appear first
+        priority = ["apps", "window", "workspaces", "files", "automation",
+                    "productivity", "system", "conversational", "general", "media"]
+        all_keys = list(self.all_intents.keys())
+        ordered = [k for k in priority if k in all_keys] + sorted([k for k in all_keys if k not in priority])
+        for cat_key in ordered:
             intents = self.all_intents[cat_key]
             if not intents: continue
             
-            cat_name = cat_key.replace('_', ' ').capitalize()
+            cat_name = name_map.get(cat_key, cat_key.replace('_', ' ').title())
             icon = icon_map.get(cat_key, "📦")
             
-            tile = ClickableCard(cat_name, f"{len(intents)} Functions", icon, self.accent_color, 
+            tile = ClickableCard(cat_name, f"{len(intents)} Capabilities", icon, self.accent_color,
                                  lambda c=cat_key: self.show_category(c))
             self.hub_grid.addWidget(tile, row, col)
             
@@ -346,7 +389,16 @@ class KnowledgeWindow(QMainWindow):
                 child.widget().deleteLater()
             
         intents = self.all_intents.get(cat_key, [])
-        cat_name = cat_key.capitalize()
+        
+        # Build name_map locally if not in scope (show_category is called independently)
+        _name_map = {
+            "apps": "Applications", "automation": "Automation",
+            "conversational": "Conversational AI", "files": "File Manager",
+            "general": "General", "media": "Media", "productivity": "Productivity",
+            "system": "System", "window": "Window Control",
+            "workspaces": "Workspaces", "workspace": "Workspaces",
+        }
+        cat_name = _name_map.get(cat_key, cat_key.replace('_', ' ').title())
         
         # Add Title & Summary
         title = QLabel(f"<span style='color: {self.accent_color};'>{cat_name}</span> Environment")
@@ -379,24 +431,144 @@ class KnowledgeWindow(QMainWindow):
         self.btn_back.setVisible(False)
         self.breadcrumb.setText("<b>KNOWLEDGE HUB</b>")
         self.search_bar.clear()
+        # Clear search page so stale results don't linger
+        self._clear_layout(self.search_layout)
+
+    def _clear_layout(self, layout):
+        """Remove all widgets from a layout recursively."""
+        while layout.count():
+            child = layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
 
     def handle_search(self, text):
-        """Powerful search that filters either Hub tiles or Detail cards."""
-        text = text.lower()
-        if self.stack.currentIndex() == 0:
-            # Filter Hub Tiles
-            for i in range(self.hub_grid.count()):
-                widget = self.hub_grid.itemAt(i).widget()
-                if isinstance(widget, ClickableCard):
-                    widget.setVisible(text in widget.title_label.text().lower())
+        """Global search across all categories when on hub page.
+        Category-detail search when browsing a specific category."""
+        text = text.lower().strip()
+
+        if self.stack.currentIndex() == 1:
+            # ── In-category filter: search within the open category's FunctionCards ──
+            try:
+                list_widget = self.detail_layout.itemAt(2).widget()
+                if list_widget:
+                    layout = list_widget.layout()
+                    for i in range(layout.count()):
+                        widget = layout.itemAt(i).widget()
+                        if isinstance(widget, FunctionCard):
+                            match = (
+                                not text
+                                or text in widget.tag.lower()
+                                or any(text in p.lower() for p in widget.data.get('patterns', []))
+                                or any(text in k.lower() for k in widget.data.get('keywords', []))
+                                or any(text in a.lower() for a in widget.data.get('anchors', []))
+                            )
+                            widget.setVisible(match)
+            except Exception:
+                pass
+            return
+
+        # ── Hub page: global cross-category search ────────────────────────────
+        if not text:
+            # Empty search → go back to hub grid
+            self.stack.setCurrentIndex(0)
+            self.btn_back.setVisible(False)
+            self.breadcrumb.setText("<b>KNOWLEDGE HUB</b>")
+            return
+
+        # Build results
+        self._build_search_results(text)
+
+    def _build_search_results(self, query):
+        """Search all intents across all categories and display results on page 2."""
+        self._clear_layout(self.search_layout)
+
+        _name_map = {
+            "apps": "Applications", "automation": "Automation",
+            "conversational": "Conversational AI", "files": "File Manager",
+            "general": "General", "media": "Media", "productivity": "Productivity",
+            "system": "System", "window": "Window Control",
+            "workspaces": "Workspaces", "workspace": "Workspaces",
+        }
+
+        total_hits = 0
+
+        for cat_key, intents in self.all_intents.items():
+            matches = []
+            for intent in intents:
+                tag = intent.get('tag', '')
+                patterns  = intent.get('patterns', [])
+                keywords  = intent.get('keywords', [])
+                anchors   = intent.get('anchors', [])
+                responses = intent.get('responses', [])
+
+                # Search across every text field
+                hit = (
+                    query in tag.lower()
+                    or any(query in p.lower() for p in patterns)
+                    or any(query in k.lower() for k in keywords)
+                    or any(query in a.lower() for a in anchors)
+                    or any(query in r.lower() for r in responses)
+                )
+                if hit:
+                    matches.append(intent)
+
+            if not matches:
+                continue
+
+            total_hits += len(matches)
+            cat_name = _name_map.get(cat_key, cat_key.replace('_', ' ').title())
+
+            # ── Category group header ──
+            grp_header = QFrame()
+            grp_header.setStyleSheet(
+                f"QFrame {{ background: #1a1a1a; border-left: 3px solid {self.accent_color};"
+                f" border-radius: 0; padding: 6px 14px; margin-top: 14px; }}"
+            )
+            grp_h_layout = QHBoxLayout(grp_header)
+            grp_h_layout.setContentsMargins(10, 4, 10, 4)
+
+            cat_lbl = QLabel(cat_name.upper())
+            cat_lbl.setStyleSheet(
+                f"color: {self.accent_color}; font-size: 13px; font-weight: bold; border: none;"
+            )
+            grp_h_layout.addWidget(cat_lbl)
+
+            count_lbl = QLabel(f"{len(matches)} match{'es' if len(matches) != 1 else ''}")
+            count_lbl.setStyleSheet("color: #666; font-size: 11px; border: none;")
+            count_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            grp_h_layout.addWidget(count_lbl)
+
+            # Clickable header → opens that category detail view
+            grp_header.setCursor(Qt.CursorShape.PointingHandCursor)
+            grp_header.mousePressEvent = lambda e, c=cat_key: self.show_category(c)
+
+            self.search_layout.addWidget(grp_header)
+
+            # ── Matched FunctionCards ──
+            for intent in matches:
+                card = FunctionCard(intent['tag'], intent, self.accent_color)
+                self.search_layout.addWidget(card)
+
+        # ── Summary header / no-results state ──
+        if total_hits == 0:
+            no_result = QLabel(f'No results found for  "<b>{query}</b>"')
+            no_result.setStyleSheet("color: #666; font-size: 14px; margin: 40px auto;")
+            no_result.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.search_layout.insertWidget(0, no_result)
         else:
-            # Filter Detail Cards
-            # Get the grid inside detail_layout (it's at index 2)
-            grid_widget = self.detail_layout.itemAt(2).widget()
-            grid = grid_widget.layout()
-            for i in range(grid.count()):
-                widget = grid.itemAt(i).widget()
-                if isinstance(widget, FunctionCard):
-                    # Match tag or patterns
-                    match = text in widget.tag.lower() or any(text in p.lower() for p in widget.data.get('patterns', []))
-                    widget.setVisible(match)
+            summary = QLabel(
+                f'<b style="color:{self.accent_color}">{total_hits}</b>'
+                f' result{"s" if total_hits != 1 else ""} for '
+                f'"<b>{query}</b>" across all categories'
+            )
+            summary.setStyleSheet("color: #aaa; font-size: 13px; margin-bottom: 4px;")
+            self.search_layout.insertWidget(0, summary)
+
+        self.search_layout.addStretch()
+
+        # ── Show search page ──
+        self.breadcrumb.setText(
+            f"KNOWLEDGE HUB &gt; <b>SEARCH: {query.upper()}</b>"
+        )
+        self.btn_back.setVisible(True)
+        self.stack.setCurrentIndex(2)

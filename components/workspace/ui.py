@@ -208,10 +208,11 @@ class WorkspaceEditor(QMainWindow):
             self.windowHandle().startSystemMove()
 
 class WorkspaceSelector(QMainWindow):
-    def __init__(self, manager, mode="LAUNCH"): # mode: LAUNCH, EDIT, REMOVE
+    def __init__(self, manager, mode="LAUNCH", action_queue=None):  # mode: LAUNCH, EDIT, REMOVE
         super().__init__()
         self.manager = manager
         self.mode = mode
+        self.action_queue = action_queue  # For firing WORKSPACE_GUI_SELECTED back to engine
         self.setWindowTitle("Select Workspace")
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
@@ -306,9 +307,15 @@ class WorkspaceSelector(QMainWindow):
         
         if self.mode == "LAUNCH":
             self.manager.launch_workspace(name)
+            # Signal engine so it can drop the voice-wait PENDING state
+            if self.action_queue:
+                self.action_queue.put(("WORKSPACE_GUI_SELECTED", name))
             self.close()
         elif self.mode == "REMOVE":
             self.manager.delete_workspace(name)
+            # Signal engine so it can drop the voice-wait PENDING state
+            if self.action_queue:
+                self.action_queue.put(("WORKSPACE_GUI_SELECTED", name))
             self.close()
         elif self.mode == "EDIT":
             self.close()

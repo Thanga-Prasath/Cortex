@@ -27,9 +27,19 @@ class FileManagerEngine:
         Routes the intent to the appropriate handler.
         """
         if intent == 'file_create_folder':
+            # Extract folder name from command
+            folder_name = extract_name(command, ["create", "make", "new", "folder", "directory"])
+            if not folder_name.strip():
+                self.speaker.speak("What should I name the new folder?")
+                return "PENDING"
             threading.Thread(target=self._create_folder, args=(command,)).start()
             return True
         elif intent == 'file_create_file':
+            # Extract file name from command
+            file_name = extract_name(command, ["create", "make", "new", "file", "document"])
+            if not file_name.strip():
+                self.speaker.speak("What should I name the new file?")
+                return "PENDING"
             threading.Thread(target=self._create_file, args=(command,)).start()
             return True
         elif intent == 'file_move':
@@ -40,7 +50,7 @@ class FileManagerEngine:
             return True
         elif intent == 'file_search':
             # Extract query
-            keywords = ["search", "find", "look for", "searching"]
+            keywords = ["search", "find", "look for", "searching", "locate"]
             query = extract_name(command, keywords)
             
             # Clean query prefixes
@@ -48,9 +58,20 @@ class FileManagerEngine:
             for p in prefixes:
                 if query.lower().startswith(p):
                     query = query[len(p):].strip()
+            
+            # Blocklist: if the remaining query is just a generic word like
+            # "file" or "folder" (e.g. user said "find file"), treat as empty.
+            # These words describe the type, not the actual thing to search for.
+            _GENERIC_QUERY_WORDS = {
+                "file", "folder", "document", "directory", "item", "thing",
+                "it", "this", "that", "one", "something", "anything"
+            }
+            if query.lower().strip() in _GENERIC_QUERY_WORDS:
+                query = ""
                     
             if not query:
-                return False
+                self.speaker.speak("Which file or folder are you looking for?")
+                return "PENDING"
                 
             threading.Thread(target=self._background_search, args=(query,)).start()
             return True

@@ -12,22 +12,24 @@ class ApplicationEngine:
         # Based on the plan, we expect the main loop to pass tag/intent here.
         
         if intent == 'app_open':
-            # Extract app name. 
+            # Extract app name.
             # heuristic: remove "open", "launch", "application", "please"
             app_name = self._extract_app_name(command, ["open", "launch", "start", "run", "application", "app"])
             if app_name:
                 threading.Thread(target=self._open_app, args=(app_name,)).start()
+                return True
             else:
                 self.speaker.speak("Which application would you like me to open?")
-            return True
+                return "PENDING"
             
         elif intent == 'app_close':
             app_name = self._extract_app_name(command, ["close", "quit", "exit", "terminate", "kill", "application", "app"])
             if app_name:
                 threading.Thread(target=self._close_app, args=(app_name,)).start()
+                return True
             else:
                 self.speaker.speak("Which application would you like me to close?")
-            return True
+                return "PENDING"
             
         return False
 

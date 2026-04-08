@@ -18,12 +18,24 @@ class WorkspaceEngine:
             name = self._extract_workspace_name(command)
             if name:
                 self.speaker.speak(f"Launching workspace {name}.")
-                if not self.manager.launch_workspace(name):
-                    self.speaker.speak(f"Could not find workspace named {name}.")
-            else:
-                self.speaker.speak("Which workspace would you like to launch?")
+                self.manager.launch_workspace(name)
+                return True
+            elif name is False:
+                # Name was spoken but no workspace matched — re-prompt with list
+                existing = self.manager.get_workspace_names()
+                if existing:
+                    names_str = ", ".join(existing)
+                    self.speaker.speak(f"I couldn't find that workspace. You have: {names_str}. Which one should I launch?")
+                else:
+                    self.speaker.speak("You have no saved workspaces.")
+                    return True
                 self.open_selector("LAUNCH")
-            return True
+                return "PENDING"
+            else:
+                # No name given at all — prompt and show GUI
+                self.speaker.speak("Which workspace should I launch? You can also select one from the list.")
+                self.open_selector("LAUNCH")
+                return "PENDING"
             
         elif tag == "workspace_close":
             self.speaker.speak("Closing current workspace applications.")
@@ -39,9 +51,29 @@ class WorkspaceEngine:
             return True
             
         elif tag == "workspace_remove":
-            self.speaker.speak("Which workspace would you like to remove?")
-            self.open_selector("REMOVE")
-            return True
+            name = self._extract_workspace_name(command)
+            if name:
+                if self.manager.delete_workspace(name):
+                    self.speaker.speak(f"Workspace {name} removed.")
+                else:
+                    self.speaker.speak(f"Could not remove workspace {name}.")
+                return True
+            elif name is False:
+                # Name spoken but not matched — re-prompt with list
+                existing = self.manager.get_workspace_names()
+                if existing:
+                    names_str = ", ".join(existing)
+                    self.speaker.speak(f"I couldn't find that workspace. You have: {names_str}. Which one should I remove?")
+                else:
+                    self.speaker.speak("You have no saved workspaces.")
+                    return True
+                self.open_selector("REMOVE")
+                return "PENDING"
+            else:
+                # No name given — hybrid prompt
+                self.speaker.speak("Which workspace should I remove? You can also select one from the list.")
+                self.open_selector("REMOVE")
+                return "PENDING"
         
         elif tag == "workspace_list":
             workspaces = self.manager.get_workspace_names()
@@ -55,19 +87,66 @@ class WorkspaceEngine:
         return False
 
     def _extract_workspace_name(self, command):
-        # command: "open workspace Dev", "launch workspace Gaming"
-        triggers = ["open workspace", "launch workspace", "start workspace", "run workspace"]
+        """
+        Extract and fuzzy-match a workspace name from a command string.
+        
+        Returns:
+            str   — the canonical workspace name (matched)
+            False — a name was provided but no workspace matched
+            None  — no name was present at all (e.g. bare "launch workspace")
+        """
+        cmd = command.strip().lower()
+        
+        # Strip trigger phrases to isolate the candidate name
+        triggers = [
+            "open workspace", "launch workspace", "start workspace",
+            "run workspace", "load workspace", "switch workspace"
+        ]
+        candidate = None
         for trigger in triggers:
-            if command.startswith(trigger):
-                name = command[len(trigger):].strip()
-                if name:
-                    # Match case-insensitively with existing workspaces
-                    existing = self.manager.get_workspace_names()
-                    for w in existing:
-                        if w.lower() == name.lower():
-                            return w
-                    return name 
-        return None
+            if cmd.startswith(trigger):
+                after = cmd[len(trigger):].strip()
+                if after:
+                    candidate = after
+                else:
+                    return None  # Bare trigger with nothing after it
+                break
+        
+        # If no trigger found, treat the entire command as the candidate name
+        # (This is the PENDING-fill path: command = "browsers", "point", etc.)
+        if candidate is None:
+            if cmd:
+                candidate = cmd
+            else:
+                return None
+        
+        # Fuzzy match against all saved workspaces (case-insensitive)
+        existing = self.manager.get_workspace_names()
+        
+        # Pass 1: exact match (case-insensitive)
+        for w in existing:
+            if w.lower() == candidate:
+                return w
+        
+        # Pass 2: workspace name is contained in candidate (e.g. "browsers workspace")
+        for w in existing:
+            if w.lower() in candidate:
+                return w
+        
+        # Pass 3: candidate is contained in workspace name (e.g. "browser" → "Browsers")
+        for w in existing:
+            if candidate in w.lower():
+                return w
+        
+        # Pass 4: any word in the candidate matches any word in a workspace name
+        candidate_words = set(candidate.split())
+        for w in existing:
+            ws_words = set(w.lower().split())
+            if candidate_words & ws_words:  # non-empty intersection
+                return w
+        
+        # A name was spoken but nothing matched
+        return False
 
     def open_editor(self, name=None):
         # Send signal to UI process

@@ -241,11 +241,14 @@ class Listener:
             print(f"Calibration failed: {e}. Using default threshold.")
             self.THRESHOLD = 1000
 
-    def listen(self, timeout=None, is_on_hold=False):
+    def listen(self, timeout=None, is_on_hold=False, pending=False):
         """
         Records audio until silence and transcribes with Whisper.
         :param timeout: Max time to wait for speech start (seconds). Returns None if timeout.
         :param is_on_hold: If True, publishes IDLE status instead of LISTENING.
+        :param pending: If True, relaxes the single-word filter so short answers
+                        (e.g. 'whatsapp', 'chrome', 'logic') are returned as-is.
+                        Used by the engine when waiting for a missing parameter.
         """
         try:
             # Check for system speech to prevent self-listening
@@ -447,7 +450,11 @@ class Listener:
             ]
             
             # Relaxed filter: Allow if > 1 word OR is a keyword
-            is_valid = len(words) > 1 or (len(words) == 1 and words[0] in important_keywords)
+            # PENDING mode: allow ANY single word so user can answer "which app/file?" with just a name
+            if pending:
+                is_valid = len(words) >= 1  # Accept everything including 1-word answers
+            else:
+                is_valid = len(words) > 1 or (len(words) == 1 and words[0] in important_keywords)
             
             if is_valid:
                 print(f"\rUser: {full_text}" + " " * 20)

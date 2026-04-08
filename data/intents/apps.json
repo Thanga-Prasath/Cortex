@@ -68,22 +68,47 @@
                 "stop {app_name}",
                 "terminate {app_name}",
                 "kill {app_name}",
+                "close file explorer",
+                "quit file explorer",
+                "close windows explorer",
+                "close explorer",
+                "close notepad",
+                "close chrome",
+                "close firefox",
+                "close edge",
+                "close spotify",
                 "close powerpoint",
                 "close word",
                 "close excel",
-                "close spotify",
-                "close chrome"
+                "close discord",
+                "close whatsapp",
+                "close vlc",
+                "close terminal",
+                "quit notepad",
+                "quit chrome",
+                "kill notepad",
+                "terminate chrome"
             ],
             "responses": [],
             "keywords": [
                 "close application",
                 "quit application",
-                "stop application"
+                "stop application",
+                "close file explorer",
+                "close explorer",
+                "close notepad",
+                "close chrome"
             ],
             "anchors": [
+                "close",
+                "quit",
+                "kill",
+                "terminate",
+                "stop",
                 "app",
                 "application",
-                "program"
+                "program",
+                "explorer"
             ]
         },
         {

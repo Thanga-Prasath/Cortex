@@ -70,6 +70,7 @@ class CortexEngine:
         # Internal State
         self.dictation_active = False
         self.is_on_hold = False
+        self.pending_intent = None  # Holds the intent waiting for a missing parameter
         
         _log("Loading NLU model...")
         # NLU Model
@@ -284,6 +285,13 @@ class CortexEngine:
                         if hasattr(self, 'listener') and self.listener:
                             self.listener.THRESHOLD = int(data)
                             print(f"[Engine] Noise threshold updated live: {data}")
+                    elif cmd == "WORKSPACE_GUI_SELECTED":
+                        # User selected a workspace via the GUI selector —
+                        # clear the voice-wait PENDING state so the run loop doesn't
+                        # try to consume the next utterance as a workspace name.
+                        if self.pending_intent in ("workspace_launch", "workspace_remove"):
+                            self.pending_intent = None
+                            print(f"[Engine] Workspace PENDING cleared — resolved via GUI: {data}")
             except queue.Empty:
                 continue
             except Exception as e:
@@ -362,21 +370,32 @@ class CortexEngine:
             return True
 
         # 2. File Manager Engine
-        if self.file_manager.handle_intent(tag, command):
+        res = self.file_manager.handle_intent(tag, command)
+        if res == "PENDING":
+            return "PENDING"
+        if res:
             return True
 
         # 3. Application Engine
-        if self.application_engine.handle_intent(tag, command):
+        res = self.application_engine.handle_intent(tag, command)
+        if res == "PENDING":
+            return "PENDING"
+        if res:
             return True
 
         # 4. Workspace Engine
-        if self.workspace_engine.handle_intent(tag, command):
+        res = self.workspace_engine.handle_intent(tag, command)
+        if res == "PENDING":
+            return "PENDING"
+        if res:
             return True
 
         # 5. Automation Engine
         res = self.automation_engine.handle_intent(tag, command)
         if res == "TOGGLE_DICTATION":
              return "TOGGLE_DICTATION"
+        if res == "PENDING":
+            return "PENDING"
         if res:
              return True
 
@@ -404,14 +423,65 @@ class CortexEngine:
                 return "EXIT"
 
             # listen() blocks safely now. Pass is_on_hold so UI knows not to show "Listening"
-            command = self.listener.listen(timeout=None, is_on_hold=self.is_on_hold) 
+            # Pass pending=True when awaiting a missing parameter so single-word answers (e.g.
+            # "whatsapp", "chrome", "logic") are not silently dropped by the 1-word filter.
+            command = self.listener.listen(timeout=None, is_on_hold=self.is_on_hold, pending=bool(self.pending_intent))
             
             if not command:
                 continue
 
             command = command.lower()
 
-            # --- Dictation Mode ---
+            # ─────────────────────────────────────────────────────────
+            # [PENDING STATE TRAP] Multi-Turn Conversational State
+            # If we are waiting for a missing parameter (e.g. app name,
+            # file name), intercept the next utterance here BEFORE NLU.
+            # ─────────────────────────────────────────────────────────
+            if self.pending_intent:
+                # 1. Global Abort — always check first
+                abort_words = {"cancel", "nevermind", "stop", "abort", "forget it", "never mind", "exit"}
+                if command.strip() in abort_words:
+                    self.pending_intent = None
+                    self.speaker.speak("Cancelled.")
+                    if self.status_queue:
+                        self.status_queue.put(("IDLE", None))
+                    continue
+
+                # 2. Contextual Gatekeeper — protect against context trapping
+                # Run NLU on the response to detect if the user has changed their mind
+                gk_tag, gk_conf = self.nlu.predict(command)
+                word_count = len(command.split())
+
+                # Override conditions:
+                # - High confidence (>=0.85) for a DIFFERENT intent
+                # - More than 2 words (short nouns like "Chrome" or "Logic" are parameters)
+                # - Not a workspace pending intent being resolved by GUI (already handled above via action_queue)
+                is_override = (
+                    gk_conf >= 0.85
+                    and word_count > 2
+                    and gk_tag != self.pending_intent
+                    and gk_tag is not None
+                )
+
+                if is_override:
+                    print(f"[Engine] Gatekeeper: Context Override → clearing '{self.pending_intent}', executing '{gk_tag}'")
+                    self._log(f"Context Override: {self.pending_intent} → {gk_tag}")
+                    self.pending_intent = None
+                    # Fall through — let the loop process the new intent normally below
+                else:
+                    # Treat this utterance as the missing parameter
+                    print(f"[Engine] Pending '{self.pending_intent}' → filling with: '{command}'")
+                    self._log(f"Filling pending param for: {self.pending_intent}")
+                    pending_tag = self.pending_intent
+                    self.pending_intent = None  # Clear BEFORE execute to avoid re-entry
+                    res = self.execute_intent(pending_tag, command)
+                    if res == "PENDING":
+                        # Parameter was STILL not valid (e.g. workspace name not found)
+                        self.pending_intent = pending_tag
+                    if self.status_queue:
+                        self.status_queue.put(("IDLE", None))
+                    continue
+            # ─────────────────────────────────────────────────────────
             if self.dictation_active:
                 if "stop dictation" in command or "exit dictation" in command:
                     self.dictation_active = False
@@ -537,6 +607,9 @@ class CortexEngine:
                      if res == "TOGGLE_DICTATION":
                          self.dictation_active = True
                          self.speaker.speak("Dictation mode enabled.")
+                     if res == "PENDING":
+                         self.pending_intent = tag
+                         self._log(f"Pending state set: waiting for parameter for '{tag}'")
                      
                 elif 0.40 < confidence < 0.85:
                     # Ask for confirmation ONLY if we didn't already ask via context check
@@ -548,6 +621,9 @@ class CortexEngine:
                         if res == "TOGGLE_DICTATION":
                             self.dictation_active = True
                             self.speaker.speak("Dictation mode enabled.")
+                        if res == "PENDING":
+                            self.pending_intent = tag
+                            self._log(f"Pending state set: waiting for parameter for '{tag}'")
                     else:
                         # Ask for confirmation
                         display_name = self.get_confirmation_message(tag, command)
@@ -569,6 +645,9 @@ class CortexEngine:
                             if res == "TOGGLE_DICTATION":
                                 self.dictation_active = True
                                 self.speaker.speak("Dictation mode enabled.")
+                            if res == "PENDING":
+                                self.pending_intent = tag
+                                self._log(f"Pending state set: waiting for parameter for '{tag}'")
 
                         # ─────────────────────────────────────────────────────────
                         # [FEATURE 3] QUICK CORRECTION on medium confidence NO

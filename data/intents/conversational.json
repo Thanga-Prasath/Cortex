@@ -1,0 +1,124 @@
+{
+    "intents": [
+        {
+            "tag": "dictation_mode",
+            "patterns": [
+                "start dictation",
+                "dictation mode",
+                "enable dictation",
+                "type what I say",
+                "transcribe my speech",
+                "start typing mode",
+                "voice to text",
+                "write what I say",
+                "dictate text"
+            ],
+            "responses": [
+                "Dictation mode enabled. Everything you say will be typed.",
+                "I am now transcribing your speech."
+            ],
+            "keywords": [
+                "start dictation",
+                "dictation mode",
+                "voice to text"
+            ],
+            "anchors": [
+                "dictation",
+                "transcribe",
+                "type",
+                "voice",
+                "text",
+                "write"
+            ]
+        },
+        {
+            "tag": "cancel_pending",
+            "patterns": [
+                "cancel",
+                "never mind",
+                "nevermind",
+                "forget it",
+                "abort",
+                "stop",
+                "exit",
+                "go back"
+            ],
+            "responses": [
+                "Cancelled.",
+                "Alright, never mind."
+            ],
+            "keywords": [
+                "cancel",
+                "never mind",
+                "abort"
+            ],
+            "anchors": [
+                "cancel",
+                "abort",
+                "forget",
+                "stop",
+                "exit",
+                "never"
+            ]
+        },
+        {
+            "tag": "hold_mode",
+            "patterns": [
+                "hold on",
+                "stand by",
+                "wait a moment",
+                "pause",
+                "go on hold",
+                "be quiet for now",
+                "watch the time"
+            ],
+            "responses": [
+                "Of course, Understood. Just tell me when you need something.",
+                "Standing by."
+            ],
+            "keywords": [
+                "hold on",
+                "stand by"
+            ],
+            "anchors": [
+                "hold",
+                "stand",
+                "wait",
+                "pause",
+                "quiet"
+            ]
+        },
+        {
+            "tag": "exit",
+            "patterns": [
+                "exit cortex",
+                "quit cortex",
+                "shut down assistant",
+                "goodbye",
+                "bye cortex",
+                "stop cortex",
+                "turn off",
+                "close cortex"
+            ],
+            "responses": [
+                "Goodbye, Sir. I hope I was helpful today.",
+                "As you wish. Shutting down."
+            ],
+            "keywords": [
+                "exit",
+                "quit",
+                "goodbye",
+                "bye"
+            ],
+            "anchors": [
+                "exit",
+                "quit",
+                "bye",
+                "goodbye",
+                "shutdown",
+                "stop",
+                "close"
+            ]
+        }
+    ]
+}

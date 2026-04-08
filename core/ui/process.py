@@ -75,7 +75,8 @@ def ui_process_target(status_queue, action_queue, reset_event=None, shutdown_eve
                     
                 elif status == "WORKSPACE_SELECTOR":
                     # data = "LAUNCH", "EDIT", or "REMOVE"
-                    selector = WorkspaceSelector(manager, data)
+                    # Pass action_queue so selector can fire WORKSPACE_GUI_SELECTED back to engine
+                    selector = WorkspaceSelector(manager, data, action_queue=action_queue)
                     selector.show()
                     track_window(selector)
                     

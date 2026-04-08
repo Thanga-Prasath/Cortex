@@ -63,7 +63,9 @@ class AutomationEngine:
 
         # --- Phase 2: Window Management ---
         if tag.startswith('window_'):
-            self._handle_window_ops(tag, command)
+            result = self._handle_window_ops(tag, command)
+            if result == "PENDING":
+                return "PENDING"
             return True
 
         # --- Phase 3: Productivity ---
@@ -100,7 +102,9 @@ class AutomationEngine:
             return True
 
         if tag == 'run_automation_by_name':
-            self.handle_run_by_name(command)
+            result = self.handle_run_by_name(command)
+            if result == "PENDING":
+                return "PENDING"
             return True
 
         return False
@@ -164,6 +168,8 @@ class AutomationEngine:
         """Extract automation name from command and run it by fuzzy name match."""
         if not self._try_run_by_name(command):
             self.speaker.speak("Which automation would you like me to run?")
+            return "PENDING"
+        return True
 
     def _try_run_by_name(self, command):
         """
@@ -306,7 +312,9 @@ class AutomationEngine:
                         pyautogui.hotkey('alt', 'tab')
 
             elif tag == 'window_switch_to':
-                self._switch_to_app(command, current_os)
+                result = self._switch_to_app(command, current_os)
+                if result == "PENDING":
+                    return "PENDING"
 
             elif tag == 'window_show_all':
                 self._tile_all_windows(current_os)
@@ -524,11 +532,12 @@ class AutomationEngine:
         """
         Switch to a specific application window.
         Extracts app name from command, checks if running, then activates.
+        Returns "PENDING" if no app name could be extracted.
         """
         app_name = self._extract_app_name(command)
         if not app_name:
-            self.speaker.speak("Which application would you like me to switch to?")
-            return
+            self.speaker.speak("Which application window should I switch to?")
+            return "PENDING"
 
         print(f"[Automation] Switching to app: '{app_name}'")
 
