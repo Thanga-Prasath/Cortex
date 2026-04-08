@@ -449,24 +449,8 @@ class CortexEngine:
                     self.status_queue.put(("IDLE", None))
                 continue
 
-            # --- WAKE WORD CHECK ---
-            wake_word = "cortex"
-            
-            if wake_word not in command:
-                # Still allow critical safety exits without wake word for convenience
-                if command not in ["stop", "exit", "bye", "shutdown", "quit"]:
-                    print(f"Ignored (no wake word): {command}")
-                    continue
-            else:
-                # Strip the wake word so the NLU model gets the pure command
-                command = command.replace(wake_word, "").strip()
-                if not command:
-                    # They just said "Cortex"
-                    self.speaker.speak("I am listening.")
-                    continue
-
             # --- SAFETY OVERRIDE ---
-            if command in ["stop", "exit", "bye", "shutdown", "quit"]:
+            if command in ["stop", "exit", "bye", "shutdown", "quit", "cortex stop"]:
                 self.execute_intent('exit', command)
                 break
 
